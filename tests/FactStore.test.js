@@ -1,0 +1,274 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { FactStore } from '../src/FactStore.js';
+import { Fact } from '../src/Fact.js';
+import { GivenProvenance } from '../src/provenance/GivenProvenance.js';
+import { RuleEffectProvenance } from '../src/provenance/RuleEffectProvenance.js';
+
+describe('FactStore', () => {
+  describe('negated facts', () => {
+    it('contains a negated fact after asserting it with negated: true', () => {
+      const store = new FactStore();
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      assert.ok(store.containsNegated('perceivedThreat', 'alice', 'bob'));
+      assert.ok(!store.contains('perceivedThreat', 'alice', 'bob'));
+    });
+
+    it('does not conflate positive and negated facts', () => {
+      const store = new FactStore({ contradictionPolicy: 'allow' });
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob'));
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      assert.ok(store.contains('perceivedThreat', 'alice', 'bob'));
+      assert.ok(store.containsNegated('perceivedThreat', 'alice', 'bob'));
+    });
+
+    it('retracts the negated fact when given a Fact with negated: true', () => {
+      const store = new FactStore();
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      store.retract(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      assert.ok(!store.containsNegated('perceivedThreat', 'alice', 'bob'));
+    });
+
+    it('getStrength and setStrength work for negated facts', () => {
+      const store = new FactStore();
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }), 0.7);
+      assert.equal(store.getStrength('perceivedThreat', ['alice', 'bob'], true), 0.7);
+      store.setStrength('perceivedThreat', ['alice', 'bob'], 0.3, true);
+      assert.equal(store.getStrength('perceivedThreat', ['alice', 'bob'], true), 0.3);
+    });
+  });
+
+  describe('contradiction policy', () => {
+    it('lastWins auto-retracts the opposing fact on assert', () => {
+      const store = new FactStore({ contradictionPolicy: 'lastWins' });
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob'));
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      assert.ok(!store.contains('perceivedThreat', 'alice', 'bob'));
+      assert.ok(store.containsNegated('perceivedThreat', 'alice', 'bob'));
+    });
+
+    it('allow lets both positive and negated coexist', () => {
+      const store = new FactStore({ contradictionPolicy: 'allow' });
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob'));
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      assert.ok(store.contains('perceivedThreat', 'alice', 'bob'));
+      assert.ok(store.containsNegated('perceivedThreat', 'alice', 'bob'));
+    });
+
+    it('block ignores the new assertion when opposition is present', () => {
+      const store = new FactStore({ contradictionPolicy: 'block' });
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob'));
+      store.assert(new Fact('perceivedThreat', 'alice', 'bob', { negated: true }));
+      assert.ok(store.contains('perceivedThreat', 'alice', 'bob'));
+      assert.ok(!store.containsNegated('perceivedThreat', 'alice', 'bob'));
+    });
+
+    it('default contradictionPolicy is lastWins', () => {
+      const store = new FactStore();
+      store.assert(new Fact('likes', 'alice', 'bob'));
+      store.assert(new Fact('likes', 'alice', 'bob', { negated: true }));
+      assert.ok(!store.contains('likes', 'alice', 'bob'));
+    });
+  });
+
+  it('contains a fact after asserting it', () => {
+    const store = new FactStore();
+    store.assert(new Fact('knows', 'alice', 'bob'));
+    assert.ok(store.contains('knows', 'alice', 'bob'));
+  });
+
+  it('does not contain a fact that was never asserted', () => {
+    const store = new FactStore();
+    assert.ok(!store.contains('knows', 'alice', 'bob'));
+  });
+
+  it('no longer contains a fact after retracting it', () => {
+    const store = new FactStore();
+    store.assert(new Fact('knows', 'alice', 'bob'));
+    store.retract(new Fact('knows', 'alice', 'bob'));
+    assert.ok(!store.contains('knows', 'alice', 'bob'));
+  });
+
+  it('returns all matching facts from query', () => {
+    const store = new FactStore();
+    store.assert(new Fact('hasNeed', 'alice', 'companionship'));
+    store.assert(new Fact('hasNeed', 'alice', 'validation'));
+    store.assert(new Fact('hasNeed', 'bob', 'rest'));
+    const results = store.query('hasNeed', 'alice', null);
+    assert.equal(results.length, 2);
+  });
+
+  it('treats null as a wildcard matching any value', () => {
+    const store = new FactStore();
+    store.assert(new Fact('likes', 'alice', 'chess'));
+    assert.ok(store.contains('likes', 'alice', null));
+    assert.ok(!store.contains('likes', 'bob', null));
+  });
+
+  describe('historical queries', () => {
+    it('reports a retracted fact as true at the tick it was active', () => {
+      const store = new FactStore();
+      store.currentTick = 1;
+      store.assert(new Fact('hungry', 'alice'));
+      store.currentTick = 2;
+      store.retract(new Fact('hungry', 'alice'));
+
+      assert.ok(store.containedAt(1, 'hungry', 'alice'));
+      assert.ok(!store.containedAt(2, 'hungry', 'alice'));
+      assert.ok(!store.contains('hungry', 'alice'));
+    });
+
+    it('wasEverTrue returns true for a retracted fact', () => {
+      const store = new FactStore();
+      store.assert(new Fact('tired', 'bob'));
+      store.retract(new Fact('tired', 'bob'));
+      assert.ok(store.wasEverTrue('tired', 'bob'));
+    });
+
+    it('wasEverTrue returns false for a fact never asserted', () => {
+      const store = new FactStore();
+      assert.ok(!store.wasEverTrue('tired', 'bob'));
+    });
+
+    it('queryAt returns the correct state at an earlier tick', () => {
+      const store = new FactStore();
+      store.currentTick = 1;
+      store.assert(new Fact('friends', 'alice', 'bob'));
+      store.currentTick = 3;
+      store.assert(new Fact('friends', 'alice', 'carol'));
+
+      const atTick2 = store.queryAt(2, 'friends', 'alice', null);
+      assert.equal(atTick2.length, 1);
+      assert.equal(atTick2[0].args[1], 'bob');
+    });
+  });
+});
+
+describe('FactStore — canonical records', () => {
+  it('asserting the same fact twice produces one canonical record', () => {
+    const store = new FactStore();
+    store.assert(new Fact('happy', 'alice'));
+    store.assert(new Fact('happy', 'alice'));
+    assert.equal(store.factHistory.length, 1);
+  });
+
+  it('the single canonical record has two assertion events', () => {
+    const store = new FactStore();
+    store.assert(new Fact('happy', 'alice'));
+    store.assert(new Fact('happy', 'alice'));
+    const events = store.factHistory[0].events;
+    assert.equal(events.filter(e => e.type === 'asserted').length, 2);
+  });
+
+  it('retract adds a retraction event to the canonical record', () => {
+    const store = new FactStore();
+    store.assert(new Fact('happy', 'alice'));
+    store.retract(new Fact('happy', 'alice'));
+    const events = store.factHistory[0].events;
+    assert.equal(events.length, 2);
+    assert.equal(events[1].type, 'retracted');
+  });
+
+  it('re-asserting after retraction adds a second assertion event to the same record', () => {
+    const store = new FactStore();
+    store.assert(new Fact('happy', 'alice'));
+    store.retract(new Fact('happy', 'alice'));
+    store.assert(new Fact('happy', 'alice'));
+    assert.equal(store.factHistory.length, 1);
+    const events = store.factHistory[0].events;
+    assert.equal(events.filter(e => e.type === 'asserted').length, 2);
+    assert.equal(events.filter(e => e.type === 'retracted').length, 1);
+    assert.ok(store.contains('happy', 'alice'));
+  });
+
+  it('positive and negated are separate canonical records', () => {
+    const store = new FactStore({ contradictionPolicy: 'allow' });
+    store.assert(new Fact('happy', 'alice'));
+    store.assert(new Fact('happy', 'alice', { negated: true }));
+    assert.equal(store.factHistory.length, 2);
+  });
+});
+
+describe('FactStore — provenance', () => {
+  it('default provenance is GivenProvenance', () => {
+    const store = new FactStore();
+    store.assert(new Fact('happy', 'alice'));
+    const event = store.factHistory[0].events[0];
+    assert.ok(event.provenance instanceof GivenProvenance);
+  });
+
+  it('explicit provenance is stored on the assertion event', () => {
+    const store = new FactStore();
+    const prov  = new RuleEffectProvenance({ name: 'test-rule' }, {}, []);
+    store.assert(new Fact('happy', 'alice'), 1.0, prov);
+    const event = store.factHistory[0].events[0];
+    assert.ok(event.provenance instanceof RuleEffectProvenance);
+    assert.equal(event.provenance.rule.name, 'test-rule');
+  });
+
+  it('hook-generated provenance is called when no explicit provenance is passed', () => {
+    const store = new FactStore();
+    store.useProvenance(() => new RuleEffectProvenance({ name: 'from-hook' }, {}, []));
+    store.assert(new Fact('happy', 'alice'));
+    const event = store.factHistory[0].events[0];
+    assert.ok(event.provenance instanceof RuleEffectProvenance);
+    assert.equal(event.provenance.rule.name, 'from-hook');
+  });
+
+  it('explicit provenance wins over the hook', () => {
+    const store    = new FactStore();
+    const explicit = new RuleEffectProvenance({ name: 'explicit' }, {}, []);
+    store.useProvenance(() => new RuleEffectProvenance({ name: 'from-hook' }, {}, []));
+    store.assert(new Fact('happy', 'alice'), 1.0, explicit);
+    const event = store.factHistory[0].events[0];
+    assert.equal(event.provenance.rule.name, 'explicit');
+  });
+
+  it('retraction event carries GivenProvenance by default', () => {
+    const store = new FactStore();
+    store.assert(new Fact('happy', 'alice'));
+    store.retract(new Fact('happy', 'alice'));
+    const retractEvent = store.factHistory[0].events.find(e => e.type === 'retracted');
+    assert.ok(retractEvent.provenance instanceof GivenProvenance);
+  });
+
+  it('explicit retraction provenance is stored on the retraction event', () => {
+    const store = new FactStore();
+    const prov  = new RuleEffectProvenance({ name: 'caused-retraction' }, {}, []);
+    store.assert(new Fact('happy', 'alice'));
+    store.retract(new Fact('happy', 'alice'), prov);
+    const retractEvent = store.factHistory[0].events.find(e => e.type === 'retracted');
+    assert.ok(retractEvent.provenance instanceof RuleEffectProvenance);
+  });
+});
+
+describe('FactStore — _getCanonicalRecord', () => {
+  it('returns the canonical record for an asserted fact', () => {
+    const store = new FactStore();
+    const fact  = new Fact('happy', 'alice');
+    store.assert(fact);
+    const record = store._getCanonicalRecord(fact);
+    assert.ok(record !== null);
+    assert.equal(record.fact.name, 'happy');
+  });
+
+  it('returns null for a fact that has never been asserted', () => {
+    const store = new FactStore();
+    assert.equal(store._getCanonicalRecord(new Fact('unknown', 'alice')), null);
+  });
+
+  it('RuleEffectProvenance.premiseRecords references canonical records', () => {
+    const store  = new FactStore();
+    const premFact = new Fact('tired', 'alice');
+    store.assert(premFact);
+    const premRecord = store._getCanonicalRecord(premFact);
+
+    const prov = new RuleEffectProvenance({ name: 'r' }, {}, [premRecord]);
+    store.assert(new Fact('sleepy', 'alice'), 1.0, prov);
+
+    const sleepyRecord = store._getCanonicalRecord(new Fact('sleepy', 'alice'));
+    const event        = sleepyRecord.events[0];
+    assert.equal(event.provenance.premiseRecords[0], premRecord);
+    assert.equal(event.provenance.premiseRecords[0].fact.name, 'tired');
+  });
+});

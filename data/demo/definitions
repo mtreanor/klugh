@@ -1,0 +1,20 @@
+define "can pair — strong friendship"
+  knows(?X, ?Y)
+  ^ friendship.strong(?X, ?Y)
+  => canPair(?X, ?Y)
+
+define "can pair — mutual trust (private)"
+  trusts(?X, ?Y)
+  ^ trusts(?Y, ?X)
+  => ?X.canPair(?X, ?Y)
+
+define "can pair — no perceived threat (private)"
+  knows(?X, ?Y)
+  ^ not ?X.perceivedThreat(?X, ?Y)
+  => ?X.canPair(?X, ?Y)
+
+define "can have need met"
+  canPair(?X, ?Y)
+  ^ hasNeed(?X, ?N)
+  ^ canSatisfy(?Y, ?X, ?N)
+  => canHaveNeedMet(?X, ?Y)

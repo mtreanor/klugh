@@ -1,0 +1,43 @@
+world
+  knows(alice, carol) [at: -8]
+  exploited(alice, carol) [at: -5]
+  treatedWithRespect(alice, carol) [at: -3]
+  hadConflict(alice, carol) [at: -1]
+  hadConflict(alice, bob) [at: -15]
+  exploited(alice, bob) [at: -30]
+  knows(alice, bob)
+  knows(alice, carol)
+  knows(bob, alice)
+  respectsHistory(alice, carol)
+  hasNeed(alice, companionship)
+  hasNeed(bob, validation)
+  canSatisfy(bob, alice, companionship)
+  canSatisfy(alice, bob, validation)
+  respectsHistory(alice, bob)
+  friendship(alice, bob) = 85
+  friendship(alice, carol) = 30
+  hasKnowledge(alice, karate)
+  hasKnowledge(alice, philosophy)
+  hasKnowledge(bob, philosophy)
+  hasKnowledge(carol, karate)
+  collects(alice, antiqueClock)
+  collects(bob, rarePainting)
+  collects(carol, antiqueClock)
+  valuable(rarePainting)
+  valuable(antiqueClock)
+  trusts(bob, alice)
+  trusts(alice, bob)
+  -trusts(alice, carol)
+
+private alice
+  friendship(bob, alice) = 85
+  perceivedThreat(carol, alice) @ 1.0
+  perceivedThreat(alice, carol)
+
+private bob
+  friendship(alice, bob) = 40
+
+private carol
+  friendship(alice, carol) = 60
+  perceivedThreat(carol, alice) @ 0.8
+  -perceivedThreat(carol, alice) @ 0.3

@@ -1,0 +1,40 @@
+{
+  "predicates": {
+    "knows":             { "type": "boolean",    "symmetric": true, "args": ["agent", "agent"] },
+    "trusts":            { "type": "boolean",    "args": ["agent", "agent"] },
+    "hasNeed":           { "type": "boolean",    "args": ["agent", "string"] },
+    "canSatisfy":        { "type": "boolean",    "args": ["agent", "agent", "string"] },
+    "respectsHistory":   { "type": "boolean",    "args": ["agent", "agent"] },
+    "treatedWithRespect":{ "type": "boolean",    "args": ["agent", "agent"] },
+    "hadConflict":       { "type": "historical", "args": ["agent", "agent"] },
+    "exploited":         { "type": "historical", "args": ["agent", "agent"] },
+    "canHaveNeedMet":    { "type": "derived",    "args": ["agent", "agent"] },
+    "canPair":           { "type": "derived",    "args": ["agent", "agent"] },
+    "friendship": {
+      "type": "numeric", "args": ["agent", "agent"],
+      "minValue": 0, "maxValue": 100, "default": 50,
+      "tiers": {
+        "hostile": [0,  20],
+        "cold":    [20, 40],
+        "neutral": [40, 60],
+        "warm":    [60, 80],
+        "strong":  [80, 100]
+      }
+    },
+    "hasKnowledge":  { "type": "boolean",  "args": ["agent", "knowledge"] },
+    "collects":      { "type": "boolean",  "args": ["agent", "item"] },
+    "valuable":      { "type": "boolean",  "args": ["item"] },
+
+    "exploitative": { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
+    "self-serving":  { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
+    "respectful":    { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
+    "considerate":   { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
+    "cautious":      { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
+
+    "perceivedThreat":      { "type": "belief", "args": ["agent", "agent"] },
+    "perceivedAlly":        { "type": "belief", "args": ["agent", "agent"] },
+    "vigilant":             { "type": "belief", "args": ["agent", "agent"] },
+    "feelingOfObligation":  { "type": "belief", "args": ["agent", "agent"] },
+    "deepFear":             { "type": "belief", "args": ["agent", "agent"] }
+  }
+}

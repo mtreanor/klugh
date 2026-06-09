@@ -1,0 +1,583 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { RuleParser } from '../../src/loader/RuleParser.js';
+import { PredicateSchema } from '../../src/PredicateSchema.js';
+
+const parser = new RuleParser();
+
+describe('RuleParser', () => {
+  describe('rules — predicates', () => {
+    it('parses a single predicate as type fact by default', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => exploitative(?SELF, ?Y) += 3.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], { type: 'fact', name: 'knows', args: ['?SELF', '?Y'] });
+    });
+
+    it('parses ^ conjunction into multiple predicates', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          ^ canHaveNeedMet(?SELF, ?Y)
+          => exploitative(?SELF, ?Y) += 3.0
+      `);
+
+      assert.equal(rules[0].predicates.length, 2);
+      assert.equal(rules[0].predicates[1].name, 'canHaveNeedMet');
+    });
+
+    it('parses ~ as weak-negation (sugar: absent OR explicitly disbelieved)', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          ~hasNeed(?SELF, _)
+          => considerate(?SELF, ?Y) += 1.5
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'weak-negation',
+        predicate: { type: 'fact', name: 'hasNeed', args: ['?SELF', null] },
+      });
+    });
+
+    it('parses not pred as NAF (absence check)', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          not hasNeed(?SELF, _)
+          => considerate(?SELF, ?Y) += 1.5
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'negation',
+        predicate: { type: 'fact', name: 'hasNeed', args: ['?SELF', null] },
+      });
+    });
+
+    it('parses -pred LHS as explicit-negation (active disbelief present)', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          -hasNeed(?SELF, _)
+          => relieved(?SELF) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'explicit-negation',
+        predicate: { type: 'fact', name: 'hasNeed', args: ['?SELF', null] },
+      });
+    });
+
+    it('parses not -pred LHS as not-negated (no explicit disbelief present)', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          not -hasNeed(?SELF, _)
+          => uncertain(?SELF) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'not-negated',
+        predicate: { type: 'fact', name: 'hasNeed', args: ['?SELF', null] },
+      });
+    });
+
+    it('parses [history] as a historical-window predicate with no window', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          hadConflict(?SELF, ?Y) [history]
+          => cautious(?SELF, ?Y) += 2.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], { type: 'historical-window', name: 'hadConflict', args: ['?SELF', '?Y'] });
+    });
+
+    it('parses dot notation as a numeric-tier predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          friendship.strong(?SELF, ?Y)
+          => respectful(?SELF, ?Y) += 3.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], { type: 'numeric-tier', name: 'friendship', tier: 'strong', args: ['?SELF', '?Y'] });
+    });
+
+    it('parses _ as a null wildcard argument', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          hasNeed(?SELF, _)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].args[1], null);
+    });
+
+    it('parses [importance: N] and wraps the predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [importance: 2.0]
+          => exploitative(?SELF, ?Y) += 3.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        predicate: { type: 'fact', name: 'knows', args: ['?SELF', '?Y'] },
+        importance: 2.0,
+      });
+    });
+
+    it('leaves predicates without brackets at default importance', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => exploitative(?SELF, ?Y) += 3.0
+      `);
+
+      // No importance wrapper — plain predicate object
+      assert.ok('type' in rules[0].predicates[0]);
+      assert.ok(!('importance' in rules[0].predicates[0]));
+    });
+  });
+
+  describe('rules — history and temporal predicates', () => {
+    it('parses [history] as a historical-window predicate with no window', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [history]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'historical-window', name: 'knows', args: ['?SELF', '?Y'],
+      });
+    });
+
+    it('parses [history: N] as a historical-window predicate with a window', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [history: 5]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'historical-window', name: 'knows', args: ['?SELF', '?Y'], window: 5,
+      });
+    });
+
+    it('parses [history, importance: N] setting both modifiers', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [history, importance: 2]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        predicate: { type: 'historical-window', name: 'knows', args: ['?SELF', '?Y'] },
+        importance: 2,
+      });
+    });
+
+    it('parses a two-step temporal chain with then', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) then hadConflict(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'temporal-chain',
+        steps: [
+          { name: 'knows',       args: ['?SELF', '?Y'] },
+          { name: 'hadConflict', args: ['?SELF', '?Y'] },
+        ],
+      });
+    });
+
+    it('parses then[N] as a temporal chain step with a within constraint', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) then[5] hadConflict(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'temporal-chain',
+        steps: [
+          { name: 'knows',       args: ['?SELF', '?Y'] },
+          { name: 'hadConflict', args: ['?SELF', '?Y'], within: 5 },
+        ],
+      });
+    });
+
+    it('parses a three-step temporal chain', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) then[5] hadConflict(?SELF, ?Y) then[3] madeUp(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'temporal-chain');
+      assert.equal(rules[0].predicates[0].steps.length, 3);
+      assert.equal(rules[0].predicates[0].steps[2].within, 3);
+    });
+
+    it('parses [importance] on a temporal chain', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) then hadConflict(?SELF, ?Y) [importance: 2]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        predicate: {
+          type: 'temporal-chain',
+          steps: [
+            { name: 'knows',       args: ['?SELF', '?Y'] },
+            { name: 'hadConflict', args: ['?SELF', '?Y'] },
+          ],
+        },
+        importance: 2,
+      });
+    });
+  });
+
+  describe('rules — effects', () => {
+    it('parses => tag(args) += weight as a tag contribution', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => exploitative(?SELF, ?Y) += 3.0
+      `);
+
+      assert.deepEqual(rules[0].effects, [{
+        type: 'adjust-numeric', name: 'exploitative', args: ['?SELF', '?Y'], delta: 3.0,
+        ownerVar: null, ownerEntity: null, strength: 1.0,
+      }]);
+    });
+
+    it('parses hyphenated tag names in effects', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => self-serving(?SELF, ?Y) += 2.0
+      `);
+
+      assert.equal(rules[0].effects[0].name, 'self-serving');
+    });
+
+    it('records rule name', () => {
+      const { rules } = parser.parse(`
+        rule "My rule name"
+          knows(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].name, 'My rule name');
+    });
+
+    it('parses not pred RHS as retract of positive fact', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => not knows(?SELF, ?Y)
+      `);
+
+      assert.deepEqual(rules[0].effects[0], {
+        type: 'retract', name: 'knows', args: ['?SELF', '?Y'],
+        negated: false, ownerVar: null, ownerEntity: null,
+      });
+    });
+
+    it('parses not -pred RHS as retract of negated fact', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => not -knows(?SELF, ?Y)
+      `);
+
+      assert.deepEqual(rules[0].effects[0], {
+        type: 'retract', name: 'knows', args: ['?SELF', '?Y'],
+        negated: true, ownerVar: null, ownerEntity: null,
+      });
+    });
+
+    it('parses -pred RHS as assert with negated: true', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => -perceivedThreat(?SELF, ?Y)
+      `);
+
+      assert.deepEqual(rules[0].effects[0], {
+        type: 'assert', name: 'perceivedThreat', args: ['?SELF', '?Y'],
+        negated: true, ownerVar: null, ownerEntity: null, strength: 1.0,
+      });
+    });
+  });
+
+  describe('multiple top-level declarations', () => {
+    it('parses multiple rules', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => exploitative(?SELF, ?Y) += 3.0
+
+        rule "R2"
+          knows(?SELF, ?Y)
+          => respectful(?SELF, ?Y) += 2.0
+      `);
+
+      assert.equal(rules.length, 2);
+    });
+  });
+
+  describe('schema-aware type inference', () => {
+    const schema = new PredicateSchema({
+      predicates: {
+        knows:          { type: 'boolean',  args: ['agent', 'agent'] },
+        canHaveNeedMet: { type: 'derived',  args: ['agent', 'agent'] },
+      },
+    });
+    const schemaParser = new RuleParser(schema);
+
+    it('infers fact for boolean predicates', () => {
+      const { rules } = schemaParser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'fact');
+    });
+
+    it('infers derived for derived predicates', () => {
+      const { rules } = schemaParser.parse(`
+        rule "R1"
+          canHaveNeedMet(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'derived');
+    });
+
+    it('falls back to fact for predicates not in the schema', () => {
+      const { rules } = schemaParser.parse(`
+        rule "R1"
+          unknownPredicate(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'fact');
+    });
+  });
+
+  describe('state file', () => {
+    it('parses a bare name as type assert', () => {
+      const { worldState } = parser.parseState('world\n  knows(alice, bob)');
+      assert.deepEqual(worldState[0], {
+        type: 'assert', name: 'knows', args: ['alice', 'bob'], ownerVar: null, ownerEntity: null, strength: 1.0,
+      });
+    });
+
+    it('parses name(args) [at: N] as a timed assert', () => {
+      const { worldState } = parser.parseState('world\n  hadConflict(alice, carol) [at: 0]');
+      assert.deepEqual(worldState[0], {
+        type: 'assert', name: 'hadConflict', args: ['alice', 'carol'], tick: 0,
+        ownerVar: null, ownerEntity: null, strength: 1.0,
+      });
+    });
+
+    it('parses name(args) = N as set-numeric', () => {
+      const { worldState } = parser.parseState('world\n  friendship(alice, bob) = 85');
+      assert.deepEqual(worldState[0], {
+        type: 'set-numeric', name: 'friendship', args: ['alice', 'bob'], value: 85,
+        ownerVar: null, ownerEntity: null, strength: 1.0,
+      });
+    });
+
+    it('parses strength with @ suffix', () => {
+      const { worldState } = parser.parseState('world\n  perceivedThreat(alice, bob) @ 0.85');
+      assert.equal(worldState[0].strength, 0.85);
+    });
+
+    it('parses multiple assertions in order', () => {
+      const { worldState } = parser.parseState(`
+        world
+          knows(alice, bob)
+          knows(alice, carol)
+          friendship(alice, bob) = 85
+      `);
+      assert.equal(worldState.length, 3);
+      assert.equal(worldState[0].name, 'knows');
+      assert.equal(worldState[1].name, 'knows');
+      assert.equal(worldState[2].type, 'set-numeric');
+    });
+
+    it('parses private blocks', () => {
+      const { privateStates } = parser.parseState(`
+        world
+          knows(alice, bob)
+        private alice
+          friendship(bob, alice) = 85
+      `);
+      assert.equal(privateStates.get('alice').length, 1);
+      assert.equal(privateStates.get('alice')[0].type, 'set-numeric');
+    });
+
+    it('returns empty arrays when blocks are absent', () => {
+      const { worldState, privateStates } = parser.parseState('');
+      assert.deepEqual(worldState, []);
+      assert.equal(privateStates.size, 0);
+    });
+  });
+
+  describe('error handling', () => {
+    it('ignores # line comments', () => {
+      const src = `
+        # this is a comment
+        rule "R1"
+          knows(?SELF, ?Y) # inline comment
+          => toward(?SELF, ?Y) += 1.0
+      `;
+      const result = parser.parse(src);
+      assert.equal(result.rules[0].name, 'R1');
+      assert.equal(result.rules[0].predicates.length, 1);
+    });
+
+    it('throws when rule or world keyword is missing', () => {
+      assert.throws(() => parser.parse('knows(?SELF, ?Y) => test += 1.0'), /Expected 'rule'/);
+      assert.throws(() => parser.parse('world\n  knows(alice, bob)'), /state file/);
+    });
+
+    it('throws when a rule has no predicates', () => {
+      assert.throws(
+        () => parser.parse('rule "R1" => test(?SELF, ?Y) += 1.0'),
+        /no predicates/
+      );
+    });
+  });
+
+  describe('count predicates', () => {
+    it('parses |pred| > N as a count predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          |friendship.strong(?SELF, _)| > 4
+          => popular(?SELF) += 2.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type:      'count',
+        predicate: { type: 'numeric-tier', name: 'friendship', tier: 'strong', args: ['?SELF', null] },
+        operator:  '>',
+        threshold: 4,
+      });
+    });
+
+    it('parses |pred| < N as a count predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          |knows(?SELF, _)| < 2
+          => isolated(?SELF) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type:      'count',
+        predicate: { type: 'fact', name: 'knows', args: ['?SELF', null] },
+        operator:  '<',
+        threshold: 2,
+      });
+    });
+
+    it('parses |pred| = N as a count predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          |knows(?SELF, _)| = 1
+          => lonely(?SELF) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].operator, '=');
+      assert.equal(rules[0].predicates[0].threshold, 1);
+    });
+  });
+
+  describe('numeric-value predicates', () => {
+    it('parses name(args) < N as a numeric-value predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          friendship(?SELF, ?Y) < -3
+          => wary(?SELF, ?Y) += 2.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type:      'numeric-value',
+        name:      'friendship',
+        args:      ['?SELF', '?Y'],
+        operator:  '<',
+        threshold: -3,
+      });
+    });
+
+    it('parses name(args) > N as a numeric-value predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          friendship(?SELF, ?Y) > 50
+          => close(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'numeric-value');
+      assert.equal(rules[0].predicates[0].operator, '>');
+      assert.equal(rules[0].predicates[0].threshold, 50);
+    });
+
+    it('parses name(args) = N as a numeric-value predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          friendship(?SELF, ?Y) = 0
+          => neutral(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'numeric-value');
+      assert.equal(rules[0].predicates[0].operator, '=');
+    });
+
+    it('parses name(args) >= N as a numeric-value predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          friendship(?SELF, ?Y) >= 60
+          => close(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].operator, '>=');
+      assert.equal(rules[0].predicates[0].threshold, 60);
+    });
+
+    it('parses name(args) <= N as a numeric-value predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          friendship(?SELF, ?Y) <= 20
+          => distant(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].operator, '<=');
+      assert.equal(rules[0].predicates[0].threshold, 20);
+    });
+
+    it('parses >= in definition premises', () => {
+      const schema = new PredicateSchema({
+        predicates: {
+          knows:   { type: 'boolean', args: ['agent', 'agent'] },
+          bond:    { type: 'numeric', args: ['agent', 'agent'], minValue: 0, maxValue: 100, default: 50, tiers: {} },
+          canPair: { type: 'derived', args: ['agent', 'agent'] },
+        },
+      });
+      const defParser = new RuleParser(schema);
+      const { definitions } = defParser.parseDefinitions(`
+        define "can pair"
+          knows(?X, ?Y)
+          ^ bond(?X, ?Y) >= 40
+          => canPair(?X, ?Y)
+      `);
+
+      assert.equal(definitions[0].predicates[1].operator, '>=');
+      assert.equal(definitions[0].predicates[1].threshold, 40);
+    });
+  });
+});

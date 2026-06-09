@@ -1,0 +1,18 @@
+{
+  "agent": {
+    "privateStore": true,
+    "alice": {},
+    "bob": {},
+    "carol": {
+      "privateStore": { "active": true, "contradictionPolicy": "allow" }
+    }
+  },
+  "knowledge": {
+    "karate": {},
+    "philosophy": {}
+  },
+  "item": {
+    "antiqueClock": {},
+    "rarePainting": {}
+  }
+}

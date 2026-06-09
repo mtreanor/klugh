@@ -1,0 +1,62 @@
+import { LogicalVariable } from '../LogicalVariable.js';
+import { Predicate } from '../Predicate.js';
+
+export class StateOperation {
+  constructor(type, name, args, { delta, value, numericOperation = null, owner = null, ownerIsVariable = false, strength = 1.0, negated = false } = {}) {
+    this.type              = type;
+    this.name              = name;
+    this.args              = args;
+    this.delta             = delta;
+    this.value             = value;
+    this.numericOperation  = numericOperation;
+    this.owner             = owner;
+    this.ownerIsVariable   = ownerIsVariable;
+    this.strength          = strength;
+    this.negated           = negated;
+  }
+
+  resolveArgs(binding) {
+    return this.args.map(arg => {
+      const value = binding.resolve(arg);
+      if (value !== null && typeof value === 'object' && 'name' in value) {
+        return value.name;
+      }
+      return value;
+    });
+  }
+
+  describe(binding) {
+    const argsStr = this.args.map(a => Predicate.renderArg(a, binding)).join(', ');
+    switch (this.type) {
+      case 'assert':
+        return `+${this.name}(${argsStr})`;
+      case 'retract':
+        return `-${this.name}(${argsStr})`;
+      case 'adjust-numeric': {
+        const op = this.delta >= 0 ? '+=' : '-=';
+        return `${this.name}(${argsStr}) ${op} ${Math.abs(this.delta)}`;
+      }
+      case 'set-numeric':
+        return `${this.name}(${argsStr}) = ${this.value}`;
+      case 'actuate':
+        return this.negated ? `!${this.name}(${argsStr})` : `actuate:${this.name}(${argsStr})`;
+      case 'actuate-numeric':
+        return `actuate:${this.name}(${argsStr}) ${this.numericOperation} ${this.delta ?? this.value}`;
+      default:
+        return `${this.type} ${this.name}(${argsStr})`;
+    }
+  }
+}
+
+export function resolveOperationArgs(args, binding) {
+  return args.map(arg => {
+    if (arg instanceof LogicalVariable) {
+      const value = binding.resolve(arg);
+      if (value !== null && typeof value === 'object' && 'name' in value) {
+        return value.name;
+      }
+      return value;
+    }
+    return arg;
+  });
+}

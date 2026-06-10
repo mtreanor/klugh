@@ -15,7 +15,6 @@ It's designed to be embedded in applications that need to reason about agent bel
 | **Explicit negation**     | `-pred(args)` — active disbelief, not just absence                                |
 | **Negation as failure**   | `not pred(args)` — true when a fact is simply absent                              |
 | **Weak negation**         | `~pred(args)` — absent OR explicitly disbelieved                                  |
-| **Historical predicates** | Facts that are permanently true once asserted                                     |
 | **Historical queries**    | `[history]` and `[history: N]` — was this ever true? recently?                    |
 | **Numeric values**        | Continuous values with named tiers (`friendship.strong`) and comparison operators |
 | **Derived predicates**    | Named inferences computed by backward chaining; cached per tick                   |
@@ -243,5 +242,7 @@ Under the default `lastWins` contradiction policy, asserting `-pred` automatical
 ---
 
 ## Full documentation
+
+`docs/quickstart.md` walks through setup end-to-end: entities, predicates, state, the REPL, and using the `Interpreter` and `ForwardChainer` in application code.
 
 `docs/language.md` covers everything: the full predicate schema format, all rule and query forms, private store configuration, sensor predicates, the derive system, and complete REPL command reference.

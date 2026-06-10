@@ -2,7 +2,7 @@
 
 ## What the language supports
 
-**[Predicate types](#predicate-schema)** — [`boolean`](#predicate-types) (storable, negatable), [`historical`](#predicate-types) (permanently true once asserted), [`derived`](#derived-predicates) (computed by backward chaining, never stored), [`numeric`](#predicate-types) (continuous value with named tiers), [`sensor`](#sensor-predicates) (boolean computed by application-layer code), [`sensor-numeric`](#sensor-predicates) (numeric computed by application-layer code, queryable by tier and comparison).
+**[Predicate types](#predicate-schema)** — [`boolean`](#predicate-types) (storable, negatable), [`derived`](#derived-predicates) (computed by backward chaining, never stored), [`numeric`](#predicate-types) (continuous value with named tiers), [`sensor`](#sensor-predicates) (boolean computed by application-layer code), [`sensor-numeric`](#sensor-predicates) (numeric computed by application-layer code, queryable by tier and comparison).
 
 **[Negation](#negation)** — four operators with distinct semantics:
 | Operator | Meaning |
@@ -27,7 +27,7 @@
 
 The logic system uses a plain-text DSL for declaring state and evaluating predicate queries. Predicates and state are parsed by `RuleParser`. The predicate schema (a JSON file) is the single source of truth for what predicates exist and what types their arguments take.
 
-Scenario data for the logic REPL is wired through `project.config.json`:
+Scenario data for the REPL is wired through `project.config.json`:
 
 | File | Purpose |
 |------|---------|
@@ -49,7 +49,7 @@ The schema is a JSON file declaring every predicate the system knows about.
   "predicates": {
     "knows":       { "type": "boolean",    "symmetric": true, "args": ["agent", "agent"] },
     "hasNeed":     { "type": "boolean",    "args": ["agent", "string"] },
-    "hadConflict": { "type": "historical", "args": ["agent", "agent"] },
+    "hadConflict": { "type": "boolean",    "args": ["agent", "agent"] },
     "canHelp":     { "type": "derived",    "args": ["agent", "agent"] },
     "mood": {
       "type": "numeric", "args": ["agent"],
@@ -76,7 +76,6 @@ Predicate names must not collide with entity type names or entity instance names
 | Type | Description |
 |------|-------------|
 | `boolean` | Currently true or false. Stored in a fact store. Supports explicit negation (see below). |
-| `historical` | Treated as permanently true once asserted — retraction is never checked. |
 | `derived` | Computed at query time — defined by authored derive rules and/or a code handler. Never stored as a fact. |
 | `numeric` | A continuous value in `[minValue, maxValue]`, queryable by named tier or direct comparison. |
 | `sensor` | Boolean truth computed on demand by application-layer code. Never stored. See [Sensor predicates](#sensor-predicates). |
@@ -785,7 +784,7 @@ Sensors cannot be asserted or retracted in state files. Their value is always co
 
 ## Using the REPL
 
-Run `npm run logic` to open an interactive query prompt against the scenario in `project.config.json`. Queries are predicate conjunctions using the same syntax as rule LHS predicates. Variables are enumerated; binding constraints above apply.
+Run `npm run demo` to open an interactive query prompt against the active scenario in `project.config.json`. Queries are predicate conjunctions using the same syntax as rule LHS predicates. Variables are enumerated; binding constraints above apply.
 
 ### Commands
 

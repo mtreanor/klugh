@@ -1,0 +1,11 @@
+{
+  "active": "demo",
+  "scenarios": {
+    "demo": {
+      "predicates":  "data/demo/predicates.json",
+      "entities":    "data/demo/entities.json",
+      "state":       "data/demo/state",
+      "definitions": "data/demo/definitions"
+    }
+  }
+}

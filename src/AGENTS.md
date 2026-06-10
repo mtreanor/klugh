@@ -46,7 +46,7 @@ Key methods:
 
 ### PredicateSchema
 
-Loaded from `predicates.json`. Declares every predicate that can be asserted, including type (`boolean`, `historical`, `numeric`, `derived`), argument types, whether it is `symmetric`, and for numerics: `minValue`, `maxValue`, `default`, and named tiers. `RuleLoader` enforces the schema at load time.
+Loaded from `predicates.json`. Declares every predicate that can be asserted, including type (`boolean`, `numeric`, `derived`), argument types, whether it is `symmetric`, and for numerics: `minValue`, `maxValue`, `default`, and named tiers. `RuleLoader` enforces the schema at load time.
 
 A `symmetric` predicate treats both argument orderings as equivalent: asserting `knows(alice, bob)` means queries for `knows(bob, alice)` also return true, and contradiction detection checks both orderings. Only one direction needs to be declared in the state file.
 

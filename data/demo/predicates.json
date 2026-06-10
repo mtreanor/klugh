@@ -6,8 +6,8 @@
     "canSatisfy":        { "type": "boolean",    "args": ["agent", "agent", "string"] },
     "respectsHistory":   { "type": "boolean",    "args": ["agent", "agent"] },
     "treatedWithRespect":{ "type": "boolean",    "args": ["agent", "agent"] },
-    "hadConflict":       { "type": "historical", "args": ["agent", "agent"] },
-    "exploited":         { "type": "historical", "args": ["agent", "agent"] },
+    "hadConflict":       { "type": "boolean", "args": ["agent", "agent"] },
+    "exploited":         { "type": "boolean", "args": ["agent", "agent"] },
     "canHaveNeedMet":    { "type": "derived",    "args": ["agent", "agent"] },
     "canPair":           { "type": "derived",    "args": ["agent", "agent"] },
     "friendship": {

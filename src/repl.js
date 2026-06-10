@@ -4,14 +4,15 @@ import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 import { Interpreter } from './Interpreter.js';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
-const config   = JSON.parse(readFileSync(join(repoRoot, 'project.config.json'), 'utf-8')).logic;
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const config   = JSON.parse(readFileSync(join(repoRoot, 'project.config.json'), 'utf-8'));
+const scenario = config.scenarios[config.active];
 
 const paths = {
-  predicates: resolve(repoRoot, config.predicates),
-  entities:   resolve(repoRoot, config.entities),
-  state:      resolve(repoRoot, config.state),
-  definitions: config.definitions ? resolve(repoRoot, config.definitions) : null,
+  predicates:  resolve(repoRoot, scenario.predicates),
+  entities:    resolve(repoRoot, scenario.entities),
+  state:       resolve(repoRoot, scenario.state),
+  definitions: scenario.definitions ? resolve(repoRoot, scenario.definitions) : null,
 };
 
 const interp = new Interpreter(paths);
@@ -185,7 +186,7 @@ function printDegreeResults(applications) {
   console.log(`  — ${visible.length} binding${visible.length === 1 ? '' : 's'}`);
 }
 
-console.log('Logic interpreter ready. Ctrl+D to exit.');
+console.log('Ready. Ctrl+D to exit.');
 console.log();
 console.log('  query:     knows(?X, ?Y) ^ friendship.strong(alice, ?Y)');
 console.log('  negation:  not trusts(alice, ?Y)  |  -trusts(alice, carol)  |  ~trusts(alice, carol)');

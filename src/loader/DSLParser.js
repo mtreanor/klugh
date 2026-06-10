@@ -409,7 +409,7 @@ export class DSLParser {
   resolveType(name) {
     if (!this.predicateSchema || !this.predicateSchema.hasDefinition(name)) return 'fact';
     const schemaType = this.predicateSchema.getDefinition(name).type;
-    if (schemaType === 'boolean' || schemaType === 'belief' || schemaType === 'historical') return 'fact';
+    if (schemaType === 'boolean' || schemaType === 'belief') return 'fact';
     if (schemaType === 'derived') return 'derived';
     if (schemaType === 'sensor') return 'sensor';
     return 'fact';

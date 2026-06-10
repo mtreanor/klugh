@@ -93,8 +93,6 @@ export class RuleLoader {
     switch (data.type) {
       case 'fact':
         return new FactPredicate(data.name, ...this.resolveArgs(data.args));
-      case 'historical':
-        return new HistoricalWindowPredicate(data.name, this.resolveArgs(data.args), null);
       case 'historical-window':
         return new HistoricalWindowPredicate(data.name, this.resolveArgs(data.args), data.window ?? null, data.tier ?? null);
       case 'derived':

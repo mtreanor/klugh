@@ -44,9 +44,6 @@ export class RuleSerializer {
     if (pred.type === 'not-negated') {
       return `not -${this.serializePredicate(pred.predicate)}`;
     }
-    if (pred.type === 'historical') {
-      return `${pred.name}(${this.serializeArgs(pred.args)}) [history]`;
-    }
     if (pred.type === 'historical-window') {
       const modifier = pred.window !== undefined ? `[history: ${pred.window}]` : '[history]';
       const base = pred.tier ? `${pred.name}.${pred.tier}` : pred.name;

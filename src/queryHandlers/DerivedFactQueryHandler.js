@@ -158,10 +158,14 @@ export class DerivedFactQueryHandler extends QueryHandler {
     return b;
   }
 
+  clearCache() {
+    this.cache.clear();
+    this.proofPathCache.clear();
+  }
+
   ensureCacheForTick(tick) {
     if (this.cacheTick !== tick) {
-      this.cache.clear();
-      this.proofPathCache.clear();
+      this.clearCache();
       this.cacheTick = tick;
     }
   }

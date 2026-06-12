@@ -62,7 +62,7 @@ For each rule it:
 1. Collects logical variables and infers their types from the schema
 2. Generates all candidate bindings (Cartesian product of entity registries, filtered by `?SELF` pre-binding)
 3. Evaluates each predicate against the binding via `evaluationContext`
-4. Computes `truthDegree = satisfiedImportance / totalImportance`
+4. Computes `satisfactionScore = satisfiedImportance / totalImportance`
 5. Keeps applications above the `minimumTruthDegree` threshold
 
 For variables with no schema type entry (e.g. string need values), the evaluator scans the fact store for distinct values at the relevant argument position rather than failing.

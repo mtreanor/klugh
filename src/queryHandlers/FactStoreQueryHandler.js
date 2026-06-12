@@ -9,20 +9,11 @@ export class FactStoreQueryHandler extends QueryHandler {
 
   evaluate(predicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
+    const tick         = evaluationContext?.currentTick ?? factStore.currentTick;
     const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
-    if (factStore.contains(predicate.name, ...resolvedArgs)) return true;
+    if (factStore.containedAt(tick, predicate.name, ...resolvedArgs)) return true;
     if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
-      return factStore.contains(predicate.name, resolvedArgs[1], resolvedArgs[0]);
-    }
-    return false;
-  }
-
-  evaluateHistorical(predicate, binding, evaluationContext) {
-    const factStore    = this.resolveFactStore(evaluationContext);
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
-    if (factStore.wasEverTrue(predicate.name, ...resolvedArgs)) return true;
-    if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
-      return factStore.wasEverTrue(predicate.name, resolvedArgs[1], resolvedArgs[0]);
+      return factStore.containedAt(tick, predicate.name, resolvedArgs[1], resolvedArgs[0]);
     }
     return false;
   }
@@ -31,7 +22,7 @@ export class FactStoreQueryHandler extends QueryHandler {
     const factStore    = this.resolveFactStore(evaluationContext);
     const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
     const check = (args) => window === null
-      ? factStore.wasEverTrue(predicate.name, ...args)
+      ? factStore.wasEverTrueAtOrBefore(predicate.name, args, currentTick)
       : factStore.wasEverTrueInWindow(predicate.name, args, window, currentTick);
     if (check(resolvedArgs)) return true;
     if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
@@ -42,32 +33,37 @@ export class FactStoreQueryHandler extends QueryHandler {
 
   evaluateExplicitNegation(predicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
+    const tick         = evaluationContext?.currentTick ?? factStore.currentTick;
     const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
-    if (factStore.containsNegated(predicate.name, ...resolvedArgs)) return true;
+    if (factStore.containsNegatedAt(tick, predicate.name, ...resolvedArgs)) return true;
     if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
-      return factStore.containsNegated(predicate.name, resolvedArgs[1], resolvedArgs[0]);
+      return factStore.containsNegatedAt(tick, predicate.name, resolvedArgs[1], resolvedArgs[0]);
     }
     return false;
   }
 
-  // ~ sugar: true when positive belief is absent OR explicit disbelief is present
+  // ~pred: true when positive belief is absent OR explicit disbelief is present
   evaluateWeak(innerPredicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
+    const tick         = evaluationContext?.currentTick ?? factStore.currentTick;
     const resolvedArgs = innerPredicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
     const symmetric    = this.schema?.isSymmetric(innerPredicate.name) && resolvedArgs.length === 2;
     const reversed     = symmetric ? [resolvedArgs[1], resolvedArgs[0]] : null;
 
     const positivePresent =
-      factStore.contains(innerPredicate.name, ...resolvedArgs) ||
-      (symmetric && factStore.contains(innerPredicate.name, ...reversed));
+      factStore.containedAt(tick, innerPredicate.name, ...resolvedArgs) ||
+      (symmetric && factStore.containedAt(tick, innerPredicate.name, ...reversed));
     if (!positivePresent) return true;
 
-    return factStore.containsNegated(innerPredicate.name, ...resolvedArgs) ||
-      (symmetric && factStore.containsNegated(innerPredicate.name, ...reversed));
+    return factStore.containsNegatedAt(tick, innerPredicate.name, ...resolvedArgs) ||
+      (symmetric && factStore.containsNegatedAt(tick, innerPredicate.name, ...reversed));
   }
 
   getAssertionTicks(name, resolvedArgs, evaluationContext) {
-    return this.resolveFactStore(evaluationContext).getAssertionTicks(name, resolvedArgs);
+    const ticks = this.resolveFactStore(evaluationContext).getAssertionTicks(name, resolvedArgs);
+    if (evaluationContext?.evaluationTick == null) return ticks;
+    const tick = evaluationContext.currentTick;
+    return ticks.filter(t => t <= tick);
   }
 
   resolveFactStore(evaluationContext) {

@@ -4,7 +4,7 @@ import { StateOperation } from './stateOperations/StateOperation.js';
 export function formatBoundRule(rule, binding, {
   effectName   = null,
   scaledDelta  = null,
-  truthDegree  = null,
+  satisfactionScore  = null,
 } = {}) {
   const lines = [`rule "${rule.name}"`];
 
@@ -23,8 +23,8 @@ export function formatBoundRule(rule, binding, {
 
   lines.push(`  => ${effects.join(', ')}`);
 
-  if (truthDegree !== null && truthDegree < 1.0) {
-    lines.push(`  (truth: ${truthDegree.toFixed(2)})`);
+  if (satisfactionScore !== null && satisfactionScore < 1.0) {
+    lines.push(`  (truth: ${satisfactionScore.toFixed(2)})`);
   }
 
   return lines.join('\n');

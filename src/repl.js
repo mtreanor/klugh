@@ -173,14 +173,14 @@ function formatPredicateResults(application) {
 }
 
 function printDegreeResults(applications) {
-  const visible = applications.filter(a => a.truthDegree > 0);
+  const visible = applications.filter(a => a.satisfactionScore > 0);
   if (visible.length === 0) {
     console.log('  (no results)');
     return;
   }
   for (const app of visible) {
-    const pct = (app.truthDegree * 100).toFixed(0);
-    console.log(`  ${formatBinding(app.binding)}  —  ${app.truthDegree.toFixed(2)} (${pct}%)`);
+    const pct = (app.satisfactionScore * 100).toFixed(0);
+    console.log(`  ${formatBinding(app.binding)}  —  ${app.satisfactionScore.toFixed(2)} (${pct}%)`);
     console.log(`    ${formatPredicateResults(app)}`);
   }
   console.log(`  — ${visible.length} binding${visible.length === 1 ? '' : 's'}`);

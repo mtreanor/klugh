@@ -106,10 +106,18 @@ export class FactStore {
     return this.factHistory.some(r => this.factMatches(r.fact, name, args));
   }
 
+  wasEverTrueAtOrBefore(name, args, currentTick) {
+    return this.factHistory.some(r =>
+      this.factMatches(r.fact, name, args) &&
+      r.events.some(e => e.type === 'asserted' && e.tick <= currentTick)
+    );
+  }
+
   wasEverTrueInWindow(name, args, window, currentTick) {
     const since = currentTick - window;
     return this.factHistory.some(r =>
-      this.factMatches(r.fact, name, args) && r.anyAssertionSince(since)
+      this.factMatches(r.fact, name, args) &&
+      r.events.some(e => e.type === 'asserted' && e.tick >= since && e.tick <= currentTick)
     );
   }
 
@@ -166,6 +174,12 @@ export class FactStore {
 
   containedAt(tick, name, ...args) {
     return this.queryAt(tick, name, ...args).length > 0;
+  }
+
+  containsNegatedAt(tick, name, ...args) {
+    return this.factHistory.some(r =>
+      r.isActiveAt(tick) && this.factMatches(r.fact, name, args, true)
+    );
   }
 
   // Internal: returns the canonical record for fact, or null if not present.

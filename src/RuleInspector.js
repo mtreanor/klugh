@@ -13,7 +13,7 @@ export class RuleInspector {
   //   binding            — plain object mapping variable names (without '?') to values.
   //   impulses           — predicate names; restricts to rules whose RHS adjusts any of them.
   //   ruleName           — string or array of strings; restricts to rules with matching names.
-  //   minimumTruthDegree — default 0, so fully false rules are included.
+  //   minimumSatisfactionScore — default 0, so fully false rules are included.
   //
   // Returns a flat Array<RuleApplication>.
   query(rules, entityRegistry, evaluationContext, schema, options = {}) {
@@ -21,7 +21,7 @@ export class RuleInspector {
       binding: partialBindingInput = {},
       impulses = null,
       ruleName = null,
-      minimumTruthDegree = 0,
+      minimumSatisfactionScore = 0,
     } = options;
 
     const startingBinding = this.resolveBinding(partialBindingInput, entityRegistry);
@@ -42,14 +42,14 @@ export class RuleInspector {
     const results = [];
     for (const rule of filteredRules) {
       const applications = this.buildApplications(
-        rule, entityRegistry, evaluationContext, schema, startingBinding, boundNames, minimumTruthDegree
+        rule, entityRegistry, evaluationContext, schema, startingBinding, boundNames, minimumSatisfactionScore
       );
       results.push(...applications);
     }
     return results;
   }
 
-  buildApplications(rule, entityRegistry, evaluationContext, schema, startingBinding, boundNames, minimumTruthDegree) {
+  buildApplications(rule, entityRegistry, evaluationContext, schema, startingBinding, boundNames, minimumSatisfactionScore) {
     const freeVariables = rule.collectVariables().filter(v => !boundNames.has(v.name));
     const variableTypes = this.ruleEvaluator.inferVariableTypes(rule, schema);
     const predicates = rule.predicateEntries.map(e => e.predicate);
@@ -57,9 +57,9 @@ export class RuleInspector {
       freeVariables, variableTypes, entityRegistry, startingBinding
     );
     return candidateBindings
-      .filter(binding => bindingSatisfiesDistinctArguments(binding, predicates, schema, entityRegistry))
+      .filter(binding => bindingSatisfiesDistinctArguments(binding, predicates, schema, entityRegistry, evaluationContext?.entityTypeConfig))
       .map(binding => this.ruleEvaluator.applyRule(rule, binding, evaluationContext))
-      .filter(app => app.truthDegree >= minimumTruthDegree);
+      .filter(app => app.satisfactionScore >= minimumSatisfactionScore);
   }
 
   resolveBinding(input, entityRegistry) {

@@ -1,4 +1,5 @@
 import { Rule } from '../Rule.js';
+import { RuleCycleDetector } from '../RuleCycleDetector.js';
 import { StateOperationLoader } from './StateOperationLoader.js';
 import { PrivatePredicate } from '../predicates/PrivatePredicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
@@ -15,6 +16,7 @@ import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredi
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
 import { SensorNumericTierPredicate } from '../predicates/SensorNumericTierPredicate.js';
 import { SensorNumericComparisonPredicate } from '../predicates/SensorNumericComparisonPredicate.js';
+import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
 
 function* walkPredicates(predicate) {
   yield predicate;
@@ -45,9 +47,15 @@ export class RuleLoader {
   }
 
   load(data) {
-    return {
-      rules: data.rules.map(r => this.buildRule(r)),
-    };
+    const rules = data.rules.map(r => this.buildRule(r));
+    const cycle = new RuleCycleDetector().detect(rules);
+    if (cycle) {
+      throw new Error(
+        `Cyclic rule dependency detected — this rule set may not terminate.\n` +
+        `Cycle: ${cycle.join(' → ')}`
+      );
+    }
+    return { rules };
   }
 
   buildRule(data) {
@@ -93,6 +101,7 @@ export class RuleLoader {
     switch (data.type) {
       case 'fact':
         return new FactPredicate(data.name, ...this.resolveArgs(data.args));
+      case 'historical':
       case 'historical-window':
         return new HistoricalWindowPredicate(data.name, this.resolveArgs(data.args), data.window ?? null, data.tier ?? null);
       case 'derived':
@@ -129,6 +138,8 @@ export class RuleLoader {
         const innerPredicate = this.buildPredicate(innerData);
         return new CountPredicate(innerPredicate, countingVars, countingVarTypes, data.operator, data.threshold);
       }
+      case 'at-tick':
+        return new AtTickPredicate(this.buildPredicate(data.predicate), data.tick);
       case 'temporal-chain': {
         const steps = data.steps.map(step => {
           if (this.predicateSchema && !this.predicateSchema.hasDefinition(step.name)) {

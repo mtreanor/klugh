@@ -34,7 +34,7 @@ function tag(name) {
 }
 
 describe('RuleInspector', () => {
-  describe('minimumTruthDegree', () => {
+  describe('minimumSatisfactionScore', () => {
     it('includes truth-degree-0 applications by default', () => {
       const evaluationContext = buildEvaluationContext([]);
       const rule = new Rule('R1', [new FactPredicate('knows', SELF, X)], tag('friendly'));
@@ -45,7 +45,7 @@ describe('RuleInspector', () => {
       });
 
       assert.ok(results.length > 0);
-      assert.ok(results.every(r => r.truthDegree === 0));
+      assert.ok(results.every(r => r.satisfactionScore === 0));
     });
 
     it('excludes applications below a specified minimum truth degree', () => {
@@ -59,7 +59,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([rule], entityRegistry, evaluationContext, null, {
         binding: { SELF: 'alice', X: 'bob' },
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.equal(results.length, 0);
@@ -74,7 +74,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([rule], entityRegistry, evaluationContext, null, {
         binding: { SELF: 'alice' },
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.equal(results.length, 1);
@@ -89,7 +89,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([rule], entityRegistry, evaluationContext, null, {
         binding: { SELF: alice },
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.equal(results.length, 1);
@@ -106,7 +106,7 @@ describe('RuleInspector', () => {
       });
 
       assert.equal(results.length, 1);
-      assert.equal(results[0].truthDegree, 1.0);
+      assert.equal(results[0].satisfactionScore, 1.0);
     });
   });
 
@@ -121,7 +121,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([rule], entityRegistry, evaluationContext, null, {
         binding: { SELF: 'alice' },
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.equal(results.length, 2);
@@ -140,7 +140,7 @@ describe('RuleInspector', () => {
       });
 
       assert.equal(results.length, 1);
-      assert.equal(results[0].truthDegree, 1.0);
+      assert.equal(results[0].satisfactionScore, 1.0);
     });
 
     it('enumerates all agents when no binding is supplied', () => {
@@ -152,7 +152,7 @@ describe('RuleInspector', () => {
       const inspector = new RuleInspector();
 
       const results = inspector.query([rule], entityRegistry, evaluationContext, null, {
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.equal(results.length, 2);
@@ -168,7 +168,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([ruleA, ruleB], entityRegistry, evaluationContext, null, {
         impulses: ['friendly'],
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.ok(results.every(r => r.rule === ruleA));
@@ -181,7 +181,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([rule], entityRegistry, evaluationContext, null, {
         impulses: ['friendly', 'hostile'],
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.ok(results.length > 0);
@@ -197,7 +197,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([ruleA, ruleB], entityRegistry, evaluationContext, null, {
         ruleName: 'RA',
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       assert.ok(results.every(r => r.rule === ruleA));
@@ -212,7 +212,7 @@ describe('RuleInspector', () => {
 
       const results = inspector.query([ruleA, ruleB, ruleC], entityRegistry, evaluationContext, null, {
         ruleName: ['RA', 'RC'],
-        minimumTruthDegree: 1.0,
+        minimumSatisfactionScore: 1.0,
       });
 
       const names = new Set(results.map(r => r.rule.name));

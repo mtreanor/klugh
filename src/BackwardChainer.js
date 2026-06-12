@@ -5,7 +5,7 @@ import { RuleEvaluator } from './RuleEvaluator.js';
 const MAX_DEPTH = 8;
 
 // Finds proof paths for a target conclusion by backward chaining over a rule set.
-// Returns ProofPath[] where each ProofPath is { rule, binding, truthDegree }.
+// Returns ProofPath[] where each ProofPath is { rule, binding, satisfactionScore }.
 // Options:
 //   findAll — false returns immediately on first proof (for boolean derived-fact queries)
 //   default — true returns all grounded paths
@@ -46,7 +46,7 @@ export class BackwardChainer {
       for (const [, appList] of applications) {
         for (const app of appList) {
           if (!app.isFullySatisfied()) continue;
-          results.push({ rule, binding: app.binding, truthDegree: app.truthDegree });
+          results.push({ rule, binding: app.binding, satisfactionScore: app.satisfactionScore });
           if (!findAll) {
             inProgress.delete(key);
             return results;

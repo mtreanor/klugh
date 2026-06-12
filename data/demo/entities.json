@@ -1,5 +1,6 @@
 {
   "agent": {
+    "distinct": true,
     "privateStore": true,
     "alice": {},
     "bob": {},
@@ -8,10 +9,12 @@
     }
   },
   "knowledge": {
+    "distinct": false,
     "karate": {},
     "philosophy": {}
   },
   "item": {
+    "distinct": false,
     "antiqueClock": {},
     "rarePainting": {}
   }

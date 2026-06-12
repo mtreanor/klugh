@@ -3,18 +3,22 @@
 // infrastructure, not sources of truth.
 export class EvaluationContext {
   constructor(queryHandlers, {
-    tickTracker     = null,
-    entityRegistry  = null,
-    privateStores   = null,
-    activeStore     = null,
-    predicateSchema = null,
+    tickTracker      = null,
+    evaluationTick   = null,
+    entityRegistry   = null,
+    entityTypeConfig = null,
+    privateStores    = null,
+    activeStore      = null,
+    predicateSchema  = null,
   } = {}) {
-    this.queryHandlers   = queryHandlers;
-    this.tickTracker     = tickTracker;
-    this.entityRegistry  = entityRegistry;
-    this.privateStores   = privateStores;
-    this.activeStore     = activeStore;
-    this.predicateSchema = predicateSchema;
+    this.queryHandlers    = queryHandlers;
+    this.tickTracker      = tickTracker;
+    this.evaluationTick   = evaluationTick;
+    this.entityRegistry   = entityRegistry;
+    this.entityTypeConfig = entityTypeConfig;
+    this.privateStores    = privateStores;
+    this.activeStore      = activeStore;
+    this.predicateSchema  = predicateSchema;
   }
 
   getHandler(name) {
@@ -22,7 +26,20 @@ export class EvaluationContext {
   }
 
   get currentTick() {
-    return this.tickTracker?.currentTick ?? 0;
+    return this.evaluationTick ?? this.tickTracker?.currentTick ?? 0;
+  }
+
+  // Returns a new context that evaluates facts as of the given tick.
+  withTick(tick) {
+    return new EvaluationContext(this.queryHandlers, {
+      tickTracker:      this.tickTracker,
+      evaluationTick:   tick,
+      entityRegistry:   this.entityRegistry,
+      entityTypeConfig: this.entityTypeConfig,
+      privateStores:    this.privateStores,
+      activeStore:      this.activeStore,
+      predicateSchema:  this.predicateSchema,
+    });
   }
 
   getActiveFactStore() {
@@ -36,11 +53,13 @@ export class EvaluationContext {
 
   scopedToStore(store) {
     return new EvaluationContext(this.queryHandlers, {
-      tickTracker:     this.tickTracker,
-      entityRegistry:  this.entityRegistry,
-      privateStores:   this.privateStores,
-      activeStore:     store,
-      predicateSchema: this.predicateSchema,
+      tickTracker:      this.tickTracker,
+      evaluationTick:   this.evaluationTick,
+      entityRegistry:   this.entityRegistry,
+      entityTypeConfig: this.entityTypeConfig,
+      privateStores:    this.privateStores,
+      activeStore:      store,
+      predicateSchema:  this.predicateSchema,
     });
   }
 }

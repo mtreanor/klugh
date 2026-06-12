@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { EntityNameValidator } from '../src/EntityNameValidator.js';
 import { PredicateSchema } from '../src/PredicateSchema.js';
 
-const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../../data/logic');
+const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../data/demo');
 
 describe('Private stores in logic', () => {
   it('loads private state from the state file', () => {

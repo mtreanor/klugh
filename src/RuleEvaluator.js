@@ -4,8 +4,8 @@ import { LogicalVariable } from './LogicalVariable.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
 
 export class RuleEvaluator {
-  constructor({ minimumTruthDegree = 0 } = {}) {
-    this.minimumTruthDegree = minimumTruthDegree;
+  constructor({ minimumSatisfactionScore = 0 } = {}) {
+    this.minimumSatisfactionScore = minimumSatisfactionScore;
   }
 
   evaluate(rules, entityRegistry, evaluationContext, startingBinding = new Binding(), schema = null) {
@@ -33,9 +33,9 @@ export class RuleEvaluator {
     const predicates = rule.predicateEntries.map(e => e.predicate);
 
     return candidateBindings
-      .filter(binding => bindingSatisfiesDistinctArguments(binding, predicates, schema, entityRegistry))
+      .filter(binding => bindingSatisfiesDistinctArguments(binding, predicates, schema, entityRegistry, evaluationContext?.entityTypeConfig))
       .map(binding => this.applyRule(rule, binding, evaluationContext))
-      .filter(application => application.truthDegree > 0 && application.truthDegree >= this.minimumTruthDegree);
+      .filter(application => application.satisfactionScore > 0 && application.satisfactionScore >= this.minimumSatisfactionScore);
   }
 
   applyRule(rule, binding, evaluationContext) {
@@ -47,8 +47,8 @@ export class RuleEvaluator {
 
     const totalImportance     = predicateResults.reduce((sum, r) => sum + r.importance, 0);
     const satisfiedImportance = predicateResults.filter(r => r.satisfied).reduce((sum, r) => sum + r.importance, 0);
-    const truthDegree         = totalImportance === 0 ? 0 : satisfiedImportance / totalImportance;
-    return new RuleApplication(rule, binding, predicateResults, truthDegree);
+    const satisfactionScore         = totalImportance === 0 ? 0 : satisfiedImportance / totalImportance;
+    return new RuleApplication(rule, binding, predicateResults, satisfactionScore);
   }
 
   generateAllBindings(variables, variableTypes, entityRegistry, startingBinding = new Binding(), evaluationContext = null, predicateEntries = null) {
@@ -62,9 +62,10 @@ export class RuleEvaluator {
       entities = this.distinctArgValuesForVariable(head, predicateEntries, startingBinding, evaluationContext);
     }
 
+    const requireDistinct = evaluationContext?.entityTypeConfig?.get(type)?.distinct !== false;
     const bindings = [];
     for (const entity of entities) {
-      if (this.isAlreadyBound(entity, startingBinding)) continue;
+      if (requireDistinct && this.isAlreadyBound(entity, startingBinding)) continue;
       const extended = startingBinding.extend(head, entity);
       bindings.push(...this.generateAllBindings(tail, variableTypes, entityRegistry, extended, evaluationContext, predicateEntries));
     }
@@ -141,6 +142,11 @@ export class RuleEvaluator {
       for (const step of pred.steps) {
         this.assignTypesFromArgs(step.name, step.args, schema, types);
       }
+      return;
+    }
+    // AtTickPredicate — descend into inner predicate
+    if (pred.inner) {
+      this.scanPredicateForTypes(pred.inner, schema, types);
       return;
     }
     // NegationPredicate has no .name — variables must already be bound by positive predicates

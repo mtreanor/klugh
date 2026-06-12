@@ -19,7 +19,7 @@ export class NegationPredicate extends Predicate {
   }
 
   describe(binding) {
-    return `~${this.predicate.describe(binding)}`;
+    return `not ${this.predicate.describe(binding)}`;
   }
 
   toString() {

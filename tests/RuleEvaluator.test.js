@@ -41,7 +41,7 @@ describe('RuleEvaluator', () => {
     assert.equal(applications.length, 1);
     assert.equal(applications[0].binding.resolve(X), alice);
     assert.equal(applications[0].binding.resolve(Y), bob);
-    assert.equal(applications[0].truthDegree, 1.0);
+    assert.equal(applications[0].satisfactionScore, 1.0);
   });
 
   it('returns no applications when no conditions are met and there is nothing partial', () => {
@@ -92,7 +92,7 @@ describe('RuleEvaluator', () => {
       a.binding.resolve(X) === alice && a.binding.resolve(Y) === bob
     );
     assert.ok(fullySatisfied);
-    assert.equal(fullySatisfied.truthDegree, 1.0);
+    assert.equal(fullySatisfied.satisfactionScore, 1.0);
   });
 
   it('computes a partial truth degree when some predicates fail', () => {
@@ -113,7 +113,7 @@ describe('RuleEvaluator', () => {
     const application = activeRules.get(rule).find(a =>
       a.binding.resolve(X) === alice && a.binding.resolve(Y) === bob
     );
-    assert.equal(application.truthDegree, 0.5);
+    assert.equal(application.satisfactionScore, 0.5);
   });
 
   it('respects importance weights when computing truth degree', () => {
@@ -134,7 +134,7 @@ describe('RuleEvaluator', () => {
     const application = activeRules.get(rule).find(a =>
       a.binding.resolve(X) === alice && a.binding.resolve(Y) === bob
     );
-    assert.equal(application.truthDegree, 0.75);
+    assert.equal(application.satisfactionScore, 0.75);
   });
 
   describe('starting binding', () => {
@@ -172,7 +172,7 @@ describe('RuleEvaluator', () => {
       const activeRules = evaluator.evaluate([rule], new Map([['agent', [alice, bob]]]), evaluationContext);
       const applications = activeRules.get(rule);
 
-      assert.equal(applications.filter(a => a.truthDegree === 1.0).length, 2);
+      assert.equal(applications.filter(a => a.satisfactionScore === 1.0).length, 2);
     });
   });
 });

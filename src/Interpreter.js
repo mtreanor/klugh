@@ -104,7 +104,7 @@ export class Interpreter {
     }
 
     return candidates.filter(binding =>
-      bindingSatisfiesDistinctArguments(binding, predicates, this.schema, entityRegistry) &&
+      bindingSatisfiesDistinctArguments(binding, predicates, this.schema, entityRegistry, this.world.entityTypeConfig) &&
       predicates.every(p => p.evaluate(binding, evaluationContext))
     );
   }
@@ -113,8 +113,8 @@ export class Interpreter {
   // instead of requiring all predicates to hold. Predicate entries may carry
   // [importance: N] modifiers (same syntax as rules).
   //
-  // Returns RuleApplication[] sorted by truthDegree descending.
-  evaluateDegrees(text, partialBinding = {}, { minimumTruthDegree = 0 } = {}) {
+  // Returns RuleApplication[] sorted by satisfactionScore descending.
+  evaluateDegrees(text, partialBinding = {}, { minimumSatisfactionScore = 0 } = {}) {
     const predAsts = this.ruleParser.parsePredicateConjunction(text, {
       entityNames: this.world.entityNames,
     });
@@ -135,11 +135,11 @@ export class Interpreter {
 
     return candidates
       .filter(binding => bindingSatisfiesDistinctArguments(
-        binding, predicatesForDistinct, this.schema, entityRegistry
+        binding, predicatesForDistinct, this.schema, entityRegistry, this.world.entityTypeConfig
       ))
       .map(binding => this.ruleEvaluator.applyRule(rule, binding, this.world.createEvaluationContext()))
-      .filter(app => app.truthDegree >= minimumTruthDegree)
-      .sort((a, b) => b.truthDegree - a.truthDegree);
+      .filter(app => app.satisfactionScore >= minimumSatisfactionScore)
+      .sort((a, b) => b.satisfactionScore - a.satisfactionScore);
   }
 
   assert(text) {

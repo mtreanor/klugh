@@ -2,9 +2,6 @@ import { NegationPredicate } from './predicates/NegationPredicate.js';
 import { TemporalChainPredicate } from './predicates/TemporalChainPredicate.js';
 import { CountPredicate } from './predicates/CountPredicate.js';
 
-// Schema arg types that refer to registered entities (not free strings like need names).
-const ENTITY_ARG_TYPES = new Set(['agent', 'knowledge', 'item']);
-
 function findEntityByName(name, entityRegistry) {
   for (const entities of entityRegistry.values()) {
     const match = entities.find(e => e?.name === name);
@@ -22,16 +19,18 @@ function resolveArgValue(arg, binding, entityRegistry) {
   return term;
 }
 
-function argumentsAreDistinct(binding, name, args, schema, entityRegistry) {
+function argumentsAreDistinct(binding, name, args, schema, entityRegistry, entityTypeConfig) {
   const argTypes = schema?.getDefinition(name)?.args;
   if (!argTypes) return true;
 
   const values = args.map(arg => resolveArgValue(arg, binding, entityRegistry));
 
   for (let i = 0; i < values.length; i++) {
-    if (!ENTITY_ARG_TYPES.has(argTypes[i])) continue;
+    const typeI = argTypes[i];
+    if (!typeI || typeI === 'string') continue;
+    if (entityTypeConfig?.get(typeI)?.distinct === false) continue;
     for (let j = i + 1; j < values.length; j++) {
-      if (argTypes[i] !== argTypes[j]) continue;
+      if (typeI !== argTypes[j]) continue;
       const left = values[i];
       const right = values[j];
       if (left !== null && right !== null && left === right) return false;
@@ -56,14 +55,14 @@ function collectArgumentChecks(predicate) {
   return [];
 }
 
-export function predicateSatisfiesDistinctArguments(binding, predicate, schema, entityRegistry) {
+export function predicateSatisfiesDistinctArguments(binding, predicate, schema, entityRegistry, entityTypeConfig) {
   return collectArgumentChecks(predicate).every(
-    check => argumentsAreDistinct(binding, check.name, check.args, schema, entityRegistry)
+    check => argumentsAreDistinct(binding, check.name, check.args, schema, entityRegistry, entityTypeConfig)
   );
 }
 
-export function bindingSatisfiesDistinctArguments(binding, predicates, schema, entityRegistry) {
+export function bindingSatisfiesDistinctArguments(binding, predicates, schema, entityRegistry, entityTypeConfig) {
   return predicates.every(
-    pred => predicateSatisfiesDistinctArguments(binding, pred, schema, entityRegistry)
+    pred => predicateSatisfiesDistinctArguments(binding, pred, schema, entityRegistry, entityTypeConfig)
   );
 }

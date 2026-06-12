@@ -348,7 +348,7 @@ This fires for anyone who has not been explicitly marked as not wanting contact.
 
 ### Weak negation (`~pred`)
 
-True when the **positive belief is absent OR explicit disbelief is present**. Sugar for "not positively believed". On the LHS only — there is no RHS form for weak negation.
+True when the **positive belief is absent OR explicit disbelief is present**. On the LHS only — there is no RHS form for weak negation.
 
 ```
 rule "cautious when trust is unconfirmed"
@@ -845,7 +845,7 @@ To inspect private facts directly, use `facts alice` or query with a ground owne
 
 ### Truth degree (`degree` prefix)
 
-Prefix a line with `degree` to score each candidate binding by partial satisfaction (the same weighted-average truth degree used when evaluating rules), instead of requiring every predicate to hold.
+Prefix a line with `degree` to score each candidate binding by partial satisfaction (the same weighted-average satisfaction score used when evaluating rules), instead of requiring every predicate to hold.
 
 ```
 > degree knows(alice, ?Y) ^ friendship.strong(alice, ?Y)
@@ -856,7 +856,7 @@ Prefix a line with `degree` to score each candidate binding by partial satisfact
   — 2 bindings
 ```
 
-Bindings with truth degree 0 are omitted from REPL output. The REPL does not load named rules from scenario rule files — only the conjunction you type.
+Bindings with satisfaction score 0 are omitted from REPL output. The REPL does not load named rules from scenario rule files — only the conjunction you type.
 
 ### Asserting facts
 

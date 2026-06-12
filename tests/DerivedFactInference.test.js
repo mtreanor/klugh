@@ -15,7 +15,7 @@ import { LogicalVariable } from '../src/LogicalVariable.js';
 import { Binding } from '../src/Binding.js';
 import { Fact } from '../src/Fact.js';
 
-const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../../data/logic');
+const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../data/demo');
 
 describe('Derived fact inference', () => {
   let interp;

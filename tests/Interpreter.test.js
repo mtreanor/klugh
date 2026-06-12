@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { Interpreter } from '../src/Interpreter.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dataDir   = join(__dirname, '../../data/logic');
+const dataDir   = join(__dirname, '../data/demo');
 
 function names(bindings, varName) {
   return bindings.map(b => b.assignments.get(varName)?.name ?? b.assignments.get(varName)).sort();
@@ -148,7 +148,7 @@ describe('Interpreter.evaluateDegrees', () => {
   it('scores bindings by weighted average of satisfied predicates', () => {
     const apps = interp.evaluateDegrees('knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
     const byY = Object.fromEntries(
-      apps.map(a => [a.binding.assignments.get('Y').name, a.truthDegree])
+      apps.map(a => [a.binding.assignments.get('Y').name, a.satisfactionScore])
     );
     assert.equal(byY.bob, 1);
     assert.equal(byY.carol, 0.5);
@@ -159,21 +159,21 @@ describe('Interpreter.evaluateDegrees', () => {
       'knows(alice, ?Y) [importance: 2] ^ friendship.strong(alice, ?Y)'
     );
     const carol = apps.find(a => a.binding.assignments.get('Y').name === 'carol');
-    assert.ok(Math.abs(carol.truthDegree - 2 / 3) < 1e-9);
+    assert.ok(Math.abs(carol.satisfactionScore - 2 / 3) < 1e-9);
   });
 
   it('returns a fully satisfied ground binding at 1.0', () => {
     const apps = interp.evaluateDegrees('knows(alice, bob)');
     assert.equal(apps.length, 1);
-    assert.equal(apps[0].truthDegree, 1);
+    assert.equal(apps[0].satisfactionScore, 1);
   });
 
-  it('respects minimumTruthDegree', () => {
+  it('respects minimumSatisfactionScore', () => {
     const all = interp.evaluateDegrees('knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
     const partial = interp.evaluateDegrees(
       'knows(alice, ?Y) ^ friendship.strong(alice, ?Y)',
       {},
-      { minimumTruthDegree: 1 }
+      { minimumSatisfactionScore: 1 }
     );
     // ?Y enumerates bob and carol; alice is excluded (knows(alice, alice))
     assert.equal(all.length, 2);

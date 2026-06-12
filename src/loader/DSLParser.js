@@ -272,6 +272,7 @@ export class DSLParser {
     let importance = 1.0;
     let historyFound = false;
     let window = null;
+    let atTick = null;
 
     while (!this.check('RBRACKET')) {
       const key = this.expect('IDENT').value;
@@ -281,6 +282,9 @@ export class DSLParser {
       } else if (key === 'importance') {
         this.expect('COLON');
         importance = this.expect('NUMBER').value;
+      } else if (key === 'at') {
+        this.expect('COLON');
+        atTick = this.expect('NUMBER').value;
       }
       if (!this.check('RBRACKET')) this.expect('COMMA');
     }
@@ -290,8 +294,10 @@ export class DSLParser {
     if (historyFound) {
       const inner = finalPred;
       finalPred = { type: 'historical-window', name: inner.name, args: inner.args };
-      if (inner.tier)       finalPred.tier   = inner.tier;
+      if (inner.tier)      finalPred.tier   = inner.tier;
       if (window !== null) finalPred.window = window;
+    } else if (atTick !== null) {
+      finalPred = { type: 'at-tick', predicate: finalPred, tick: atTick };
     }
 
     if (pred.type === 'private') {

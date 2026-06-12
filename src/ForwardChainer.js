@@ -13,6 +13,8 @@ export class ForwardChainer {
     let changed = true;
     while (changed) {
       changed = false;
+      evaluationContext.getHandler('derived')?.clearCache();
+      const firedThisPass = new Set();
       for (const rule of rules) {
         const applications = this.ruleEvaluator.evaluate(
           [rule],
@@ -23,7 +25,12 @@ export class ForwardChainer {
         );
         for (const [, appList] of applications) {
           for (const app of appList) {
-            if (onApplication(app)) changed = true;
+            const key = `${rule.name}\0${app.binding}`;
+            if (firedThisPass.has(key)) continue;
+            if (onApplication(app)) {
+              firedThisPass.add(key);
+              changed = true;
+            }
           }
         }
       }

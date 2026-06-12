@@ -220,7 +220,7 @@ const scored = interp.evaluateDegrees(
   'knows(alice, ?Y) ^ friendship.warm(alice, ?Y) ^ trusts(alice, ?Y)'
 );
 for (const app of scored) {
-  console.log(app.binding.resolve('Y').name, app.truthDegree);
+  console.log(app.binding.resolve('Y').name, app.satisfactionScore);
 }
 ```
 
@@ -265,7 +265,7 @@ chainer.run(rules, ctx, /* startingBinding */ null, (application) => {
 
 ### Importance and partial truth
 
-Conditions in a rule can be weighted with `[importance: N]`. When only some conditions hold, `application.truthDegree` is the ratio of satisfied importance to total importance — a number between 0 and 1. `isFullySatisfied()` is just `truthDegree === 1.0`.
+Conditions in a rule can be weighted with `[importance: N]`. When only some conditions hold, `application.satisfactionScore` is the ratio of satisfied importance to total importance — a number between 0 and 1. `isFullySatisfied()` is just `satisfactionScore === 1.0`.
 
 ```
 rule "guilt lingers — stronger when conflict was recent"
@@ -275,11 +275,11 @@ rule "guilt lingers — stronger when conflict was recent"
   => respectful(?SELF, ?Y) += 5.0
 ```
 
-In the callback you can use `truthDegree` to threshold or scale:
+In the callback you can use `satisfactionScore` to threshold or scale:
 
 ```javascript
 chainer.run(rules, ctx, null, (application) => {
-  if (application.truthDegree < 0.5) return false;  // ignore weak matches
+  if (application.satisfactionScore < 0.5) return false;  // ignore weak matches
 
   for (const effect of application.rule.effects) {
     applyStateChange(effect, application.binding, interp.world.queryHandlers, {
@@ -290,7 +290,7 @@ chainer.run(rules, ctx, null, (application) => {
 });
 ```
 
-Whether to fire on partial satisfaction — and what to do with `truthDegree` — is entirely up to your application.
+Whether to fire on partial satisfaction — and what to do with `satisfactionScore` — is entirely up to your application.
 
 ### Pre-binding variables
 
@@ -320,14 +320,14 @@ if (aliceTrustedByBob) { ... }
 // Get all warm friendships
 const warm = interp.query('friendship.warm(?X, ?Y)');
 
-// Score relationships to rank choices — returns all bindings sorted by truthDegree desc,
-// including partial matches. Each entry has .binding, .truthDegree, and .predicateResults.
+// Score relationships to rank choices — returns all bindings sorted by satisfactionScore desc,
+// including partial matches. Each entry has .binding, .satisfactionScore, and .predicateResults.
 const options = interp.evaluateDegrees(
   'knows(?SELF, ?Y) ^ trusts(?SELF, ?Y) ^ friendship.warm(?SELF, ?Y)',
   { SELF: 'alice' }
 );
 const bestOption = options[0]?.binding.resolve('Y');
-// options[0].truthDegree — how well the top candidate satisfies the conjunction
+// options[0].satisfactionScore — how well the top candidate satisfies the conjunction
 // options[0].predicateResults — per-predicate breakdown of what held and what didn't
 ```
 

@@ -1,6 +1,6 @@
 import { EntityNameValidator } from '../EntityNameValidator.js';
 
-const TYPE_CONFIG_KEYS = new Set(['privateStore']);
+const TYPE_CONFIG_KEYS = new Set(['privateStore', 'distinct']);
 const TOP_LEVEL_KEYS  = new Set(['world']);
 
 export class EntityLoader {
@@ -14,6 +14,8 @@ export class EntityLoader {
     for (const [typeName, typeBlock] of Object.entries(entitiesData)) {
       if (TOP_LEVEL_KEYS.has(typeName)) continue;
       const typeLevelPrivateStore = typeBlock.privateStore === true;
+      const distinct = typeBlock.distinct ?? true;
+      world.setEntityTypeConfig(typeName, { distinct });
 
       for (const [memberName, memberProps] of Object.entries(typeBlock)) {
         if (TYPE_CONFIG_KEYS.has(memberName)) continue;

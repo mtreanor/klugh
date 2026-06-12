@@ -78,10 +78,10 @@ export function applyStateChange(operation, binding, queryHandlers, {
 
   switch (operation.type) {
     case 'assert':
-      factStore.assert(new Fact(operation.name, ...resolvedArgs, { negated: operation.negated ?? false }), strength);
+      factStore.assert(new Fact(operation.name, ...resolvedArgs, { negated: operation.negated ?? false }), strength, provenance);
       return;
     case 'retract':
-      factStore.retract(new Fact(operation.name, ...resolvedArgs, { negated: operation.negated ?? false }));
+      factStore.retract(new Fact(operation.name, ...resolvedArgs, { negated: operation.negated ?? false }), provenance);
       return;
     case 'adjust-numeric': {
       const numeric = queryHandlers.getHandler('numeric');

@@ -25,7 +25,7 @@ The closest label is **Datalog with extensions** — a conjunctive, function-fre
 - `[history]`, `[history: N]`, backdating with `[at: N]`, and temporal chains (`pred1 then pred2`) are the main distinguishing feature compared to standard Datalog. Event calculus does similar things more formally (it has *Happens*, *Initiates*, *Terminates* axioms), but klugh is more application-layer and less axiom-heavy.
 
 **From fuzzy / weighted logic:**
-- Importance weighting and truth-degree scoring don't appear in any of the above. A rule that is 50% satisfied producing a 50%-weighted effect is closer to fuzzy logic or utility scoring than to classical deduction.
+- Importance weighting and satisfaction-score scoring don't appear in any of the above. A rule that is 50% satisfied producing a 50%-weighted effect is closer to fuzzy logic or utility scoring than to classical deduction.
 
 ---
 

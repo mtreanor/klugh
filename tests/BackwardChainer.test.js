@@ -45,7 +45,7 @@ describe('BackwardChainer', () => {
 
     assert.strictEqual(paths.length, 1);
     assert.strictEqual(paths[0].rule, rule);
-    assert.strictEqual(paths[0].truthDegree, 1.0);
+    assert.strictEqual(paths[0].satisfactionScore, 1.0);
   });
 
   it('returns empty when no rule can ground the goal', () => {
@@ -114,6 +114,6 @@ describe('BackwardChainer', () => {
     );
 
     assert.strictEqual(paths.length, 1);
-    assert.ok(paths[0].isFullySatisfied ?? paths[0].truthDegree === 1.0);
+    assert.ok(paths[0].isFullySatisfied ?? paths[0].satisfactionScore === 1.0);
   });
 });

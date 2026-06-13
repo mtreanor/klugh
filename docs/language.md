@@ -21,6 +21,8 @@
 
 **[Derived predicates](#derived-predicates)** — reusable named inferences authored as `define` definitions. Evaluated lazily by backward chaining at query time; results cached per tick.
 
+**[Actions](#actions)** — named, scoreable, executable choices authored as `action` blocks. Each action has optional [`roles`](#roles), [`preconditions`](#preconditions), [`utility`](#utility) sources ([constant](#constant), [predicate](#predicate), [rule](#rule), [aggregate](#aggregate)), optional [`content`](#content), and required [`effects`](#effects).
+
 **[REPL](#using-the-repl)** — interactive query prompt with `facts`, `facts all`, `facts <name>`, `assert`, `degree`, and `entities` commands.
 
 ---
@@ -811,6 +813,167 @@ Sensors are stateless and ephemeral — they have no persistent record in any fa
 | As `define` conclusion | ✗ | The conclusion of a `define` must be `type: "derived"`; sensor predicates cannot be derived predicates |
 
 Sensors cannot be asserted or retracted in state files. Their value is always computed fresh.
+
+---
+
+## Actions
+
+Actions are named, scoreable, executable units of behaviour. Unlike rules — which fire automatically at fixpoint — actions represent authored choices. The application layer enumerates candidates, scores them against the current world state, and decides which to execute.
+
+An action file contains only `action` blocks:
+
+```
+action "offer help"
+  roles: ?SELF, ?Y
+  preconditions
+    knows(?SELF, ?Y)
+    ^ not hostile(?SELF, ?Y)
+  utility
+    friendship(?SELF, ?Y)
+    rule "need bonus"
+      hasNeed(?Y, _)
+      => 3.0
+  content text: "?SELF offers to help ?Y"
+  effects
+    helpful(?SELF, ?Y)
+    toward(?SELF, ?Y) += 5
+```
+
+### `roles:`
+
+Optional. A comma-separated list of variable names for the action's participants.
+
+```
+roles: ?SELF, ?Y
+```
+
+Roles are metadata for the application layer — they indicate which variables the caller should pre-bind before scoring. The engine does not enforce or validate them.
+
+### `preconditions`
+
+Optional. A conjunction of predicates joined by `^`, using the same syntax as a rule LHS. Checked by `action.arePreconditionsMet(binding, ctx)`. When absent, the action is always eligible.
+
+```
+preconditions
+  knows(?SELF, ?Y)
+  ^ not hostile(?SELF, ?Y)
+```
+
+The engine does not enforce preconditions automatically. The caller is responsible for checking them before executing an action.
+
+### `utility`
+
+Optional. One or more utility sources listed beneath the `utility` keyword. `action.score(binding, entityRegistry, ctx)` evaluates every source and returns their sum. Four source types are available and can be freely mixed in one action.
+
+#### Constant
+
+A bare number. Contributes a fixed value regardless of world state.
+
+```
+utility
+  5.0
+```
+
+#### Predicate
+
+`predicateName(args)`. Reads the current value of a **numeric** predicate for the resolved argument values. If the predicate has no stored value, the schema default is used. Returns 0 when no numeric handler is registered.
+
+```
+utility
+  friendship(?SELF, ?Y)
+```
+
+#### Rule
+
+`rule "name" predicates… => weight`. Counts how many distinct bindings satisfy the predicate conjunction, then multiplies by the weight. Variables already bound by the caller are held fixed; free variables are enumerated over the entity registry.
+
+```
+utility
+  rule "knows many"
+    knows(?SELF, ?Z)
+    => 1.0
+```
+
+If `?SELF` is pre-bound and `?Z` is free, this scores 1.0 for each agent `?Z` that `?SELF` knows. A rule source with a conjunction `^ hasNeed(?Z, _)` would narrow that to agents with a known need.
+
+#### Aggregate
+
+`aggregator sources…`. One of `sum`, `avg`, `min`, or `max` followed by any number of atomic sources (constants, predicates, rule sources). Aggregate sources cannot be nested.
+
+```
+utility
+  sum
+    friendship(?SELF, ?Y)
+    rule "need bonus"
+      hasNeed(?Y, _)
+      => 3.0
+    2.0
+```
+
+| Aggregator | Behaviour |
+|------------|-----------|
+| `sum` | Total of all sources. Empty list → 0. |
+| `avg` | Mean of all sources. Empty list → 0. |
+| `min` | Smallest value. Empty list → 0. |
+| `max` | Largest value. Empty list → 0. |
+
+`sum`, `avg`, `min`, and `max` are reserved as aggregator keywords and cannot be used as predicate names in a utility block.
+
+### `content`
+
+Optional. A single content item attached to the action.
+
+Currently the only content type is `text`:
+
+```
+content text: "?SELF offers to help ?Y"
+```
+
+`TextContentItem.render(binding)` substitutes uppercase variable references (e.g. `?SELF`, `?Y`) with their bound values. Entity objects render as their `.name` string. Unbound variable placeholders are left unchanged. Access the item via `action.content` — returns `null` when absent.
+
+### `effects`
+
+Optional. One or more state operations, using the same syntax as a rule RHS. Applied immediately by `action.execute()` or staged by `action.enqueue()`. When absent, `action.effects` is an empty array.
+
+```
+effects
+  helpful(?SELF, ?Y)
+  toward(?SELF, ?Y) += 5
+  not hostile(?SELF, ?Y)
+```
+
+All effect types are valid: `assert`, `retract` (`not pred`), explicit disbelief (`-pred`), `set-numeric` (`= N`), `adjust-numeric` (`+= N` / `-= N`), and private-store prefixed variants (`?OWNER.pred(args)`).
+
+### Loading actions
+
+```javascript
+import { readFileSync } from 'fs';
+import { ActionParser } from './src/loader/ActionParser.js';
+import { ActionLoader } from './src/loader/ActionLoader.js';
+
+const { actions } = new ActionLoader().load(
+  new ActionParser().parse(readFileSync('./data/actions', 'utf-8'))
+);
+```
+
+Pass a `PredicateSchema` to `ActionLoader` to validate predicate names at load time:
+
+```javascript
+const { actions } = new ActionLoader(predicateSchema).load(parsed);
+```
+
+### Action API
+
+| Method / property | Description |
+|-------------------|-------------|
+| `arePreconditionsMet(binding, ctx)` | Returns `true` if every precondition holds for the given binding |
+| `score(binding, entityRegistry, ctx)` | Sums all utility sources — returns a number |
+| `execute(binding, queryHandlers, queue?, privateStores?)` | Applies effects immediately; enqueues them at `tickEnd` when a `StateChangeQueue` is supplied |
+| `enqueue(queue, binding, queryHandlers, opts?)` | Stages all effects at `tickEnd` without applying them |
+| `collectVariables()` | Returns all `LogicalVariable` instances referenced in preconditions and effects |
+| `action.content` | The `ContentItem` attached to the action, or `null` |
+| `action.roles` | Array of role variable name strings (e.g. `['?SELF', '?Y']`) |
+| `action.name` | The action's string name |
 
 ---
 

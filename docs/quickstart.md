@@ -335,8 +335,122 @@ State persists on the `Interpreter` instance between calls — assert facts, run
 
 ---
 
+## 8. Author and select actions
+
+Actions are authored choices — preconditions check eligibility, utility sources score candidates, and effects update world state when one is selected.
+
+### Write an actions file
+
+```
+// data/actions
+action "offer help"
+  roles: ?SELF, ?Y
+  preconditions
+    knows(?SELF, ?Y)
+    ^ not hostile(?SELF, ?Y)
+  utility
+    friendship(?SELF, ?Y)
+    rule "need bonus"
+      hasNeed(?Y, _)
+      => 3.0
+  content text: "?SELF offers to help ?Y"
+  effects
+    helpful(?SELF, ?Y)
+    toward(?SELF, ?Y) += 5
+
+action "rest"
+  roles: ?SELF
+  utility
+    -2.0
+  content text: "?SELF rests alone"
+  effects
+    rested(?SELF)
+```
+
+`offer help` is a binary action (`?SELF` and `?Y`) — it requires knowing someone and gains utility from friendship and their unmet needs. `rest` is unary — always available but mildly penalised, so it only wins when nothing better is possible.
+
+### Load the actions
+
+```javascript
+import { readFileSync } from 'fs';
+import { ActionParser } from './src/loader/ActionParser.js';
+import { ActionLoader } from './src/loader/ActionLoader.js';
+
+const { actions } = new ActionLoader().load(
+  new ActionParser().parse(readFileSync('./data/actions', 'utf-8'))
+);
+```
+
+### Score and select
+
+Enumerate candidate (action, binding) pairs, check preconditions, score each, then pick the best.
+
+```javascript
+import { Binding } from './src/Binding.js';
+import { LogicalVariable } from './src/LogicalVariable.js';
+
+const world  = interp.world;
+const ctx    = world.createEvaluationContext();
+const agents = world.entityRegistry.get('agent') ?? [];
+
+// Fix ?SELF to alice — we're choosing an action for her
+const alice = agents.find(e => e.name === 'alice');
+const selfBinding = new Binding().extend(new LogicalVariable('SELF'), alice);
+
+const candidates = [];
+
+for (const action of actions) {
+  // For unary actions (no ?Y), the starting binding is complete
+  // For binary actions, try every eligible ?Y
+  const hasY = action.collectVariables().some(v => v.name === 'Y');
+  const partnerCandidates = hasY ? agents : [null];
+
+  for (const partner of partnerCandidates) {
+    const binding = partner
+      ? selfBinding.extend(new LogicalVariable('Y'), partner)
+      : selfBinding;
+
+    if (!action.arePreconditionsMet(binding, ctx)) continue;
+
+    const score = action.score(binding, world.entityRegistry, ctx);
+    candidates.push({ action, binding, score });
+  }
+}
+
+// Rank by score descending
+candidates.sort((a, b) => b.score - a.score);
+const best = candidates[0];
+
+if (best) {
+  const label = best.action.content?.render(best.binding) ?? best.action.name;
+  console.log(`Selected: ${label}  (score ${best.score.toFixed(2)})`);
+  best.action.execute(best.binding, world.queryHandlers);
+}
+```
+
+With the state from step 3 (`friendship(alice, bob) = 85`, `hasNeed` absent), `offer help` for alice→bob will score 85 (friendship only) and win over `rest` at −2.
+
+### Deferred execution
+
+If multiple agents act in the same tick, stage effects in a `StateChangeQueue` and flush once all decisions are made:
+
+```javascript
+import { StateChangeQueue } from './src/stateOperations/StateChangeQueue.js';
+
+const queue = new StateChangeQueue();
+
+// Each agent selects their best action and enqueues it
+best.action.execute(best.binding, world.queryHandlers, queue);
+// ... repeat for other agents ...
+
+// Commit all effects at end of tick
+queue.flush('tickEnd', world.queryHandlers);
+```
+
+Effects enqueued this way are not visible to other agents' scoring decisions in the same tick — consistent with a simultaneous-action model.
+
+---
+
 ## What's next
 
-For a fuller picture of the predicate language — all negation operators, numeric comparisons, count queries, temporal chains, derived predicates, private stores, and sensor predicates — see [language.md](language.md).
-
-A volition plugin and demo showing how to wire rule evaluation into an agent decision loop are coming soon.
+For the full language reference — negation operators, numeric comparisons, count queries, temporal chains, derived predicates, private stores, sensor predicates, and the complete action spec — see [language.md](language.md).

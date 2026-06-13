@@ -120,6 +120,30 @@ Entities are declared in `entities.json`, grouped by type. Each type maps entity
 }
 ```
 
+### Type-level configuration
+
+Two keys are recognised at the entity-type level (alongside member definitions):
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `privateStore` | `false` | Create a private fact store for every instance of this type |
+| `distinct` | `true` | Whether two logical variables of this type must be assigned different entities. Set `false` to allow self-pairings (e.g. `?X = alice, ?Y = alice`). Also controls within-predicate distinctness for that type's argument positions. |
+
+```json
+{
+  "agent": {
+    "privateStore": true,
+    "distinct": true,
+    "alice": {},
+    "bob":   {}
+  },
+  "token": {
+    "distinct": false,
+    "coin": {}
+  }
+}
+```
+
 ### Private stores
 
 An entity type opts in to private stores by setting `"privateStore": true` at the type level. Every instance of that type receives its own fact store, separate from the shared world store.
@@ -282,13 +306,13 @@ The logic system has no built-in notion of a "self" or focus agent. Any variable
 
 ### Binding constraints
 
-When the engine searches bindings, two constraints apply:
+When the engine searches bindings, two constraints apply — both governed by the `distinct` setting on the entity type (see [Type-level configuration](#type-level-configuration), default `true`):
 
-**Distinct variables.** Two different logical variables of the same entity type (e.g. `?X` and `?Y` both ranging over agents) cannot be assigned the same entity. So `knows(?X, ?Y)` never generates `?X = alice, ?Y = alice`.
+**Distinct variables.** Two different logical variables of the same entity type (e.g. `?X` and `?Y` both ranging over agents) cannot be assigned the same entity. So `knows(?X, ?Y)` never generates `?X = alice, ?Y = alice`. Set `"distinct": false` on the type to allow self-pairings.
 
-**Distinct arguments within one predicate.** For a single predicate occurrence, two argument positions with the same schema type cannot resolve to the same entity. This applies to literals as well as variables: in `knows(alice, ?Y)`, `?Y` cannot be `alice`.
+**Distinct arguments within one predicate.** For a single predicate occurrence, two argument positions with the same schema type cannot resolve to the same entity. This applies to literals as well as variables: in `knows(alice, ?Y)`, `?Y` cannot be `alice`. Set `"distinct": false` on the type to allow same-entity pairings within a predicate call.
 
-These rules follow from argument types in the schema (`agent`, `knowledge`, `item`, …). Positions typed as `string` are not compared to each other for distinctness.
+Both constraints follow from argument types in the schema (`agent`, `knowledge`, `item`, …). Positions typed as `string` are never compared for distinctness regardless of the `distinct` flag.
 
 ### Wildcards
 

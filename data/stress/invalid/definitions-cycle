@@ -1,0 +1,10 @@
+# Negative test: these definitions reference each other circularly.
+# Loading them MUST fail with a cycle error.
+
+define "allies of my enemies"
+  rivals(?X, ?Y)
+  => closeAllies(?X, ?Y)
+
+define "rivals of my allies"
+  closeAllies(?X, ?Y)
+  => rivals(?X, ?Y)

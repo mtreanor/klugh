@@ -1,0 +1,86 @@
+# Stress scenario — derived predicate definitions.
+# 14 conclusions are authored here; the 15th (kinOf) is registered as a
+# code handler by the application layer (see tests/scenario).
+# Exercises: multi-head OR, derived-on-derived chaining (3 deep), negation
+# over derived predicates, counts, history, temporal chains, numeric tiers
+# and comparisons, string-variable discovery, private premises, private
+# conclusions, sensor premises, and ground entity arguments.
+
+define "acquainted pair — know each other, no feud"
+  knows(?X, ?Y)
+  ^ not feuding(?X, ?Y)
+  => acquaintedPair(?X, ?Y)
+
+define "close allies — mutual devotion"
+  trust(?X, ?Y) >= 80
+  ^ trust(?Y, ?X) >= 80
+  => closeAllies(?X, ?Y)
+
+define "close allies — proven by deeds"
+  helped(?X, ?Y) [history]
+  ^ helped(?Y, ?X) [history]
+  ^ trust(?X, ?Y) >= 60
+  => closeAllies(?X, ?Y)
+
+define "rivals — open feud"
+  feuding(?X, ?Y)
+  => rivals(?X, ?Y)
+
+define "rivals — simmering tension"
+  tension(?X, ?Y) >= 8
+  => rivals(?X, ?Y)
+
+define "respected elder — admired and well-known"
+  reputation.admired(?X)
+  ^ |knows(?X, _)| >= 4
+  => respectedElder(?X)
+
+define "community pillar — elder, benefactor, above gossip"
+  respectedElder(?X)
+  ^ |helped(?X, _)| >= 3
+  ^ not whisperTarget(?X)
+  => communityPillar(?X)
+
+define "mentor figure — shared craft, good standing"
+  practices(?X, ?C)
+  ^ practices(?Y, ?C)
+  ^ reputation(?X) >= 60
+  => mentorFigure(?X, ?Y)
+
+define "can console — need meets provision"
+  hasNeed(?Y, ?N)
+  ^ canProvide(?X, ?N)
+  => canConsole(?X, ?Y)
+
+define "old wound — unforgiven betrayal"
+  betrayed(?Y, ?X) [history]
+  ^ not forgave(?X, ?Y)
+  => oldWound(?X, ?Y)
+
+define "healed rift — betrayal, apology, forgiveness, in order"
+  betrayed(?X, ?Y) then apologized(?X, ?Y) then forgave(?Y, ?X)
+  => healedRift(?X, ?Y)
+
+define "whisper target — talked about by many"
+  |gossipedAbout(_, ?X)| >= 2
+  => whisperTarget(?X)
+
+define "private enemy — a nursed grudge"
+  ?X.grudgeAgainst(?X, ?Y)
+  => privateEnemy(?X, ?Y)
+
+define "trusted confidant — private regard, public trust"
+  ?X.admires(?X, ?Y)
+  ^ trust(?X, ?Y) >= 60
+  => ?X.trustedConfidant(?X, ?Y)
+
+define "companion at hand — nearby and friendly"
+  near(?X, ?Y)
+  ^ acquaintedPair(?X, ?Y)
+  => companionAtHand(?X, ?Y)
+
+define "market rivals — same trade, bad blood"
+  worksAt(?X, market)
+  ^ worksAt(?Y, market)
+  ^ rivals(?X, ?Y)
+  => marketRival(?X, ?Y)

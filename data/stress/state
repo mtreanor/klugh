@@ -1,0 +1,165 @@
+# Stress scenario — a village of ten with thirty ticks of history.
+# Exercises: backdating, strength, assert-then-retract, explicit disbelief,
+# symmetric facts, numeric initialization, private stores with all three
+# contradiction policies.
+
+world
+  # ── acquaintance web (knows is symmetric — one direction declared) ──
+  knows(mara, oren)
+  knows(mara, petra)
+  knows(mara, talia)
+  knows(mara, una)
+  knows(mara, yara)
+  knows(mara, zeke)
+  knows(oren, silas) [at: -31]
+  knows(oren, petra)
+  knows(oren, wren)
+  knows(petra, una)
+  knows(petra, wren)
+  knows(petra, yara)
+  knows(silas, viggo)
+  knows(silas, yara)
+  knows(talia, una)
+  knows(talia, yara)
+  knows(viggo, wren)
+  knows(una, zeke)
+  knows(yara, una)
+
+  # ── deep history (negative ticks = before the simulation started) ──
+  betrayed(oren, silas) [at: -30]
+  betrayed(oren, mara) [at: -20] @ 0.9
+  apologized(oren, mara) [at: -15]
+  forgave(mara, oren) [at: -10]
+  helped(mara, talia) [at: -12]
+  helped(talia, mara) [at: -9]
+  helped(mara, una) [at: -2]
+  helped(mara, zeke) [at: -1]
+  helped(yara, silas) [at: -1]
+  insulted(wren, viggo) [at: -6]
+  insulted(viggo, wren) [at: -5]
+  gossipedAbout(petra, una) [at: -4]
+  gossipedAbout(wren, una) [at: -3]
+  gossipedAbout(petra, zeke) [at: -2]
+
+  # silas once welcomed visitors, no longer does, and has said so:
+  # historically true, currently retracted, with explicit disbelief on record.
+  wantsVisitors(silas) [at: -8]
+  not wantsVisitors(silas)
+  -wantsVisitors(silas)
+
+  # ── current relations ──
+  feuding(viggo, wren)
+
+  livesAt(mara, tavern)
+  livesAt(petra, tavern)
+  livesAt(una, tavern)
+  livesAt(oren, market)
+  livesAt(wren, market)
+  livesAt(zeke, market)
+  livesAt(silas, mill)
+  livesAt(viggo, mill)
+  livesAt(talia, chapel)
+  livesAt(yara, chapel)
+
+  worksAt(mara, tavern)
+  worksAt(oren, market)
+  worksAt(wren, market)
+  worksAt(talia, market)
+  worksAt(silas, mill)
+  worksAt(zeke, market)
+  worksAt(yara, chapel)
+
+  practices(oren, smithing)
+  practices(silas, smithing)
+  practices(talia, herbalism)
+  practices(una, weaving)
+  practices(yara, weaving)
+  practices(viggo, farming)
+  practices(zeke, farming)
+
+  owns(mara, heirloomRing)
+  owns(viggo, prizeGoat)
+  owns(wren, ledger)
+  covets(petra, heirloomRing)
+  covets(silas, prizeGoat)
+
+  hasNeed(zeke, "shelter")
+  hasNeed(una, "friendship")
+  hasNeed(silas, "respect")
+  canProvide(mara, "shelter")
+  canProvide(mara, "friendship")
+  canProvide(talia, "friendship")
+  canProvide(yara, "respect")
+
+  outsider(una)
+  outsider(zeke)
+
+  # ── numeric state ──
+  trust(mara, oren) = 85
+  trust(oren, mara) = 82
+  trust(mara, talia) = 75
+  trust(talia, mara) = 90
+  trust(petra, mara) = 80
+  trust(silas, oren) = 15
+  trust(oren, silas) = 35
+  trust(petra, wren) = 60
+  trust(viggo, wren) = 10
+  trust(wren, viggo) = 18
+  trust(oren, wren) = 12
+  trust(wren, oren) = 15
+
+  # yara's devotion to mara has cooled: set high, then lowered — the first
+  # value survives only in history (tests historical tier checks).
+  trust(yara, mara) = 88
+  trust(yara, mara) = 58
+  trust(yara, silas) = 70 @ 0.8
+
+  reputation(mara) = 82
+  reputation(oren) = 65
+  reputation(petra) = 40
+  reputation(silas) = 49
+  reputation(talia) = 75
+  reputation(una) = 50
+  reputation(viggo) = 52
+  reputation(wren) = 55
+  reputation(yara) = 70
+  reputation(zeke) = 20
+
+  prosperity(mara) = 75
+  prosperity(oren) = 55
+  prosperity(petra) = 40
+  prosperity(silas) = 45
+  prosperity(talia) = 50
+  prosperity(una) = 25
+  prosperity(viggo) = 38
+  prosperity(wren) = 68
+  prosperity(yara) = 42
+  prosperity(zeke) = 10
+
+# ── private stores ──
+
+private mara
+  admires(mara, talia)
+  admires(mara, yara)
+  suspects(mara, petra) @ 0.4
+  trust(mara, talia) = 81
+
+# petra's store allows contradictions: she both suspects oren and
+# disbelieves her own suspicion.
+private petra
+  suspects(petra, oren) @ 0.7
+  -suspects(petra, oren) @ 0.4
+  grudgeAgainst(petra, wren)
+
+# silas's store blocks contradictions: the disbelief below is silently
+# ignored because the positive grudge is already present.
+private silas
+  grudgeAgainst(silas, oren)
+  -grudgeAgainst(silas, oren)
+  suspects(silas, oren) @ 0.9
+
+private viggo
+  grudgeAgainst(viggo, wren)
+
+private wren
+  -grudgeAgainst(wren, viggo)

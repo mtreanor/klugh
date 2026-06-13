@@ -18,6 +18,14 @@ export class NegationPredicate extends Predicate {
     return [];
   }
 
+  getBindingVariables() {
+    return [];
+  }
+
+  getRequiredBoundVariables() {
+    return this.predicate.getVariables();
+  }
+
   describe(binding) {
     return `not ${this.predicate.describe(binding)}`;
   }

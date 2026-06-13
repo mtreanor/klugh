@@ -33,13 +33,17 @@ export class NumericStateQueryHandler extends QueryHandler {
     return value !== null ? value : this.schema.getDefault(name);
   }
 
+  // Returns true when the stored value actually changed (clamping can absorb the
+  // entire delta). ForwardChainer convergence depends on this signal.
   setValue(name, args, value, evaluationContext = null, provenance = null) {
+    const current   = this.getValue(name, args, evaluationContext);
     const factStore = evaluationContext?.getActiveFactStore?.() ?? this.factStore;
     const clamped   = this.schema.clamp(name, value);
     factStore.retract(Fact.withValue(name, args, null));
     factStore.assert(Fact.withValue(name, args, clamped));
     const record = this._getOrCreateRecord(name, args);
     record.addGiven(this.factStore.currentTick, clamped, provenance ?? new GivenProvenance());
+    return clamped !== current;
   }
 
   adjustValue(name, args, delta, evaluationContext = null, provenance = null) {
@@ -53,6 +57,7 @@ export class NumericStateQueryHandler extends QueryHandler {
       record.addGiven(this.factStore.currentTick, current, new GivenProvenance());
     }
     record.addAdjustment(this.factStore.currentTick, delta, clamped, provenance);
+    return clamped !== current;
   }
 
   getRecord(name, args) {

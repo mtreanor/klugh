@@ -103,6 +103,30 @@ describe('CountPredicate', () => {
     });
   });
 
+  describe('operators >= and <=', () => {
+    it('>= is true at and above the threshold, false below', () => {
+      const evaluationContext = buildContext(
+        [new Fact('knows', 'alice', 'bob'), new Fact('knows', 'alice', 'carol')],
+        [alice, bob, carol, dave],
+      );
+      const binding = new Binding().extend(SELF, alice);
+      assert.ok(makePredicate('>=', 1).evaluate(binding, evaluationContext));
+      assert.ok(makePredicate('>=', 2).evaluate(binding, evaluationContext));
+      assert.ok(!makePredicate('>=', 3).evaluate(binding, evaluationContext));
+    });
+
+    it('<= is true at and below the threshold, false above', () => {
+      const evaluationContext = buildContext(
+        [new Fact('knows', 'alice', 'bob'), new Fact('knows', 'alice', 'carol')],
+        [alice, bob, carol, dave],
+      );
+      const binding = new Binding().extend(SELF, alice);
+      assert.ok(makePredicate('<=', 3).evaluate(binding, evaluationContext));
+      assert.ok(makePredicate('<=', 2).evaluate(binding, evaluationContext));
+      assert.ok(!makePredicate('<=', 1).evaluate(binding, evaluationContext));
+    });
+  });
+
   describe('getVariables()', () => {
     it('returns outer-scope variables but not counting variables', () => {
       const inner = new FactPredicate('knows', SELF, countVar);

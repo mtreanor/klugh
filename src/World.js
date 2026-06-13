@@ -83,7 +83,7 @@ export class World {
   // Runs rules to fixpoint, committing all effects to the world.
   // With advanceTick: true, increments the canonical tick before running —
   // all effects land at the new tick.
-  apply(rules, { advanceTick = false } = {}) {
+  apply(rules, { advanceTick = false, minimumSatisfactionScore = 0 } = {}) {
     if (advanceTick) {
       this.tickTracker.currentTick++;
       this._syncStoreTicks();
@@ -92,6 +92,7 @@ export class World {
     const evaluationContext = this.createEvaluationContext();
 
     new ForwardChainer().run(rules, evaluationContext, new Binding(), (app) => {
+      if (app.satisfactionScore < minimumSatisfactionScore) return false;
       const provenance = new RuleEffectProvenance(app.rule, app.binding);
       const effects = Array.isArray(app.rule.effects) ? app.rule.effects : [];
       let changed = false;
@@ -104,27 +105,50 @@ export class World {
     return this;
   }
 
-  _commitEffect(operation, binding, satisfactionScore, provenance = null) {
+  // Runs rules exactly once (no fixpoint iteration), committing all effects to the world.
+  applyOnce(rules, { advanceTick = false, minimumSatisfactionScore = 0, scaleDelta = (d, s) => d * s } = {}) {
+    if (advanceTick) {
+      this.tickTracker.currentTick++;
+      this._syncStoreTicks();
+    }
+
+    const evaluationContext = this.createEvaluationContext();
+
+    new ForwardChainer().runOnce(rules, evaluationContext, new Binding(), (app) => {
+      if (app.satisfactionScore < minimumSatisfactionScore) return false;
+      const provenance = new RuleEffectProvenance(app.rule, app.binding);
+      const effects = Array.isArray(app.rule.effects) ? app.rule.effects : [];
+      let changed = false;
+      for (const effect of effects) {
+        if (this._commitEffect(effect, app.binding, app.satisfactionScore, provenance, scaleDelta)) changed = true;
+      }
+      return changed;
+    });
+
+    return this;
+  }
+
+  _commitEffect(operation, binding, satisfactionScore, provenance = null, scaleDelta = (d, s) => d * s) {
     if (operation.type === 'actuate' || operation.type === 'actuate-numeric') {
       applyStateChange(operation, binding, this.queryHandlers, { privateStores: this.privateStores });
       return true;
     }
 
+    // Numeric effects report convergence: "changed" only when the clamped value
+    // actually moved, so fixpoint apply() terminates at clamp boundaries.
     if (operation.type === 'adjust-numeric') {
-      applyStateChange(operation, binding, this.queryHandlers, {
-        deltaOverride: operation.delta * satisfactionScore,
+      return applyStateChange(operation, binding, this.queryHandlers, {
+        deltaOverride: scaleDelta(operation.delta, satisfactionScore),
         privateStores: this.privateStores,
         provenance,
-      });
-      return true;
+      }) === true;
     }
 
     if (operation.type === 'set-numeric') {
-      applyStateChange(operation, binding, this.queryHandlers, {
+      return applyStateChange(operation, binding, this.queryHandlers, {
         privateStores: this.privateStores,
         provenance,
-      });
-      return true;
+      }) === true;
     }
 
     // assert / retract: only commit if the world actually changes (convergence)

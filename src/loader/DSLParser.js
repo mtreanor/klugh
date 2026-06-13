@@ -415,7 +415,7 @@ export class DSLParser {
   resolveType(name) {
     if (!this.predicateSchema || !this.predicateSchema.hasDefinition(name)) return 'fact';
     const schemaType = this.predicateSchema.getDefinition(name).type;
-    if (schemaType === 'boolean' || schemaType === 'belief') return 'fact';
+    if (schemaType === 'boolean') return 'fact';
     if (schemaType === 'derived') return 'derived';
     if (schemaType === 'sensor') return 'sensor';
     return 'fact';
@@ -518,6 +518,12 @@ export class DSLParser {
       this.expect('COLON');
       const tick = this.expect('NUMBER').value;
       this.expect('RBRACKET');
+      // Strength may appear on either side of the bracket:
+      // 'pred(a) @ 0.9 [at: -5]' and 'pred(a) [at: -5] @ 0.9' are equivalent.
+      if (this.check('AT')) {
+        this.advance();
+        return { ...operation, tick, strength: this.expect('NUMBER').value };
+      }
       return { ...operation, tick };
     }
 

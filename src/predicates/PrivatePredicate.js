@@ -34,6 +34,14 @@ export class PrivatePredicate extends Predicate {
     return this.innerPredicate.getVariables();
   }
 
+  getBindingVariables() {
+    return this.innerPredicate.getBindingVariables();
+  }
+
+  getRequiredBoundVariables() {
+    return this.innerPredicate.getRequiredBoundVariables();
+  }
+
   describe(binding) {
     const ownerStr = this.isVariable
       ? Predicate.renderArg(this.owner, binding)

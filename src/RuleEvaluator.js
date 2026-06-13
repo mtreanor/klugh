@@ -2,6 +2,7 @@ import { Binding } from './Binding.js';
 import { RuleApplication } from './RuleApplication.js';
 import { LogicalVariable } from './LogicalVariable.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
+import { inferVariableTypes } from './inferVariableTypes.js';
 
 export class RuleEvaluator {
   constructor({ minimumSatisfactionScore = 0 } = {}) {
@@ -135,46 +136,7 @@ export class RuleEvaluator {
     return false;
   }
 
-  // Scans a rule's positive predicates to assign each logical variable a domain type
-  // from the predicate schema's arg declarations. Variables with no schema entry default
-  // to 'agent' in generateAllBindings.
   inferVariableTypes(rule, schema) {
-    const types = new Map();
-    if (!schema) return types;
-
-    for (const { predicate } of rule.predicateEntries) {
-      this.scanPredicateForTypes(predicate, schema, types);
-    }
-
-    return types;
-  }
-
-  scanPredicateForTypes(pred, schema, types) {
-    if (pred.steps) {
-      // TemporalChainPredicate — infer from each step
-      for (const step of pred.steps) {
-        this.assignTypesFromArgs(step.name, step.args, schema, types);
-      }
-      return;
-    }
-    // AtTickPredicate — descend into inner predicate
-    if (pred.inner) {
-      this.scanPredicateForTypes(pred.inner, schema, types);
-      return;
-    }
-    // NegationPredicate has no .name — variables must already be bound by positive predicates
-    if (!pred.name) return;
-    this.assignTypesFromArgs(pred.name, pred.args, schema, types);
-  }
-
-  assignTypesFromArgs(predicateName, args, schema, types) {
-    if (!schema.hasDefinition(predicateName)) return;
-    const argTypes = schema.getDefinition(predicateName).args;
-    if (!argTypes) return;
-    args.forEach((arg, i) => {
-      if (arg instanceof LogicalVariable && !types.has(arg.name) && argTypes[i]) {
-        types.set(arg.name, argTypes[i]);
-      }
-    });
+    return inferVariableTypes(rule.predicateEntries, schema);
   }
 }

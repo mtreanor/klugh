@@ -1,5 +1,7 @@
 import { Lexer, DSLParser } from './DSLParser.js';
 
+const AGGREGATORS = new Set(['sum', 'avg', 'min', 'max']);
+
 class ActionDSLParser extends DSLParser {
   parse() {
     const actions = [];
@@ -49,11 +51,12 @@ class ActionDSLParser extends DSLParser {
       content = { type: typeKeyword, template };
     }
 
-    this.expect('IDENT', 'effects');
-
     const effects = [];
-    while (!this.check('EOF') && !this.check('IDENT', 'action')) {
-      effects.push(this.parseStateOperation());
+    if (this.check('IDENT', 'effects')) {
+      this.advance();
+      while (!this.check('EOF') && !this.check('IDENT', 'action')) {
+        effects.push(this.parseStateOperation());
+      }
     }
 
     const result = { name, effects };
@@ -78,28 +81,36 @@ class ActionDSLParser extends DSLParser {
 
   isUtilitySourceStart() {
     if (this.check('NUMBER')) return true;
-    if (this.check('IDENT', 'group')) return true;
     if (this.check('IDENT', 'rule')) return true;
+    if (this.check('IDENT') && AGGREGATORS.has(this.peek().value)) return true;
     // IDENT followed by LPAREN is a predicate source
     if (this.check('IDENT') && this.tokens[this.pos + 1]?.type === 'LPAREN') return true;
     return false;
   }
 
+  // Atomic sources are the only valid children of an aggregate (no nesting).
+  isAtomicUtilitySourceStart() {
+    if (this.check('NUMBER')) return true;
+    if (this.check('IDENT', 'rule')) return true;
+    if (this.check('IDENT') && !AGGREGATORS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'LPAREN') return true;
+    return false;
+  }
+
   parseUtilitySource() {
+    if (this.check('IDENT') && AGGREGATORS.has(this.peek().value)) {
+      const aggregator = this.advance().value;
+      const sources = [];
+      while (this.isAtomicUtilitySourceStart()) {
+        sources.push(this.parseAtomicUtilitySource());
+      }
+      return { type: 'aggregate', aggregator, sources };
+    }
+    return this.parseAtomicUtilitySource();
+  }
+
+  parseAtomicUtilitySource() {
     if (this.check('NUMBER')) {
       return { type: 'constant', value: this.advance().value };
-    }
-
-    if (this.check('IDENT', 'group')) {
-      this.advance();
-      const aggregator = this.expect('IDENT').value;
-      this.expect('LPAREN');
-      const sources = [];
-      while (!this.check('RPAREN') && !this.check('EOF')) {
-        sources.push(this.parseUtilitySource());
-      }
-      this.expect('RPAREN');
-      return { type: 'aggregate', aggregator, sources };
     }
 
     if (this.check('IDENT', 'rule')) {

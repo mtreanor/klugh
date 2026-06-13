@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { Interpreter } from '../src/Interpreter.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dataDir   = join(__dirname, '../data/demo');
+const dataDir   = join(__dirname, '../data/demo-volition');
 
 function names(bindings, varName) {
   return bindings.map(b => b.assignments.get(varName)?.name ?? b.assignments.get(varName)).sort();

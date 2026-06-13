@@ -18,6 +18,14 @@ export class AtTickPredicate extends Predicate {
     return this.inner.getVariables();
   }
 
+  getBindingVariables() {
+    return this.inner.getBindingVariables();
+  }
+
+  getRequiredBoundVariables() {
+    return this.inner.getRequiredBoundVariables();
+  }
+
   describe(binding) {
     return `${this.inner.describe(binding)} [at: ${this.tick}]`;
   }

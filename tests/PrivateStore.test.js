@@ -5,6 +5,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { EntityNameValidator } from '../src/EntityNameValidator.js';
 import { PredicateSchema } from '../src/PredicateSchema.js';
+import { Fact } from '../src/Fact.js';
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../data/demo');
 
@@ -44,6 +45,25 @@ describe('Private stores in logic', () => {
     const interp = new Interpreter(dataDir);
     assert.equal(interp.query('friendship.cold(alice, ?Y)').length, 1);
     assert.equal(interp.query('alice.friendship.strong(bob, alice)').length, 1);
+  });
+
+  it('evaluates weak negation against a private store', () => {
+    const interp = new Interpreter(dataDir);
+    // alice's store holds positive perceivedThreat(carol, alice) with no disbelief,
+    // so weak negation is false for that fact and true for an absent one.
+    assert.equal(interp.query('~alice.perceivedThreat(carol, alice)').length, 0);
+    assert.equal(interp.query('~alice.perceivedThreat(bob, alice)').length, 1);
+  });
+
+  it('weak negation diverges from NAF in an allow-policy private store', () => {
+    const interp = new Interpreter(dataDir);
+    // carol's store has the allow policy: positive and explicit disbelief coexist.
+    const store = interp.world.getPrivateStore('carol');
+    store.assert(new Fact('perceivedThreat', 'bob', 'carol', { negated: false }));
+    store.assert(new Fact('perceivedThreat', 'bob', 'carol', { negated: true }));
+    // positive present → NAF false; disbelief also present → weak negation true
+    assert.equal(interp.query('not carol.perceivedThreat(bob, carol)').length, 0);
+    assert.equal(interp.query('~carol.perceivedThreat(bob, carol)').length, 1);
   });
 
   it('rejects predicate names that collide with entity names', () => {

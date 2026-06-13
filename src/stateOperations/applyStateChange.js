@@ -85,12 +85,11 @@ export function applyStateChange(operation, binding, queryHandlers, {
       return;
     case 'adjust-numeric': {
       const numeric = queryHandlers.getHandler('numeric');
-      numeric.adjustValue(operation.name, resolvedArgs, deltaOverride ?? operation.delta, evaluationContext, provenance);
-      return;
+      return numeric.adjustValue(operation.name, resolvedArgs, deltaOverride ?? operation.delta, evaluationContext, provenance);
     }
     case 'set-numeric': {
       const numeric = queryHandlers.getHandler('numeric');
-      numeric.setValue(operation.name, resolvedArgs, operation.value, evaluationContext, provenance);
+      const changed = numeric.setValue(operation.name, resolvedArgs, operation.value, evaluationContext, provenance);
       if (strength !== 1.0) {
         const record = factStore.factHistory.findLast(r =>
           r.isCurrentlyActive() &&
@@ -100,7 +99,7 @@ export function applyStateChange(operation, binding, queryHandlers, {
         );
         if (record) record.strength = strength;
       }
-      return;
+      return changed;
     }
     default:
       throw new Error(`Unknown state operation type: "${operation.type}"`);

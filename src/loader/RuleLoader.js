@@ -92,7 +92,7 @@ export class RuleLoader {
       return new PrivatePredicate(owner, inner, { isVariable: !!data.ownerVar });
     }
 
-    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private'].includes(data.type);
+    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick'].includes(data.type);
     if (this.predicateSchema && needsNameLookup) {
       if (!this.predicateSchema.hasDefinition(data.name)) {
         throw new Error(`Unknown predicate: "${data.name}" is not defined in the predicate schema`);
@@ -113,7 +113,7 @@ export class RuleLoader {
       case 'not-negated':
         return new NegationPredicate(this.buildExplicitNegation(data.predicate));
       case 'weak-negation':
-        return new WeakNegationPredicate(this.buildPredicate(data.predicate));
+        return this.buildWeakNegation(data.predicate);
       case 'sensor':
         return new SensorPredicate(data.name, this.resolveArgs(data.args));
       case 'numeric-value': {
@@ -175,6 +175,19 @@ export class RuleLoader {
     });
 
     return { innerData: { ...innerData, args: rewrittenArgs }, countingVars, countingVarTypes };
+  }
+
+  // The owner prefix must wrap the weak negation (not the other way around) so the
+  // store is scoped before evaluateWeak runs against a plain fact predicate.
+  buildWeakNegation(inner) {
+    if (inner.type === 'private') {
+      const owner = inner.ownerVar
+        ? new LogicalVariable(inner.ownerVar.slice(1))
+        : inner.ownerEntity;
+      const weak = new WeakNegationPredicate(this.buildPredicate(inner.predicate));
+      return new PrivatePredicate(owner, weak, { isVariable: !!inner.ownerVar });
+    }
+    return new WeakNegationPredicate(this.buildPredicate(inner));
   }
 
   buildExplicitNegation(inner) {

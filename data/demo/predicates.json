@@ -31,10 +31,10 @@
     "considerate":   { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
     "cautious":      { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
 
-    "perceivedThreat":      { "type": "belief", "args": ["agent", "agent"] },
-    "perceivedAlly":        { "type": "belief", "args": ["agent", "agent"] },
-    "vigilant":             { "type": "belief", "args": ["agent", "agent"] },
-    "feelingOfObligation":  { "type": "belief", "args": ["agent", "agent"] },
-    "deepFear":             { "type": "belief", "args": ["agent", "agent"] }
+    "perceivedThreat":      { "type": "boolean", "args": ["agent", "agent"] },
+    "perceivedAlly":        { "type": "boolean", "args": ["agent", "agent"] },
+    "vigilant":             { "type": "boolean", "args": ["agent", "agent"] },
+    "feelingOfObligation":  { "type": "boolean", "args": ["agent", "agent"] },
+    "deepFear":             { "type": "boolean", "args": ["agent", "agent"] }
   }
 }

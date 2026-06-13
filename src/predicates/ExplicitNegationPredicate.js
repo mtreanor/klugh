@@ -18,6 +18,16 @@ export class ExplicitNegationPredicate extends Predicate {
     return this.args.filter(arg => arg instanceof LogicalVariable);
   }
 
+  // '-pred' is a negation form: it never binds variables during rule
+  // enumeration — they must be bound by a positive predicate.
+  getBindingVariables() {
+    return [];
+  }
+
+  getRequiredBoundVariables() {
+    return this.getVariables();
+  }
+
   describe(binding) {
     return `-${this.name}(${this.args.map(a => Predicate.renderArg(a, binding)).join(', ')})`;
   }

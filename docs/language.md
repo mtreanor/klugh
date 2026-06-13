@@ -36,7 +36,7 @@ Scenario data for the REPL is wired through `project.config.json`:
 | `state` | Shared world state and per-entity private state |
 | `definitions` | Definitions for derived predicates (optional) |
 
-Predicate syntax, state operations, and query forms are documented here. For how rules and actions drive agent behaviour, see [volition.md](volition.md).
+Predicate syntax, state operations, and query forms are documented here. For how rules drive agent behaviour in an application context, see the host application's documentation.
 
 ---
 
@@ -231,7 +231,7 @@ world
   hadConflict(alice, carol) [at: -1]
 ```
 
-`[at: N]` and `@ strength` can be combined: `exploited(alice, bob) [at: -30] @ 0.75`.
+`[at: N]` and `@ strength` can be combined, in either order: `exploited(alice, bob) [at: -30] @ 0.75` and `exploited(alice, bob) @ 0.75 [at: -30]` are equivalent.
 
 ### String arguments
 
@@ -256,7 +256,15 @@ rule "R1 — exploit when a need can be met"
   => exploitative(?SELF, ?Y) += 3.0
 ```
 
-Rule files contain only `rule` blocks. World and private state belong in the `state` file. How volition interprets rule RHS is described in [volition.md](volition.md).
+Rule files contain only `rule` blocks. World and private state belong in the `state` file.
+
+### Cycle detection
+
+Rule sets are analysed at load time. If the engine finds a potential firing cycle — a chain of rules where rule A could assert a predicate that enables rule B, which asserts a predicate that enables rule A — loading fails with an error. This means rule files with cyclic boolean dependencies are rejected before any evaluation runs.
+
+The typical pattern of boolean LHS / numeric-only RHS is safe by construction: numeric effects never assert boolean facts, so no feedback cycle is possible.
+
+At runtime, fixpoint evaluation (`World.apply`) treats a numeric effect as a change only while the clamped value actually moves. A rule that keeps adjusting a numeric value therefore re-fires each pass until the value reaches its clamp boundary, then evaluation converges. For once-per-tick accumulator semantics, use `World.applyOnce`, which runs a single pass.
 
 ### Logical variables
 
@@ -612,9 +620,9 @@ Evaluation is **lazy**: derived facts are not materialized into a store each tic
 2. Attempts to prove each premise, recursively through other derived predicates if needed
 3. Returns true if any definition succeeds
 
-Results are **cached for the current tick**, keyed by store scope and ground arguments, so repeated queries within the same tick do not re-run the proof. The cache clears when the tick advances.
+Results are **cached per store scope and ground arguments**. Outside of forward chaining (interactive queries, `Interpreter.query()`), the cache lives for the current tick and clears when the tick advances. During forward chaining, the cache clears at the start of each pass — so a derived predicate re-evaluates against the world state at the beginning of each pass. Concretely: a boolean fact asserted by rule R in pass *i* is not visible to derived predicates until pass *i+1*.
 
-Cycle detection prevents infinite recursion when definitions refer to each other circularly — a cyclic proof returns false.
+Cycle detection prevents infinite recursion when definitions refer to each other circularly — a cyclic proof returns false. Circular references between definitions are also detected at load time; loading fails if a cycle is found.
 
 ### Using derived predicates in rules and queries
 

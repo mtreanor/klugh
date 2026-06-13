@@ -6,6 +6,12 @@
       "entities":    "data/demo/entities.json",
       "state":       "data/demo/state",
       "definitions": "data/demo/definitions"
+    },
+    "stress": {
+      "predicates":  "data/stress/predicates.json",
+      "entities":    "data/stress/entities.json",
+      "state":       "data/stress/state",
+      "definitions": "data/stress/definitions"
     }
   }
 }

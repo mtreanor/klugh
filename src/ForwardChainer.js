@@ -10,30 +10,36 @@ export class ForwardChainer {
   }
 
   run(rules, evaluationContext, startingBinding, onApplication) {
-    let changed = true;
-    while (changed) {
-      changed = false;
-      evaluationContext.getHandler('derived')?.clearCache();
-      const firedThisPass = new Set();
-      for (const rule of rules) {
-        const applications = this.ruleEvaluator.evaluate(
-          [rule],
-          evaluationContext.entityRegistry,
-          evaluationContext,
-          startingBinding,
-          evaluationContext.predicateSchema
-        );
-        for (const [, appList] of applications) {
-          for (const app of appList) {
-            const key = `${rule.name}\0${app.binding}`;
-            if (firedThisPass.has(key)) continue;
-            if (onApplication(app)) {
-              firedThisPass.add(key);
-              changed = true;
-            }
+    while (this._runPass(rules, evaluationContext, startingBinding, onApplication)) {}
+  }
+
+  runOnce(rules, evaluationContext, startingBinding, onApplication) {
+    this._runPass(rules, evaluationContext, startingBinding, onApplication);
+  }
+
+  _runPass(rules, evaluationContext, startingBinding, onApplication) {
+    let changed = false;
+    evaluationContext.getHandler('derived')?.clearCache();
+    const firedThisPass = new Set();
+    for (const rule of rules) {
+      const applications = this.ruleEvaluator.evaluate(
+        [rule],
+        evaluationContext.entityRegistry,
+        evaluationContext,
+        startingBinding,
+        evaluationContext.predicateSchema
+      );
+      for (const [, appList] of applications) {
+        for (const app of appList) {
+          const key = `${rule.name}\0${app.binding}`;
+          if (firedThisPass.has(key)) continue;
+          if (onApplication(app)) {
+            firedThisPass.add(key);
+            changed = true;
           }
         }
       }
     }
+    return changed;
   }
 }

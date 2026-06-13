@@ -398,6 +398,14 @@ describe('RuleParser', () => {
       assert.equal(worldState[0].strength, 0.85);
     });
 
+    it('parses strength on either side of a backdate bracket', () => {
+      const before = parser.parseState('world\n  hadConflict(alice, carol) @ 0.75 [at: -30]').worldState[0];
+      const after  = parser.parseState('world\n  hadConflict(alice, carol) [at: -30] @ 0.75').worldState[0];
+      assert.equal(before.tick, -30);
+      assert.equal(before.strength, 0.75);
+      assert.deepEqual(after, before);
+    });
+
     it('parses multiple assertions in order', () => {
       const { worldState } = parser.parseState(`
         world

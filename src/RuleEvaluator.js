@@ -26,6 +26,19 @@ export class RuleEvaluator {
     const variableTypes      = this.inferVariableTypes(rule, schema);
     const variablesToEnumerate = variables.filter(v => !startingBinding.isBound(v));
 
+    // Variables inside a negation (not / - / ~) must be bound by a positive
+    // predicate or by the starting binding — they are never enumerated. A rule
+    // whose negated variables can never be bound can never be satisfied.
+    const bindableNames = new Set();
+    for (const { predicate } of rule.predicateEntries) {
+      for (const v of predicate.getBindingVariables()) bindableNames.add(v.name);
+    }
+    for (const { predicate } of rule.predicateEntries) {
+      for (const v of predicate.getRequiredBoundVariables()) {
+        if (!bindableNames.has(v.name) && !startingBinding.isBound(v)) return [];
+      }
+    }
+
     const candidateBindings = this.generateAllBindings(
       variablesToEnumerate, variableTypes, entityRegistry, startingBinding,
       evaluationContext, rule.predicateEntries

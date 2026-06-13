@@ -134,14 +134,15 @@ describe('Derived fact inference', () => {
   });
 
   describe('cycle detection', () => {
-    it('returns false for a cyclic definition set', () => {
-      const schema = new PredicateSchema({
-        predicates: {
-          knows: { type: 'boolean', args: ['agent', 'agent'] },
-          loops: { type: 'derived', args: ['agent', 'agent'] },
-        },
-      });
+    const cyclicSchema = () => new PredicateSchema({
+      predicates: {
+        knows: { type: 'boolean', args: ['agent', 'agent'] },
+        loops: { type: 'derived', args: ['agent', 'agent'] },
+      },
+    });
 
+    it('rejects a cyclic definition set at load time', () => {
+      const schema = cyclicSchema();
       const parser = new RuleParser(schema);
       const deriveData = parser.parseDefinitions(`
         define "cycle"
@@ -149,8 +150,28 @@ describe('Derived fact inference', () => {
           => loops(?X, ?Y)
       `);
 
+      assert.throws(
+        () => new DerivationRuleLoader(schema).load(deriveData),
+        /Cyclic derived-predicate definitions/
+      );
+    });
+
+    it('returns false at runtime for a cyclic proof', () => {
+      const schema = cyclicSchema();
+      const parser = new RuleParser(schema);
+      const deriveData = parser.parseDefinitions(`
+        define "cycle"
+          loops(?X, ?Y)
+          => loops(?X, ?Y)
+      `);
+
+      // Register the cyclic rule directly, bypassing load-time detection, to
+      // exercise the runtime guard (cycles can still arise via code handlers
+      // or rules registered without the loader).
+      const loader = new DerivationRuleLoader(schema);
+      const definitions = deriveData.definitions.map(entry => loader.buildDeriveRule(entry));
+
       const world = new World(schema);
-      const { definitions } = new DerivationRuleLoader(schema).load(deriveData);
       world.queryHandlers.getHandler('derived').registerRules(definitions);
 
       const ctx  = world.createEvaluationContext();

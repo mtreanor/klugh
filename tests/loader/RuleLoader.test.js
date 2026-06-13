@@ -215,6 +215,34 @@ describe('RuleLoader', () => {
       }), /Unknown predicate/);
     });
 
+    it('builds an at-tick predicate without a top-level name lookup', () => {
+      assert.doesNotThrow(() => validatingLoader.load({
+        rules: [{
+          name: 'R1',
+          predicates: [{
+            type: 'at-tick',
+            tick: -3,
+            predicate: { type: 'fact', name: 'knows', args: ['?SELF', '?Y'] },
+          }],
+          effects: [{ type: 'adjust-numeric', name: 'friendship', args: ['?SELF', '?Y'], delta: 1.0 }],
+        }],
+      }));
+    });
+
+    it('validates the inner predicate of an at-tick wrapper', () => {
+      assert.throws(() => validatingLoader.load({
+        rules: [{
+          name: 'R1',
+          predicates: [{
+            type: 'at-tick',
+            tick: -3,
+            predicate: { type: 'fact', name: 'unknown', args: ['?SELF'] },
+          }],
+          effects: [{ type: 'adjust-numeric', name: 'friendship', args: ['?SELF', '?Y'], delta: 1.0 }],
+        }],
+      }), /Unknown predicate/);
+    });
+
     it('validates the inner predicate of a negation', () => {
       assert.throws(() => validatingLoader.load({
         rules: [{

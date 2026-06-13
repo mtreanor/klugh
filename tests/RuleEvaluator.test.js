@@ -175,4 +175,67 @@ describe('RuleEvaluator', () => {
       assert.equal(applications.filter(a => a.satisfactionScore === 1.0).length, 2);
     });
   });
+
+  describe('negated variables are never enumerated', () => {
+    const alice = { name: 'alice' };
+    const bob   = { name: 'bob' };
+
+    it('yields no applications when a variable appears only inside a negation', () => {
+      const evaluationContext = buildEvaluationContext([new Fact('knows', 'alice', 'bob')]);
+      const Q = new LogicalVariable('Q');
+      const R = new LogicalVariable('R');
+
+      // 'not feuding(?Q, ?R) => adjust(?Q, ?R)': the effect mentions ?Q/?R, but
+      // no positive predicate binds them, so the rule can never be satisfied.
+      const rule = new Rule(
+        'unbound negation',
+        [new NegationPredicate(new FactPredicate('feuding', Q, R))],
+        new StateOperation('adjust-numeric', 'test-tag', [Q, R], { delta: 1.0 })
+      );
+
+      const activeRules = new RuleEvaluator().evaluate(
+        [rule], new Map([['agent', [alice, bob]]]), evaluationContext
+      );
+      assert.equal(activeRules.size, 0);
+    });
+
+    it('still fires when the negated variable is bound positively', () => {
+      const evaluationContext = buildEvaluationContext([new Fact('knows', 'alice', 'bob')]);
+      const X = new LogicalVariable('X');
+      const Y = new LogicalVariable('Y');
+
+      const rule = new Rule(
+        'bound negation',
+        [
+          new FactPredicate('knows', X, Y),
+          new NegationPredicate(new FactPredicate('feuding', X, Y)),
+        ],
+        mockConsequent
+      );
+
+      const activeRules = new RuleEvaluator().evaluate(
+        [rule], new Map([['agent', [alice, bob]]]), evaluationContext
+      );
+      const fullySatisfied = activeRules.get(rule).filter(a => a.satisfactionScore === 1.0);
+      assert.equal(fullySatisfied.length, 1);
+    });
+
+    it('still fires when the negated variable comes from the starting binding', () => {
+      const evaluationContext = buildEvaluationContext([new Fact('knows', 'alice', 'bob')]);
+      const Q = new LogicalVariable('Q');
+      const R = new LogicalVariable('R');
+
+      const rule = new Rule(
+        'pre-bound negation',
+        [new NegationPredicate(new FactPredicate('feuding', Q, R))],
+        new StateOperation('adjust-numeric', 'test-tag', [Q, R], { delta: 1.0 })
+      );
+
+      const startingBinding = new Binding().extend(Q, alice).extend(R, bob);
+      const activeRules = new RuleEvaluator().evaluate(
+        [rule], new Map([['agent', [alice, bob]]]), evaluationContext, startingBinding
+      );
+      assert.equal(activeRules.get(rule).length, 1);
+    });
+  });
 });

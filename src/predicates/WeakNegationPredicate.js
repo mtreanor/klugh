@@ -17,6 +17,16 @@ export class WeakNegationPredicate extends Predicate {
     return this.innerPredicate.getVariables();
   }
 
+  // '~pred' is a negation form: it never binds variables during rule
+  // enumeration — they must be bound by a positive predicate.
+  getBindingVariables() {
+    return [];
+  }
+
+  getRequiredBoundVariables() {
+    return this.innerPredicate.getVariables();
+  }
+
   describe(binding) {
     return `~${this.innerPredicate.describe(binding)}`;
   }

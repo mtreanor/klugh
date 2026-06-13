@@ -26,8 +26,10 @@ export class CountPredicate extends Predicate {
       if (this.innerPredicate.evaluate(extendedBinding, evaluationContext)) count++;
     }
 
-    if (this.operator === '>') return count > this.threshold;
-    if (this.operator === '<') return count < this.threshold;
+    if (this.operator === '>')  return count > this.threshold;
+    if (this.operator === '<')  return count < this.threshold;
+    if (this.operator === '>=') return count >= this.threshold;
+    if (this.operator === '<=') return count <= this.threshold;
     return count === this.threshold;
   }
 

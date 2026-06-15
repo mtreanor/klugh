@@ -119,6 +119,8 @@ The fact was asserted or adjusted by an action's effects. See [Action records](a
 }
 ```
 
+`actionRecord.action` is the `Action` object. `actionRecord.planRecord` is the `PlanRecord` the action was executing, or `null` if it fired outside a plan. See [Plans](plans.md).
+
 ---
 
 ## Accessing provenance by type
@@ -147,9 +149,9 @@ const [record] = world.factStore.getRecords('helpful', ['alice', 'bob']);
 for (const event of record.currentReasons()) {
   if (event.provenance?.type === 'action-effect') {
     const ar = event.provenance.actionRecord;
-    console.log(`asserted by action "${ar.actionName}" at tick ${ar.tick}`);
+    console.log(`asserted by action "${ar.action.name}" at tick ${ar.tick}`);
   }
 }
 ```
 
-→ [Action records](action-records.md) · [Rules](rules.md) · [Derived predicates](derived-predicates.md) · [Sensor predicates](sensors.md)
+→ [Action records](action-records.md) · [Plans](plans.md) · [Rules](rules.md) · [Derived predicates](derived-predicates.md) · [Sensor predicates](sensors.md)

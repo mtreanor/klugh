@@ -58,16 +58,17 @@ export class Action {
     }
   }
 
-  execute(binding, queryHandlers, stateChangeQueue = null, { privateStores = null, world = null, utilityBreakdown = null } = {}) {
+  execute(binding, queryHandlers, stateChangeQueue = null, { privateStores = null, world = null, utilityBreakdown = null, planRecord = null } = {}) {
     if (this.effects.length === 0) return;
 
     let provenance = null;
     if (world) {
       const record = new ActionRecord({
         tick: world.tickTracker.currentTick,
-        actionName: this.name,
+        action: this,
         binding,
         utilityBreakdown,
+        planRecord,
       });
       world.actionLog.push(record);
       provenance = new ActionEffectProvenance(record);

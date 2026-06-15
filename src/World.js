@@ -21,6 +21,7 @@ export class World {
     this.queryHandlers    = new QueryHandlers();
     this.tickTracker      = { currentTick: 0 };
     this.actionLog        = [];
+    this.planLog          = [];
 
     this.queryHandlers.register('factStore', new FactStoreQueryHandler(this.factStore, schema));
     this.queryHandlers.register('externalAPI', new ExternalAPIQueryHandler());

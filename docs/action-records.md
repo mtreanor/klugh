@@ -24,12 +24,13 @@ Records are appended in the order effects fire. Only actions that have at least 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `actionName` | `string` | The action's name as declared in the `.klugh` file |
+| `action` | `Action` | The `Action` object that fired |
 | `tick` | `number` | The world tick at the moment of execution |
 | `binding` | `Binding` | The full variable binding the action fired with |
 | `utilityBreakdown` | `BreakdownNode[] \| null` | Per-source contribution tree; `null` if not provided |
+| `planRecord` | `PlanRecord \| null` | The plan this action was executing, if any |
 
-`binding.resolve(variable)` returns the entity assigned to a `LogicalVariable`. Entity objects carry a `name` string.
+`action.name` gives the action's string name. `binding.resolve(variable)` returns the entity assigned to a `LogicalVariable`. Entity objects carry a `name` string.
 
 ---
 
@@ -127,6 +128,16 @@ action.execute(binding, world.queryHandlers, null, {
 
 If `world` is omitted, no record is created and `world.actionLog` is not updated — effects still apply, they just leave no audit trail.
 
+Pass `planRecord` to link the action to a committed plan:
+
+```javascript
+action.execute(binding, world.queryHandlers, null, {
+  world,
+  utilityBreakdown: breakdown,
+  planRecord: plan,          // PlanRecord from planner.commit(...)
+});
+```
+
 A typical selection loop:
 
 ```javascript
@@ -144,7 +155,7 @@ action.execute(binding, world.queryHandlers, null, {
 });
 
 const record = world.actionLog.at(-1);
-console.log(`${record.actionName} at tick ${record.tick}, score ${score}`);
+console.log(`${record.action.name} at tick ${record.tick}, score ${score}`);
 ```
 
 ---
@@ -159,7 +170,7 @@ const reason = factRecord.currentReasons().find(e => e.provenance?.type === 'act
 
 if (reason) {
   const { actionRecord } = reason.provenance;
-  console.log(`caused by "${actionRecord.actionName}" at tick ${actionRecord.tick}`);
+  console.log(`caused by "${actionRecord.action.name}" at tick ${actionRecord.tick}`);
 
   for (const node of actionRecord.utilityBreakdown ?? []) {
     if (node.type === 'predicate') {
@@ -177,4 +188,4 @@ if (reason) {
 }
 ```
 
-→ [Provenance](provenance.md) · [Actions](actions.md)
+→ [Provenance](provenance.md) · [Actions](actions.md) · [Plans](plans.md)

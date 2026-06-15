@@ -177,6 +177,22 @@ Boolean provenance is accessible through `FactRecord.currentReasons()`. Numeric 
 
 ---
 
+## Plans
+
+The planner finds sequences of actions that achieve a goal from a given starting state, searching over hypothetical world states without mutating the live world. A found plan can be committed to `world.planLog` as a `PlanRecord`, which tracks its status (`active`, `succeeded`, `failed`, `abandoned`) and links to every `ActionRecord` created when its steps execute.
+
+```javascript
+const steps = new Planner(actions, schema).findPlan(goalPredicates, PlannerSnapshot.from(world));
+const plan  = planner.commit(steps, goalPredicates, world);
+// later, when executing:
+action.execute(binding, world.queryHandlers, null, { world, planRecord: plan });
+plan.checkGoal(world);  // auto-sets status to 'succeeded' if goal is met
+```
+
+→ [Plans](plans.md)
+
+---
+
 ## REPL
 
 `node src/repl.js` opens an interactive query prompt against the active scenario. Commands include strict queries, degree scoring, `assert`, `facts`, and `entities`.

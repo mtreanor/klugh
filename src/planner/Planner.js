@@ -1,6 +1,7 @@
 import { Binding } from '../Binding.js';
 import { RuleEvaluator } from '../RuleEvaluator.js';
 import { inferVariableTypes } from '../inferVariableTypes.js';
+import { PlanRecord } from '../provenance/PlanRecord.js';
 
 export class Planner {
   constructor(actions, schema) {
@@ -47,5 +48,26 @@ export class Planner {
   isGoalSatisfied(goalPredicates, evaluationContext) {
     const emptyBinding = new Binding();
     return goalPredicates.every(p => p.evaluate(emptyBinding, evaluationContext));
+  }
+
+  commit(steps, goalPredicates, world) {
+    const record = new PlanRecord({
+      goal:          goalPredicates,
+      plannedSteps:  steps,
+      plannedAtTick: world.tickTracker.currentTick,
+    });
+    world.planLog.push(record);
+    return record;
+  }
+
+  commitFailedAttempt(goalPredicates, world) {
+    const record = new PlanRecord({
+      goal:          goalPredicates,
+      plannedSteps:  [],
+      plannedAtTick: world.tickTracker.currentTick,
+    });
+    record.fail();
+    world.planLog.push(record);
+    return record;
   }
 }

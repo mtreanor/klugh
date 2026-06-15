@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 import { Interpreter } from './Interpreter.js';
+import { formatBoundRule } from './RuleFormatter.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const config   = JSON.parse(readFileSync(join(repoRoot, 'project.config.json'), 'utf-8'));
@@ -13,6 +14,8 @@ const paths = {
   entities:    resolve(repoRoot, scenario.entities),
   state:       resolve(repoRoot, scenario.state),
   definitions: scenario.definitions ? resolve(repoRoot, scenario.definitions) : null,
+  rulesets:    Object.fromEntries(Object.entries(scenario.rulesets   ?? {}).map(([k, v]) => [k, resolve(repoRoot, v)])),
+  actionsets:  Object.fromEntries(Object.entries(scenario.actionsets ?? {}).map(([k, v]) => [k, resolve(repoRoot, v)])),
 };
 
 const interp = new Interpreter(paths);
@@ -186,15 +189,133 @@ function printDegreeResults(applications) {
   console.log(`  — ${visible.length} binding${visible.length === 1 ? '' : 's'}`);
 }
 
+// --- ruleset / actionset helpers ---
+
+function parseBindings(tokens) {
+  const result = {};
+  for (const token of tokens) {
+    const m = token.match(/^\?([A-Za-z_][A-Za-z0-9_]*)=(\S+)$/);
+    if (!m) throw new Error(`Expected ?VAR=entity, got: ${token}`);
+    result[m[1]] = m[2];
+  }
+  return result;
+}
+
+function handleRulesetsCommand() {
+  if (interp.rulesets.size === 0) {
+    console.log('  (no rulesets loaded)');
+    return;
+  }
+  for (const [name, rules] of interp.rulesets) {
+    console.log(`  [${name}]  ${rules.length} rule${rules.length === 1 ? '' : 's'}`);
+  }
+}
+
+function handleActionsetsCommand() {
+  if (interp.actionsets.size === 0) {
+    console.log('  (no actionsets loaded)');
+    return;
+  }
+  for (const [name, actions] of interp.actionsets) {
+    console.log(`  [${name}]  ${actions.length} action${actions.length === 1 ? '' : 's'}`);
+  }
+}
+
+function handleRulesCommand(name) {
+  const rules = interp.rulesets.get(name);
+  if (!rules) throw new Error(`No ruleset named "${name}"`);
+  console.log(`[${name}]`);
+  for (const rule of rules) {
+    const vars = rule.collectVariables().map(v => `?${v.name}`).join(', ');
+    console.log(`  "${rule.name}"   ${vars || '(no variables)'}`);
+  }
+}
+
+function handleActionsCommand(name) {
+  const actions = interp.actionsets.get(name);
+  if (!actions) throw new Error(`No actionset named "${name}"`);
+  console.log(`[${name}]`);
+  for (const action of actions) {
+    const roles = action.roles.length > 0 ? action.roles.join(', ') : '(none)';
+    console.log(`  "${action.name}"   roles: ${roles}`);
+  }
+}
+
+function handleRunCommand(parts) {
+  if (parts.length === 0) throw new Error('Usage: run <name> [?VAR=entity …]');
+  const [name, ...bindingTokens] = parts;
+  const partialBinding = parseBindings(bindingTokens);
+  const fired = interp.runRuleset(name, { startingBinding: partialBinding });
+  if (fired.length === 0) {
+    console.log('  (no rules fired)');
+    return;
+  }
+  for (const app of fired) {
+    const text = formatBoundRule(app.rule, app.binding, {
+      satisfactionScore: app.satisfactionScore < 1.0 ? app.satisfactionScore : null,
+    });
+    for (const line of text.split('\n')) console.log(`  ${line}`);
+    console.log();
+  }
+  console.log(`  — ${fired.length} application${fired.length === 1 ? '' : 's'} fired`);
+}
+
+function formatCandidate({ action, binding, score }) {
+  const scoreStr = score.toFixed(2).padStart(8);
+  const vars = [...binding.assignments.entries()]
+    .map(([k, v]) => `?${k}=${v?.name ?? v}`)
+    .join('  ');
+  return `  ${scoreStr}   "${action.name}"${vars ? '   ' + vars : ''}`;
+}
+
+function handleScoreCommand(parts) {
+  if (parts.length === 0) throw new Error('Usage: score <name> [?VAR=entity …]');
+  const [name, ...bindingTokens] = parts;
+  const partialBinding = parseBindings(bindingTokens);
+  const candidates = interp.scoreActionset(name, partialBinding);
+  if (candidates.length === 0) {
+    console.log('  (no eligible actions)');
+    return;
+  }
+  for (const c of candidates) console.log(formatCandidate(c));
+  console.log(`  — ${candidates.length} candidate${candidates.length === 1 ? '' : 's'}`);
+}
+
+function handleSelectCommand(parts) {
+  if (parts.length === 0) throw new Error('Usage: select <name> [?VAR=entity …]');
+  const [name, ...bindingTokens] = parts;
+  const partialBinding = parseBindings(bindingTokens);
+  const candidates = interp.scoreActionset(name, partialBinding);
+  if (candidates.length === 0) {
+    console.log('  (no eligible actions)');
+    return;
+  }
+  const best = candidates[0];
+  console.log(formatCandidate(best));
+  if (best.action.content) {
+    console.log(`  → ${best.action.content.render(best.binding)}`);
+  }
+  best.action.execute(best.binding, interp.world.queryHandlers, null, interp.world.privateStores);
+  console.log('  ok');
+}
+
+// ---
+
 console.log('Ready. Ctrl+D to exit.');
 console.log();
-console.log('  query:     knows(?X, ?Y) ^ friendship.strong(alice, ?Y)');
-console.log('  negation:  not trusts(alice, ?Y)  |  -trusts(alice, carol)  |  ~trusts(alice, carol)');
-console.log('  degree:    degree knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
-console.log('  as:        as alice: canPair(alice, ?Y)   — query from an entity\'s private-store perspective');
-console.log('  assert:    assert knows(alice, carol) | assert -trusts(alice, carol) | assert friendship(alice, carol) = 75');
-console.log('  facts:     facts | facts all | facts alice | facts alice bob');
-console.log('  entities:  entities');
+console.log('  query:      knows(?X, ?Y) ^ friendship.strong(alice, ?Y)');
+console.log('  negation:   not trusts(alice, ?Y)  |  -trusts(alice, carol)  |  ~trusts(alice, carol)');
+console.log('  degree:     degree knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
+console.log('  as:         as alice: canPair(alice, ?Y)   — query from an entity\'s private-store perspective');
+console.log('  assert:     assert knows(alice, carol) | assert -trusts(alice, carol) | assert friendship(alice, carol) = 75');
+console.log('  facts:      facts | facts all | facts alice | facts alice bob');
+console.log('  entities:   entities');
+console.log('  tick:       tick | tick N   — advance time, resetting ephemeral predicates');
+console.log('  rulesets:   rulesets | rules <name>');
+console.log('  actionsets: actionsets | actions <name>');
+console.log('  run:        run <name> [?VAR=entity …]   — run a ruleset and show what fired');
+console.log('  score:      score <name> [?VAR=entity …] — score an actionset and rank candidates');
+console.log('  select:     select <name> [?VAR=entity …] — score and execute the top candidate');
 console.log();
 
 const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '> ', completer });
@@ -228,6 +349,30 @@ rl.on('line', (line) => {
         }
         console.log(`  — ${bindings.length} result${bindings.length === 1 ? '' : 's'}`);
       }
+    } else if (text === 'tick' || text.startsWith('tick ')) {
+      const arg    = text.slice('tick'.length).trim();
+      const amount = arg ? parseInt(arg, 10) : 1;
+      if (isNaN(amount) || amount < 1) throw new Error('Usage: tick [N]');
+      interp.advanceTick(amount);
+      console.log(`  tick → ${interp.world.tickTracker.currentTick}`);
+    } else if (text === 'rulesets') {
+      handleRulesetsCommand();
+    } else if (text === 'actionsets') {
+      handleActionsetsCommand();
+    } else if (text.startsWith('rules ') || text === 'rules') {
+      const arg = text.slice('rules'.length).trim();
+      if (!arg) throw new Error('Usage: rules <name>');
+      handleRulesCommand(arg);
+    } else if (text.startsWith('actions ') || text === 'actions') {
+      const arg = text.slice('actions'.length).trim();
+      if (!arg) throw new Error('Usage: actions <name>');
+      handleActionsCommand(arg);
+    } else if (text.startsWith('run ')) {
+      handleRunCommand(text.slice('run '.length).trim().split(/\s+/));
+    } else if (text.startsWith('score ')) {
+      handleScoreCommand(text.slice('score '.length).trim().split(/\s+/));
+    } else if (text.startsWith('select ')) {
+      handleSelectCommand(text.slice('select '.length).trim().split(/\s+/));
     } else {
       const bindings = interp.query(text);
       if (bindings.length === 0) {

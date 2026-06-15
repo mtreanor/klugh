@@ -2,16 +2,22 @@
   "active": "demo",
   "scenarios": {
     "demo": {
-      "predicates":  "data/demo/predicates.json",
-      "entities":    "data/demo/entities.json",
-      "state":       "data/demo/state",
-      "definitions": "data/demo/definitions"
+      "predicates":  "data/demo-volition/predicates.json",
+      "entities":    "data/demo-volition/entities.json",
+      "state":       "data/demo-volition/state",
+      "definitions": "data/demo-volition/definitions"
     },
     "stress": {
       "predicates":  "data/stress/predicates.json",
       "entities":    "data/stress/entities.json",
       "state":       "data/stress/state",
-      "definitions": "data/stress/definitions"
+      "definitions": "data/stress/definitions",
+      "rulesets": {
+        "main": "data/stress/rules"
+      },
+      "actionsets": {
+        "social": "data/stress/actions"
+      }
     }
   }
 }

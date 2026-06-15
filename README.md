@@ -245,4 +245,4 @@ Under the default `lastWins` contradiction policy, asserting `-pred` automatical
 
 `docs/quickstart.md` walks through setup end-to-end: entities, predicates, state, the REPL, and using the `Interpreter` and `ForwardChainer` in application code.
 
-`docs/language.md` covers everything: the full predicate schema format, all rule and query forms, private store configuration, sensor predicates, the derive system, and complete REPL command reference.
+`docs/index.md` is the language reference hub — predicate schema, state files, negation, all query forms, private stores, rules, derived predicates, sensors, actions, and the REPL command reference.

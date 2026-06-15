@@ -8,13 +8,13 @@ This document defines the semantics of klugh precisely. It covers the domain, th
 
 Let **T** be a set of entity type names. For each type τ ∈ T, let **E_τ** be a finite non-empty set of entity instances. The full entity domain is:
 
-> **E** = ⋃_{τ ∈ T} E_τ
+> **E** = ⋃_\{τ ∈ T\} E_τ
 
 Types are assumed disjoint: E_τ ∩ E_τ' = ∅ for τ ≠ τ'.
 
 A **predicate schema** Σ maps each predicate name p to a tuple (kind, [τ₁, ..., τₙ]) where:
-- kind ∈ {boolean, numeric, derived, sensor, sensor-numeric}
-- each τᵢ ∈ T ∪ {string} is the declared type of the i-th argument
+- kind ∈ \{boolean, numeric, derived, sensor, sensor-numeric\}
+- each τᵢ ∈ T ∪ \{string\} is the declared type of the i-th argument
 
 Predicates named in Σ are the only predicates the system recognises. References to undefined predicates are rejected at load time.
 
@@ -32,7 +32,7 @@ A **fact record** rec(f) for fact f is a sequence of events, ordered by tick. A 
 
 A **fact store** F is a set of fact records, at most one per distinct fact (p, ā, π). The active facts of F at tick t are:
 
-> active(F, t) = { f | rec(f) is active at t }
+> active(F, t) = \{ f | rec(f) is active at t \}
 
 A fact store also holds **numeric records**: for each numeric predicate n and ground argument tuple ā, a current value val(F, t, n, ā) ∈ [minValue_n, maxValue_n], defaulting to default_n when no value has been set.
 
@@ -44,7 +44,7 @@ A **world** W = (F_w, P, Δ_w, Δ_P) consists of:
 
 - **F_w** — the shared world fact store
 - **P** — a partial function from entity names to private fact stores, defined for entities that have opted in with `"privateStore": true`
-- **Δ_w** ∈ {lastWins, allow, block} — the contradiction policy of the world store (default: lastWins)
+- **Δ_w** ∈ \{lastWins, allow, block\} — the contradiction policy of the world store (default: lastWins)
 - **Δ_P** — a function from entity names to their contradiction policy (default per entity: lastWins)
 
 A **contradiction** in a store F at tick t is the simultaneous presence of active facts (p, ā, +) and (p, ā, −) for the same p and ā.
@@ -114,23 +114,23 @@ All satisfaction conditions below are relative to a world W, tick t, binding σ,
 
 **Positive** `p(x₁,...,xₙ)`:
 > satisfied iff pos(S, t, p, σ(ā))
-> i.e., V ∈ {True, Both}
+> i.e., V ∈ \{True, Both\}
 
 Positive belief is present regardless of whether disbelief is simultaneously present.
 
 **Explicit negation** `-p(x₁,...,xₙ)`:
 > satisfied iff neg(S, t, p, σ(ā))
-> i.e., V ∈ {False, Both}
+> i.e., V ∈ \{False, Both\}
 
 **Negation as failure** `not p(x₁,...,xₙ)`:
 > satisfied iff NOT pos(S, t, p, σ(ā))
-> i.e., V ∈ {False, Neither}
+> i.e., V ∈ \{False, Neither\}
 
 Under `allow` policy, Both is possible. `not p` is not satisfied when Both holds — positive belief is present even if disbelief is also present.
 
 **Not-negated** `not -p(x₁,...,xₙ)`:
 > satisfied iff NOT neg(S, t, p, σ(ā))
-> i.e., V ∈ {True, Neither}
+> i.e., V ∈ \{True, Neither\}
 
 **Weak negation** `~p(x₁,...,xₙ)`:
 
@@ -141,7 +141,7 @@ Under `allow` policy, Both is possible. `not p` is not satisfied when Both holds
 i.e., positive belief is absent *or* explicit disbelief is present.
 
 > satisfied iff NOT pos(S, t, p, σ(ā)) OR neg(S, t, p, σ(ā))
-> i.e., V ∈ {False, Neither, Both}
+> i.e., V ∈ \{False, Neither, Both\}
 > equivalently: V ≠ True
 
 The coherence of this definition across all four Belnap values:
@@ -211,7 +211,7 @@ If the value falls within no declared tier (a gap in the tier specification), it
 
 Let the counting positions be those argument positions holding a wildcard `_`, and let their declared types be τ_{i₁}, ..., τ_{iₘ}. Introduce fresh counting variables c₁,...,cₘ for these positions.
 
-> count(σ) = |{ (e₁,...,eₘ) ∈ E_{τ_{i₁}} × ... × E_{τ_{iₘ}} | p is satisfied under σ ∪ {c₁↦e₁,...,cₘ↦eₘ} }|
+> count(σ) = |\{ (e₁,...,eₘ) ∈ E_\{τ_\{i₁\}\} × ... × E_\{τ_\{iₘ\}\} | p is satisfied under σ ∪ \{c₁↦e₁,...,cₘ↦eₘ\} \}|
 
 > satisfied iff count(σ) ⊕ k
 
@@ -255,7 +255,7 @@ The LHS of a rule or query is a conjunction C₁ ∧ ... ∧ Cₙ. Each conjunct
 
 **Truth degree**: a continuous measure of how well a binding satisfies the conjunction, defined as:
 
-> satisfactionScore(σ) = Σ{ wᵢ | Cᵢ satisfied under σ } / Σ{ wᵢ | 1 ≤ i ≤ n }
+> satisfactionScore(σ) = Σ\{ wᵢ | Cᵢ satisfied under σ \} / Σ\{ wᵢ | 1 ≤ i ≤ n \}
 
 This is a weighted ratio in [0, 1]. Strict satisfaction corresponds to satisfactionScore = 1.0.
 

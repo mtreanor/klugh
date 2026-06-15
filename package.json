@@ -2,7 +2,31 @@
   "name": "klugh",
   "version": "0.1.0",
   "type": "module",
+  "description": "A predicate logic engine for authoring rules about relationships, beliefs, and history",
+  "keywords": ["logic", "rules", "social-simulation", "datalog", "predicate", "game-ai", "narrative"],
+  "author": "Mike Treanor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mtreanor/klugh"
+  },
+  "homepage": "https://github.com/mtreanor/klugh",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "demo": "node src/repl.js"
+    "demo": "node src/repl.js",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "markdown-it-mathjax3": "^4.3.2",
+    "vitepress": "^1.6.4"
   }
 }

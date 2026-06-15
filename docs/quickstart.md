@@ -71,7 +71,7 @@ Argument type names must match the type keys in `entities.json`. The schema is v
 
 Facts go in a `state` file. The `world` block is the shared store; `private` blocks write to a specific entity's store.
 
-```
+```klugh
 // state
 world
   knows(alice, bob)
@@ -236,38 +236,43 @@ interp.assert('not knows(alice, carol)');
 
 ## 6. Load and run rules
 
-Rules are authored in a separate file and loaded via the parser. The `ForwardChainer` runs them to fixpoint, calling your callback for each fired application. You decide whether to apply the effects.
+Declare your rulesets by name in `project.config.json`:
+
+```json
+{
+  "active": "my-scenario",
+  "scenarios": {
+    "my-scenario": {
+      "predicates":  "data/predicates.json",
+      "entities":    "data/entities.json",
+      "state":       "data/state",
+      "definitions": "data/definitions",
+      "rulesets": {
+        "social": "data/rules/social"
+      }
+    }
+  }
+}
+```
+
+Run a ruleset by name. It runs to fixpoint and returns every rule application that fired:
 
 ```javascript
-import { readFileSync } from 'fs';
-import { ForwardChainer } from './src/ForwardChainer.js';
-import { applyStateChange } from './src/stateOperations/applyStateChange.js';
+const fired = interp.runRuleset('social');
+```
 
-// Load rules from a file
-const ruleSource = readFileSync('./data/rules', 'utf-8');
-const { rules } = interp.ruleLoader.load(interp.ruleParser.parse(ruleSource));
+To pre-bind `?SELF` (run rules for one agent at a time) or allow partial-satisfaction firing:
 
-// Run to fixpoint, applying all fully-satisfied rules
-const chainer = new ForwardChainer();
-const ctx = interp.world.createEvaluationContext();
-
-chainer.run(rules, ctx, /* startingBinding */ null, (application) => {
-  if (!application.isFullySatisfied()) return false;
-
-  for (const effect of application.rule.effects) {
-    applyStateChange(effect, application.binding, interp.world.queryHandlers, {
-      privateStores: interp.world.privateStores,
-    });
-  }
-  return true;  // signal that a change was committed — triggers another pass
-});
+```javascript
+const fired = interp.runRuleset('social', { startingBinding: { SELF: 'alice' } });
+const fired = interp.runRuleset('social', { minimumSatisfactionScore: 0.5 });
 ```
 
 ### Importance and partial truth
 
-Conditions in a rule can be weighted with `[importance: N]`. When only some conditions hold, `application.satisfactionScore` is the ratio of satisfied importance to total importance — a number between 0 and 1. `isFullySatisfied()` is just `satisfactionScore === 1.0`.
+Conditions in a rule can be weighted with `[importance: N]`. When only some conditions hold, `application.satisfactionScore` is the ratio of satisfied importance to total importance — a number between 0 and 1.
 
-```
+```klugh
 rule "guilt lingers — stronger when conflict was recent"
   knows(?SELF, ?Y)          [importance: 1.0]
   ^ hadConflict(?SELF, ?Y) [history]    [importance: 3.0]
@@ -275,36 +280,7 @@ rule "guilt lingers — stronger when conflict was recent"
   => respectful(?SELF, ?Y) += 5.0
 ```
 
-In the callback you can use `satisfactionScore` to threshold or scale:
-
-```javascript
-chainer.run(rules, ctx, null, (application) => {
-  if (application.satisfactionScore < 0.5) return false;  // ignore weak matches
-
-  for (const effect of application.rule.effects) {
-    applyStateChange(effect, application.binding, interp.world.queryHandlers, {
-      privateStores: interp.world.privateStores,
-    });
-  }
-  return true;
-});
-```
-
-Whether to fire on partial satisfaction — and what to do with `satisfactionScore` — is entirely up to your application.
-
-### Pre-binding variables
-
-To pre-bind `?SELF` (so rules only fire for one agent at a time):
-
-```javascript
-import { Binding } from './src/Binding.js';
-import { LogicalVariable } from './src/LogicalVariable.js';
-
-const alice = interp.world.entityRegistry.get('agent').find(e => e.name === 'alice');
-const startingBinding = new Binding().extend(new LogicalVariable('SELF'), alice);
-
-chainer.run(rules, ctx, startingBinding, (application) => { ... });
-```
+The default `minimumSatisfactionScore` of `1.0` means only fully-satisfied rules fire. Lower it to allow partial matches through.
 
 ---
 
@@ -341,8 +317,8 @@ Actions are authored choices — preconditions check eligibility, utility source
 
 ### Write an actions file
 
-```
-// data/actions
+```klugh
+// data/actions/social
 action "offer help"
   roles: ?SELF, ?Y
   preconditions
@@ -369,66 +345,31 @@ action "rest"
 
 `offer help` is a binary action (`?SELF` and `?Y`) — it requires knowing someone and gains utility from friendship and their unmet needs. `rest` is unary — always available but mildly penalised, so it only wins when nothing better is possible.
 
-### Load the actions
+### Register and score
 
-```javascript
-import { readFileSync } from 'fs';
-import { ActionParser } from './src/loader/ActionParser.js';
-import { ActionLoader } from './src/loader/ActionLoader.js';
+Declare your actionsets by name in `project.config.json` alongside your rulesets:
 
-const { actions } = new ActionLoader().load(
-  new ActionParser().parse(readFileSync('./data/actions', 'utf-8'))
-);
+```json
+"actionsets": {
+  "social": "data/actions/social"
+}
 ```
 
-### Score and select
-
-Enumerate candidate (action, binding) pairs, check preconditions, score each, then pick the best.
+Score an actionset by name. Free variables are enumerated automatically; `?SELF` is pre-bound here so only alice's options are scored:
 
 ```javascript
-import { Binding } from './src/Binding.js';
-import { LogicalVariable } from './src/LogicalVariable.js';
+const candidates = interp.scoreActionset('social', { SELF: 'alice' });
+// [{ action, binding, score }, ...] sorted by score descending
 
-const world  = interp.world;
-const ctx    = world.createEvaluationContext();
-const agents = world.entityRegistry.get('agent') ?? [];
-
-// Fix ?SELF to alice — we're choosing an action for her
-const alice = agents.find(e => e.name === 'alice');
-const selfBinding = new Binding().extend(new LogicalVariable('SELF'), alice);
-
-const candidates = [];
-
-for (const action of actions) {
-  // For unary actions (no ?Y), the starting binding is complete
-  // For binary actions, try every eligible ?Y
-  const hasY = action.collectVariables().some(v => v.name === 'Y');
-  const partnerCandidates = hasY ? agents : [null];
-
-  for (const partner of partnerCandidates) {
-    const binding = partner
-      ? selfBinding.extend(new LogicalVariable('Y'), partner)
-      : selfBinding;
-
-    if (!action.arePreconditionsMet(binding, ctx)) continue;
-
-    const score = action.score(binding, world.entityRegistry, ctx);
-    candidates.push({ action, binding, score });
-  }
-}
-
-// Rank by score descending
-candidates.sort((a, b) => b.score - a.score);
-const best = candidates[0];
-
+const [best] = candidates;
 if (best) {
   const label = best.action.content?.render(best.binding) ?? best.action.name;
   console.log(`Selected: ${label}  (score ${best.score.toFixed(2)})`);
-  best.action.execute(best.binding, world.queryHandlers);
+  best.action.execute(best.binding, interp.world.queryHandlers);
 }
 ```
 
-With the state from step 3 (`friendship(alice, bob) = 85`, `hasNeed` absent), `offer help` for alice→bob will score 85 (friendship only) and win over `rest` at −2.
+With the state from step 3 (`friendship(alice, bob) = 85`, `hasNeed` absent), `offer help` for alice→bob will score 85 and win over `rest` at −2.
 
 ### Deferred execution
 
@@ -448,9 +389,3 @@ queue.flush('tickEnd', world.queryHandlers);
 ```
 
 Effects enqueued this way are not visible to other agents' scoring decisions in the same tick — consistent with a simultaneous-action model.
-
----
-
-## What's next
-
-For the full language reference — negation operators, numeric comparisons, count queries, temporal chains, derived predicates, private stores, sensor predicates, and the complete action spec — see [language.md](language.md).

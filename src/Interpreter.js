@@ -6,12 +6,16 @@ import { LogicalVariable } from './LogicalVariable.js';
 import { PredicateSchema } from './PredicateSchema.js';
 import { RuleParser } from './loader/RuleParser.js';
 import { RuleLoader } from './loader/RuleLoader.js';
+import { ActionParser } from './loader/ActionParser.js';
+import { ActionLoader } from './loader/ActionLoader.js';
 import { DerivationRuleLoader } from './loader/DerivationRuleLoader.js';
 import { StateLoader } from './loader/StateLoader.js';
 import { EntityLoader } from './loader/EntityLoader.js';
 import { Rule } from './Rule.js';
 import { RuleEvaluator } from './RuleEvaluator.js';
+import { ForwardChainer } from './ForwardChainer.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
+import { applyStateChange } from './stateOperations/applyStateChange.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
 
 export class Interpreter {
@@ -50,6 +54,19 @@ export class Interpreter {
 
     if (paths.definitions && existsSync(paths.definitions)) {
       this.loadDefinitions(readFileSync(paths.definitions, 'utf-8'));
+    }
+
+    this.rulesets   = new Map();
+    this.actionsets = new Map();
+
+    for (const [name, path] of Object.entries(paths.rulesets ?? {})) {
+      const { rules } = this.ruleLoader.load(this.ruleParser.parse(readFileSync(path, 'utf-8')));
+      this.rulesets.set(name, rules);
+    }
+
+    for (const [name, path] of Object.entries(paths.actionsets ?? {})) {
+      const { actions } = new ActionLoader(this.schema).load(new ActionParser().parse(readFileSync(path, 'utf-8')));
+      this.actionsets.set(name, actions);
     }
   }
 
@@ -140,6 +157,80 @@ export class Interpreter {
       .map(binding => this.ruleEvaluator.applyRule(rule, binding, this.world.createEvaluationContext()))
       .filter(app => app.satisfactionScore >= minimumSatisfactionScore)
       .sort((a, b) => b.satisfactionScore - a.satisfactionScore);
+  }
+
+  // Runs a named ruleset to fixpoint. Applies all rule applications whose
+  // satisfactionScore meets the threshold (default: fully satisfied only).
+  // Returns the list of RuleApplications that fired.
+  runRuleset(name, { minimumSatisfactionScore = 1.0, startingBinding = {} } = {}) {
+    const rules = this.rulesets.get(name);
+    if (!rules) throw new Error(`No ruleset named "${name}"`);
+
+    const ctx          = this.world.createEvaluationContext();
+    const startBinding = this.resolveBinding(startingBinding);
+    const fired        = [];
+
+    new ForwardChainer().run(rules, ctx, startBinding, (app) => {
+      if (app.satisfactionScore < minimumSatisfactionScore) return false;
+      for (const effect of app.rule.effects) {
+        applyStateChange(effect, app.binding, this.world.queryHandlers, {
+          privateStores: this.world.privateStores,
+        });
+      }
+      fired.push(app);
+      return true;
+    });
+
+    return fired;
+  }
+
+  // Scores every action in a named actionset against the current world state.
+  // partialBinding fixes variables; remaining free variables are enumerated.
+  // Returns [{ action, binding, score }, ...] sorted by score descending.
+  scoreActionset(name, partialBinding = {}, { minimumScore = -Infinity } = {}) {
+    const actions = this.actionsets.get(name);
+    if (!actions) throw new Error(`No actionset named "${name}"`);
+
+    const startingBinding = this.resolveBinding(partialBinding);
+    const boundNames      = new Set(startingBinding.assignments.keys());
+    const ctx             = this.world.createEvaluationContext();
+    const candidates      = [];
+
+    for (const action of actions) {
+      const freeVars = action.collectVariables().filter(v => !boundNames.has(v.name));
+
+      const allBindings = freeVars.length > 0
+        ? this.ruleEvaluator.generateAllBindings(
+            freeVars,
+            this.inferVariableTypes(action.preconditions.map(e => e.predicate)),
+            this.world.entityRegistry,
+            startingBinding
+          )
+        : [startingBinding];
+
+      for (const binding of allBindings) {
+        if (!action.arePreconditionsMet(binding, ctx)) continue;
+        const score = action.score(binding, this.world.entityRegistry, ctx);
+        if (score < minimumScore) continue;
+        candidates.push({ action, binding, score });
+      }
+    }
+
+    return candidates.sort((a, b) => b.score - a.score);
+  }
+
+  advanceTick(amount = 1) {
+    this.world.advanceTick(amount);
+    const numericHandler = this.world.queryHandlers.getHandler('numeric');
+    for (const [name, def] of this.schema.definitions) {
+      if (!def.annotations?.ephemeral) continue;
+      this.world.factStore.retractAll(name);
+      if (numericHandler) numericHandler.clearRecords(name);
+      for (const store of this.world.privateStores.values()) {
+        store.retractAll(name);
+      }
+    }
+    return this;
   }
 
   assert(text) {

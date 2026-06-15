@@ -1,0 +1,258 @@
+# Stress scenario — 16 social actions for the village simulation.
+#
+# Utility features covered:
+#   constant, predicate (numeric), rule-count,
+#   sum aggregate, avg aggregate, min aggregate, max aggregate.
+#
+# Precondition features covered:
+#   boolean fact, NAF (not), numeric comparison, numeric tier,
+#   count (|...|), history ([history]), temporal chain (then),
+#   derived predicate, variable-owner private store (?VAR.pred).
+#
+# Effects covered:
+#   assert, retract (not), adjust-numeric (+=/-=),
+#   set-numeric (=), private-store assert (?OWNER.pred).
+
+# ── Needs fulfilment ─────────────────────────────────────────────────────────
+
+action "shelter the homeless"
+  roles: ?SELF, ?Y
+  preconditions
+    hasNeed(?Y, "shelter")
+    ^ canProvide(?SELF, "shelter")
+    ^ knows(?SELF, ?Y)
+  utility
+    trust(?SELF, ?Y)
+    10.0
+  content text: "?SELF takes in ?Y"
+  effects
+    helped(?SELF, ?Y)
+    prosperity(?Y) += 5
+
+action "share a kind word"
+  roles: ?SELF, ?Y
+  preconditions
+    hasNeed(?Y, "friendship")
+    ^ canProvide(?SELF, "friendship")
+    ^ knows(?SELF, ?Y)
+  utility
+    sum
+      trust(?SELF, ?Y)
+      8.0
+  content text: "?SELF reaches out to ?Y"
+  effects
+    helped(?SELF, ?Y)
+    trust(?SELF, ?Y) += 5
+    trust(?Y, ?SELF) += 3
+
+action "restore dignity"
+  roles: ?SELF, ?Y
+  preconditions
+    hasNeed(?Y, "respect")
+    ^ canProvide(?SELF, "respect")
+    ^ knows(?SELF, ?Y)
+  utility
+    avg
+      reputation(?SELF)
+      reputation(?Y)
+      trust(?SELF, ?Y)
+  content text: "?SELF honours ?Y before the village"
+  effects
+    helped(?SELF, ?Y)
+    reputation(?Y) += 5
+
+# ── Repair and reconciliation ────────────────────────────────────────────────
+
+action "seek forgiveness"
+  roles: ?SELF, ?Y
+  preconditions
+    betrayed(?SELF, ?Y) [history]
+    ^ not apologized(?SELF, ?Y)
+  utility
+    trust(?SELF, ?Y)
+    5.0
+  content text: "?SELF apologizes to ?Y"
+  effects
+    apologized(?SELF, ?Y)
+    trust(?SELF, ?Y) += 5
+
+action "accept an apology"
+  roles: ?SELF, ?Y
+  preconditions
+    betrayed(?Y, ?SELF) then apologized(?Y, ?SELF)
+    ^ not forgave(?SELF, ?Y)
+  utility
+    trust(?SELF, ?Y)
+    3.0
+  content text: "?SELF forgives ?Y"
+  effects
+    forgave(?SELF, ?Y)
+    trust(?SELF, ?Y) += 10
+
+action "end a feud"
+  roles: ?SELF, ?Y
+  preconditions
+    feuding(?SELF, ?Y)
+  utility
+    5.0
+    rule "mutual friends"
+      knows(?Z, ?SELF)
+      ^ knows(?Z, ?Y)
+      => 1.0
+  content text: "?SELF makes peace with ?Y"
+  effects
+    not feuding(?SELF, ?Y)
+    apologized(?SELF, ?Y)
+
+# ── Conflict and rivalry ─────────────────────────────────────────────────────
+
+action "confront a rival"
+  roles: ?SELF, ?Y, ?I
+  preconditions
+    covets(?SELF, ?I)
+    ^ owns(?Y, ?I)
+    ^ knows(?SELF, ?Y)
+  utility
+    min
+      prosperity(?SELF)
+      50
+  content text: "?SELF confronts ?Y over the ?I"
+  effects
+    tension(?SELF, ?Y) += 5
+    not covets(?SELF, ?I)
+    ?SELF.grudgeAgainst(?SELF, ?Y)
+
+action "challenge an insult"
+  roles: ?SELF, ?Y
+  preconditions
+    insulted(?Y, ?SELF) [history]
+    ^ knows(?SELF, ?Y)
+  utility
+    rule "witnesses"
+      knows(?Z, ?SELF)
+      => 0.5
+  content text: "?SELF challenges ?Y"
+  effects
+    insulted(?SELF, ?Y)
+
+action "spread gossip"
+  roles: ?SELF, ?Y
+  preconditions
+    knows(?SELF, ?Y)
+    ^ trust(?SELF, ?Y) < 50
+  utility
+    rule "audience"
+      knows(?Z, ?Y)
+      => 0.5
+  content text: "?SELF spreads rumours about ?Y"
+  effects
+    gossipedAbout(?SELF, ?Y)
+    trust(?Y, ?SELF) -= 2
+
+# ── Community leadership ─────────────────────────────────────────────────────
+
+action "nominate an elder"
+  roles: ?SELF, ?Y
+  preconditions
+    communityPillar(?Y)
+    ^ not nominatedElder(?Y)
+    ^ knows(?SELF, ?Y)
+  utility
+    10.0
+    rule "trust supporters"
+      trust.high(?Z, ?Y)
+      => 2.0
+  content text: "?SELF nominates ?Y as village elder"
+  effects
+    nominatedElder(?Y)
+
+# ── Economic and craft ───────────────────────────────────────────────────────
+
+action "market hustle"
+  roles: ?SELF
+  preconditions
+    worksAt(?SELF, market)
+    ^ reputation(?SELF) < 75
+  utility
+    avg
+      reputation(?SELF)
+      prosperity(?SELF)
+      5.0
+  content text: "?SELF hustles at the market"
+  effects
+    reputation(?SELF) += 5
+    prosperity(?SELF) += 3
+
+action "craft with a peer"
+  roles: ?SELF, ?Y
+  preconditions
+    practices(?SELF, ?C)
+    ^ practices(?Y, ?C)
+    ^ knows(?SELF, ?Y)
+    ^ trust(?SELF, ?Y) >= 50
+  utility
+    sum
+      trust(?SELF, ?Y)
+      5.0
+  content text: "?SELF and ?Y share their craft"
+  effects
+    prosperity(?SELF) += 3
+    prosperity(?Y) += 3
+    trust(?SELF, ?Y) += 3
+
+action "deepen lone mastery"
+  roles: ?SELF, ?C
+  preconditions
+    practices(?SELF, ?C)
+    ^ |practices(_, ?C)| < 2
+  utility
+    reputation(?SELF)
+    5.0
+  content text: "?SELF refines their solitary craft"
+  effects
+    reputation(?SELF) += 5
+
+action "seek patronage"
+  roles: ?SELF, ?Y
+  preconditions
+    prosperity.poor(?SELF)
+    ^ reputation.admired(?Y)
+    ^ knows(?SELF, ?Y)
+  utility
+    max
+      trust(?SELF, ?Y)
+      10
+  content text: "?SELF seeks patronage from ?Y"
+  effects
+    helped(?Y, ?SELF)
+    prosperity(?SELF) += 5
+    trust(?SELF, ?Y) += 5
+
+# ── Private beliefs ──────────────────────────────────────────────────────────
+
+action "confide in a trusted friend"
+  roles: ?SELF, ?Y
+  preconditions
+    ?SELF.admires(?SELF, ?Y)
+    ^ trust(?SELF, ?Y) >= 60
+    ^ knows(?SELF, ?Y)
+  utility
+    trust(?SELF, ?Y)
+    5.0
+  content text: "?SELF confides in ?Y"
+  effects
+    trust(?SELF, ?Y) += 5
+    helped(?SELF, ?Y)
+
+action "air a suspicion"
+  roles: ?SELF, ?Y
+  preconditions
+    ?SELF.suspects(?SELF, ?Y)
+    ^ knows(?SELF, ?Y)
+    ^ not ?SELF.grudgeAgainst(?SELF, ?Y)
+  utility
+    3.0
+  content text: "?SELF grows wary of ?Y"
+  effects
+    ?SELF.grudgeAgainst(?SELF, ?Y)
+    trust(?SELF, ?Y) -= 5

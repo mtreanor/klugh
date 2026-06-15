@@ -17,4 +17,12 @@ export class AggregateUtilitySource {
     if (!fn) throw new Error(`Unknown aggregator: "${this.aggregator}"`);
     return fn(values);
   }
+
+  scoreWithBreakdown(binding, entityRegistry, evaluationContext) {
+    const sources = this.sources.map(s => s.scoreWithBreakdown(binding, entityRegistry, evaluationContext));
+    const fn      = aggregators[this.aggregator];
+    if (!fn) throw new Error(`Unknown aggregator: "${this.aggregator}"`);
+    const score = fn(sources.map(b => b.score));
+    return { type: 'aggregate', aggregator: this.aggregator, sources, score };
+  }
 }

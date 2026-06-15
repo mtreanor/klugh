@@ -24,6 +24,24 @@ export class RuleUtilitySource {
     return total;
   }
 
+  scoreWithBreakdown(binding, entityRegistry, evaluationContext) {
+    const freeVariables   = this.collectFreeVariables(binding);
+    const variableTypes   = inferVariableTypes(this.predicateEntries, evaluationContext.predicateSchema);
+    const ruleEvaluator   = new RuleEvaluator();
+    const bindings        = ruleEvaluator.generateAllBindings(
+      freeVariables, variableTypes, entityRegistry, binding, evaluationContext, this.predicateEntries
+    );
+    const matchedBindings = [];
+    let score = 0;
+    for (const b of bindings) {
+      if (this.predicateEntries.every(({ predicate }) => predicate.evaluate(b, evaluationContext))) {
+        matchedBindings.push(b);
+        score += this.weight;
+      }
+    }
+    return { type: 'rule', name: this.name, weight: this.weight, matchedBindings, score };
+  }
+
   collectFreeVariables(binding) {
     const seen      = new Set();
     const variables = [];

@@ -1,5 +1,7 @@
 import { LogicalVariable } from './LogicalVariable.js';
 import { applyStateChange } from './stateOperations/applyStateChange.js';
+import { ActionRecord } from './provenance/ActionRecord.js';
+import { ActionEffectProvenance } from './provenance/ActionEffectProvenance.js';
 
 export class Action {
   constructor(name, {
@@ -44,19 +46,39 @@ export class Action {
     );
   }
 
+  scoreWithBreakdown(binding, entityRegistry, evaluationContext) {
+    const breakdown = this.utilitySources.map(s => s.scoreWithBreakdown(binding, entityRegistry, evaluationContext));
+    const score     = breakdown.reduce((total, b) => total + b.score, 0);
+    return { score, breakdown };
+  }
+
   enqueue(stateChangeQueue, binding, queryHandlers, { privateStores = null, provenance = null } = {}) {
     for (const operation of this.effects) {
       stateChangeQueue.enqueue(operation, binding, queryHandlers, { flush: 'tickEnd', privateStores, provenance });
     }
   }
 
-  execute(binding, queryHandlers, stateChangeQueue = null, privateStores = null) {
+  execute(binding, queryHandlers, stateChangeQueue = null, { privateStores = null, world = null, utilityBreakdown = null } = {}) {
+    if (this.effects.length === 0) return;
+
+    let provenance = null;
+    if (world) {
+      const record = new ActionRecord({
+        tick: world.tickTracker.currentTick,
+        actionName: this.name,
+        binding,
+        utilityBreakdown,
+      });
+      world.actionLog.push(record);
+      provenance = new ActionEffectProvenance(record);
+    }
+
     if (stateChangeQueue) {
-      this.enqueue(stateChangeQueue, binding, queryHandlers, { privateStores });
+      this.enqueue(stateChangeQueue, binding, queryHandlers, { privateStores, provenance });
       return;
     }
     for (const operation of this.effects) {
-      applyStateChange(operation, binding, queryHandlers, { privateStores });
+      applyStateChange(operation, binding, queryHandlers, { privateStores, provenance });
     }
   }
 

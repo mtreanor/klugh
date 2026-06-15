@@ -1,0 +1,53 @@
+import { defineConfig } from 'vitepress';
+import mathjax3 from 'markdown-it-mathjax3';
+import klughGrammar from './klugh-grammar.js';
+
+export default defineConfig({
+  title: 'klugh',
+  description: 'A symbolic logic engine for reasoning about state',
+  base: '/klugh/',
+
+  markdown: {
+    languages: [klughGrammar],
+    config: (md) => {
+      md.use(mathjax3);
+    },
+  },
+
+  themeConfig: {
+    nav: [
+      { text: 'Quickstart', link: '/quickstart' },
+      { text: 'Reference', link: '/' },
+    ],
+
+    sidebar: [
+      {
+        items: [
+          { text: 'What is klugh?', link: '/' },
+          { text: 'Quickstart', link: '/quickstart' },
+          { text: 'History', link: '/history' },
+        ],
+      },
+      {
+        text: 'Language Reference',
+        items: [
+          { text: 'Overview', link: '/overview' },
+          { text: 'Schema', link: '/schema' },
+          { text: 'State files', link: '/state' },
+          { text: 'Negation', link: '/negation' },
+          { text: 'Query forms', link: '/query-forms' },
+          { text: 'Private stores', link: '/private-stores' },
+          { text: 'Rules', link: '/rules' },
+          { text: 'Derived predicates', link: '/derived-predicates' },
+          { text: 'Sensor predicates', link: '/sensors' },
+          { text: 'Actions', link: '/actions' },
+          { text: 'Action records', link: '/action-records' },
+          { text: 'Provenance', link: '/provenance' },
+          { text: 'REPL', link: '/repl' },
+        ],
+      },
+    ],
+
+    socialLinks: [],
+  },
+});

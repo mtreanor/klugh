@@ -15,6 +15,8 @@ import { Interpreter } from '../../src/Interpreter.js';
 import { SensorQueryHandler } from '../../src/queryHandlers/SensorQueryHandler.js';
 import { Sensor } from '../../src/Sensor.js';
 import { NumericSensor } from '../../src/NumericSensor.js';
+import { ActionLoader } from '../../src/loader/ActionLoader.js';
+import { ActionParser } from '../../src/loader/ActionParser.js';
 
 const stressDir = join(dirname(fileURLToPath(import.meta.url)), '../../data/stress');
 
@@ -516,6 +518,101 @@ describe('Stress scenario', () => {
 
       // L6: gossip kept eroding trust toward the gossips.
       assert.equal(numericValue(world, 'trust', ['una', 'petra']), 42);
+    });
+  });
+
+  describe('action simulation — 16 social actions, 10 steps', () => {
+    const AGENTS = ['mara', 'oren', 'petra', 'silas', 'talia', 'una', 'viggo', 'wren', 'yara', 'zeke'];
+
+    function buildSimWorld() {
+      const { interp, world, rules, nearPairs } = buildWorld();
+      const actionsSource = readFileSync(join(stressDir, 'actions'), 'utf-8');
+      const { actions } = new ActionLoader(interp.schema).load(
+        new ActionParser().parse(actionsSource)
+      );
+      interp.actionsets.set('social', actions);
+      return { interp, world, rules, nearPairs };
+    }
+
+    function runStep(interp, world, rules) {
+      for (const agentName of AGENTS) {
+        const candidates = interp.scoreActionset('social', { SELF: agentName }, { minimumScore: 0 });
+        if (candidates.length > 0) {
+          const { action, binding } = candidates[0];
+          action.execute(binding, interp.world.queryHandlers, null, { privateStores: interp.world.privateStores });
+        }
+      }
+      world.applyOnce(rules, { advanceTick: true, minimumSatisfactionScore: 1 });
+    }
+
+    it('loads 16 actions from the social actionset', () => {
+      const { interp } = buildSimWorld();
+      assert.equal(interp.actionsets.get('social').length, 16);
+    });
+
+    it('all 10 agents find a scored action before step 1', () => {
+      const { interp } = buildSimWorld();
+      for (const agent of AGENTS) {
+        const candidates = interp.scoreActionset('social', { SELF: agent }, { minimumScore: 0 });
+        assert.ok(candidates.length > 0, `${agent} has no eligible action`);
+      }
+    });
+
+    it('viggo\'s top action on step 1 is "end a feud" and its content renders', () => {
+      const { interp } = buildSimWorld();
+      const candidates = interp.scoreActionset('social', { SELF: 'viggo' }, { minimumScore: 0 });
+      assert.equal(candidates[0].action.name, 'end a feud');
+      assert.equal(candidates[0].action.content.render(candidates[0].binding), 'viggo makes peace with wren');
+    });
+
+    it('evolves the village over 10 steps — repairs and consequences accumulate', () => {
+      const { interp, world, rules } = buildSimWorld();
+
+      runStep(interp, world, rules); // step 1
+      // viggo ends the feud immediately (highest scoring action, score 5 vs others < 2)
+      assert.equal(q(interp, 'feuding(viggo, wren)'), 0);
+      assert.equal(q(interp, 'feuding(wren, viggo)'), 0);
+
+      for (let i = 1; i < 10; i++) runStep(interp, world, rules); // steps 2–10
+
+      // oren market-hustles until rep hits 75, then seeks forgiveness from silas
+      assert.equal(q(interp, 'apologized(oren, silas)'), 1);
+
+      // silas accepts oren's apology once the temporal chain is satisfied
+      assert.equal(q(interp, 'forgave(silas, oren)'), 1);
+
+      // zeke benefited from seeking patronage (prosperity rises above initial 10)
+      assert.ok(numericValue(world, 'prosperity', ['zeke']) > 10);
+
+      // yara restored silas's dignity; reputation rose above the initial 49
+      assert.ok(numericValue(world, 'reputation', ['silas']) > 49);
+    });
+
+    it('exercises every utility source type across the actionset', () => {
+      const { interp } = buildSimWorld();
+      const actions = interp.actionsets.get('social');
+      const sourceTypes = new Set(
+        actions.flatMap(a => a.utilitySources.map(s => s.constructor.name))
+      );
+      // All four source types must appear somewhere in the actionset
+      assert.ok(sourceTypes.has('ConstantUtilitySource'),   'constant source missing');
+      assert.ok(sourceTypes.has('PredicateUtilitySource'),  'predicate source missing');
+      assert.ok(sourceTypes.has('RuleUtilitySource'),       'rule source missing');
+      assert.ok(sourceTypes.has('AggregateUtilitySource'),  'aggregate source missing');
+    });
+
+    it('exercises all four aggregate operators across the actionset', () => {
+      const { interp } = buildSimWorld();
+      const aggregators = new Set(
+        interp.actionsets.get('social')
+          .flatMap(a => a.utilitySources)
+          .filter(s => s.constructor.name === 'AggregateUtilitySource')
+          .map(s => s.aggregator)
+      );
+      assert.ok(aggregators.has('sum'), 'sum aggregator missing');
+      assert.ok(aggregators.has('avg'), 'avg aggregator missing');
+      assert.ok(aggregators.has('min'), 'min aggregator missing');
+      assert.ok(aggregators.has('max'), 'max aggregator missing');
     });
   });
 });

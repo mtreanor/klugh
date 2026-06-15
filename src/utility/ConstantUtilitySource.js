@@ -6,4 +6,8 @@ export class ConstantUtilitySource {
   evaluate(_binding, _entityRegistry, _evaluationContext) {
     return this.value;
   }
+
+  scoreWithBreakdown(_binding, _entityRegistry, _evaluationContext) {
+    return { type: 'constant', value: this.value, score: this.value };
+  }
 }

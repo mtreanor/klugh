@@ -20,6 +20,7 @@ export class World {
     this.contradictionPolicy = 'lastWins';
     this.queryHandlers    = new QueryHandlers();
     this.tickTracker      = { currentTick: 0 };
+    this.actionLog        = [];
 
     this.queryHandlers.register('factStore', new FactStoreQueryHandler(this.factStore, schema));
     this.queryHandlers.register('externalAPI', new ExternalAPIQueryHandler());
@@ -80,13 +81,18 @@ export class World {
     return this;
   }
 
+  advanceTick(amount = 1) {
+    this.tickTracker.currentTick += amount;
+    this._syncStoreTicks();
+    return this;
+  }
+
   // Runs rules to fixpoint, committing all effects to the world.
   // With advanceTick: true, increments the canonical tick before running —
   // all effects land at the new tick.
   apply(rules, { advanceTick = false, minimumSatisfactionScore = 0 } = {}) {
     if (advanceTick) {
-      this.tickTracker.currentTick++;
-      this._syncStoreTicks();
+      this.advanceTick();
     }
 
     const evaluationContext = this.createEvaluationContext();
@@ -108,8 +114,7 @@ export class World {
   // Runs rules exactly once (no fixpoint iteration), committing all effects to the world.
   applyOnce(rules, { advanceTick = false, minimumSatisfactionScore = 0, scaleDelta = (d, s) => d * s } = {}) {
     if (advanceTick) {
-      this.tickTracker.currentTick++;
-      this._syncStoreTicks();
+      this.advanceTick();
     }
 
     const evaluationContext = this.createEvaluationContext();

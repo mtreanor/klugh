@@ -4,6 +4,7 @@ import { FactPredicate } from '../predicates/FactPredicate.js';
 import { PrivatePredicate } from '../predicates/PrivatePredicate.js';
 import { NegationPredicate } from '../predicates/NegationPredicate.js';
 import { inferVariableTypes } from '../inferVariableTypes.js';
+import { PriorityQueue } from './PriorityQueue.js';
 
 // A ground goal fact: { name, args, negated, owner }
 // owner is null for public facts, or an entity name string for private facts.
@@ -82,21 +83,37 @@ export class BackwardPlanner {
     this.ruleEvaluator = new RuleEvaluator();
   }
 
-  findPlan(goalPredicates, initialSnapshot) {
-    const emptyBinding  = new Binding();
-    const initialGoal   = goalPredicates.map(p => normalizeGroundPredicate(p, emptyBinding));
-    const initialKey    = goalKey(initialGoal);
+  // Generator that yields each plan found, in order of increasing cost.
+  // options:
+  //   cost(action, binding) → number            — step cost; defaults to 0 (BFS order)
+  //   validators: [(steps, initialSnapshot) => boolean]  — filter; plans failing any validator are skipped
+  //
+  // Note: the cost function does not receive a snapshot because the backward planner
+  // always evaluates preconditions against the initial state, not a simulated future state.
+  *findPlans(goalPredicates, initialSnapshot, { cost, validators = [] } = {}) {
+    const emptyBinding = new Binding();
+    const initialGoal  = goalPredicates.map(p => normalizeGroundPredicate(p, emptyBinding));
+    const evalCtx      = initialSnapshot.createEvaluationContext();
+    const initKey      = goalKey(initialGoal);
 
-    const queue   = [{ goal: initialGoal, steps: [] }];
-    const visited = new Set([initialKey]);
+    const queue   = new PriorityQueue();
+    const visited = new Set();
+    queue.push({ goal: initialGoal, steps: [], totalCost: 0, key: initKey }, 0);
 
-    while (queue.length > 0) {
-      const { goal, steps } = queue.shift();
+    while (queue.size > 0) {
+      const { goal, steps, totalCost, key } = queue.pop();
+      if (visited.has(key)) continue;
 
-      if (goal.every(g => factSatisfiedInInitial(g, initialSnapshot))) return steps;
+      if (goal.every(g => factSatisfiedInInitial(g, initialSnapshot))) {
+        // Don't add success nodes to visited — multiple paths may reach the same
+        // satisfied-goal state and each represents a distinct plan.
+        if (validators.every(v => v(steps, initialSnapshot))) yield steps;
+        continue;
+      }
+
+      visited.add(key);
 
       const unsatisfied = goal.find(g => !factSatisfiedInInitial(g, initialSnapshot));
-      const evalCtx     = initialSnapshot.createEvaluationContext();
 
       for (const action of this.actions) {
         const bindings = this.ruleEvaluator.generateAllBindings(
@@ -110,7 +127,6 @@ export class BackwardPlanner {
 
         for (const binding of bindings) {
           const groundEffects = this.resolveGroundEffects(action, binding);
-
           if (!groundEffects.some(e => groundFactMatches(e, unsatisfied))) continue;
 
           const achieved    = groundEffects.filter(e => goal.some(g => groundFactMatches(e, g)));
@@ -118,17 +134,87 @@ export class BackwardPlanner {
           const newSubgoals = this.resolveGroundPreconditions(action, binding)
             .filter(p => !factSatisfiedInInitial(p, initialSnapshot));
 
-          const newGoal = [...remaining, ...newSubgoals];
-          const key     = goalKey(newGoal);
-          if (visited.has(key)) continue;
-          visited.add(key);
+          const newGoal  = [...remaining, ...newSubgoals];
+          const nextKey  = goalKey(newGoal);
+          if (visited.has(nextKey)) continue;
 
-          queue.push({ goal: newGoal, steps: [{ action, binding }, ...steps] });
+          const stepCost = cost ? cost(action, binding) : 0;
+          const newCost  = totalCost + stepCost;
+          queue.push({ goal: newGoal, steps: [{ action, binding }, ...steps], totalCost: newCost, key: nextKey }, newCost);
+        }
+      }
+    }
+  }
+
+  // Returns the first (lowest-cost) plan, or null if none exists.
+  findPlan(goalPredicates, initialSnapshot, options = {}) {
+    const { value, done } = this.findPlans(goalPredicates, initialSnapshot, options).next();
+    return done ? null : value;
+  }
+
+  // Like findPlan but always returns an object.
+  // On success: { steps, nearestMiss: null }
+  // On failure: { steps: null, nearestMiss: GoalFact[] } — remaining ground goal facts
+  //             from the search node that was closest to having everything satisfied.
+  //             Each GoalFact is { name, args, negated, owner }.
+  findPlanDetailed(goalPredicates, initialSnapshot, { cost, validators = [] } = {}) {
+    const emptyBinding = new Binding();
+    const initialGoal  = goalPredicates.map(p => normalizeGroundPredicate(p, emptyBinding));
+    const evalCtx      = initialSnapshot.createEvaluationContext();
+    const initKey      = goalKey(initialGoal);
+
+    const queue   = new PriorityQueue();
+    const visited = new Set();
+    queue.push({ goal: initialGoal, steps: [], totalCost: 0, key: initKey }, 0);
+
+    let nearestMiss = initialGoal;
+
+    while (queue.size > 0) {
+      const { goal, steps, totalCost, key } = queue.pop();
+      if (visited.has(key)) continue;
+
+      if (goal.length < nearestMiss.length) nearestMiss = goal;
+
+      if (goal.every(g => factSatisfiedInInitial(g, initialSnapshot))) {
+        if (validators.every(v => v(steps, initialSnapshot))) return { steps, nearestMiss: null };
+        continue;
+      }
+
+      visited.add(key);
+
+      const unsatisfied = goal.find(g => !factSatisfiedInInitial(g, initialSnapshot));
+
+      for (const action of this.actions) {
+        const bindings = this.ruleEvaluator.generateAllBindings(
+          action.collectVariables(),
+          inferVariableTypes(action.preconditions, this.schema),
+          initialSnapshot.entityRegistry,
+          new Binding(),
+          evalCtx,
+          action.preconditions
+        );
+
+        for (const binding of bindings) {
+          const groundEffects = this.resolveGroundEffects(action, binding);
+          if (!groundEffects.some(e => groundFactMatches(e, unsatisfied))) continue;
+
+          const achieved    = groundEffects.filter(e => goal.some(g => groundFactMatches(e, g)));
+          const remaining   = goal.filter(g => !achieved.some(e => groundFactMatches(e, g)));
+          const newSubgoals = this.resolveGroundPreconditions(action, binding)
+            .filter(p => !factSatisfiedInInitial(p, initialSnapshot));
+
+          const newGoal  = [...remaining, ...newSubgoals];
+          const nextKey  = goalKey(newGoal);
+          if (visited.has(nextKey)) continue;
+
+          const stepCost = cost ? cost(action, binding) : 0;
+          const newCost  = totalCost + stepCost;
+          queue.push({ goal: newGoal, steps: [{ action, binding }, ...steps], totalCost: newCost, key: nextKey }, newCost);
         }
       }
     }
 
-    return null;
+    return { steps: null, nearestMiss };
   }
 
   resolveGroundEffects(action, binding) {

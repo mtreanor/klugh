@@ -1,6 +1,6 @@
 # Plans
 
-A **plan** is a sequence of actions that achieves a goal from a given starting state. klugh ships two planners — a forward BFS planner and a backward (regression) planner — that search over hypothetical world states to find such sequences.
+A **plan** is a sequence of actions that achieves a goal from a given starting state. klugh ships two planners — a forward planner and a backward (regression) planner — that search over hypothetical world states to find such sequences.
 
 The planner never mutates the live world. It works against a `PlannerSnapshot` — a frozen copy of the fact store and private stores at a point in time — so searching is always safe to discard.
 
@@ -8,7 +8,7 @@ The planner never mutates the live world. It works against a `PlannerSnapshot` �
 
 ## Finding a plan
 
-Both planners expose the same `findPlan(goalPredicates, snapshot)` interface:
+Both planners expose three entry points:
 
 ```javascript
 import { Planner } from './src/planner/Planner.js';
@@ -16,14 +16,18 @@ import { BackwardPlanner } from './src/planner/BackwardPlanner.js';
 import { PlannerSnapshot } from './src/planner/PlannerSnapshot.js';
 
 const snapshot = PlannerSnapshot.from(world);
-const steps    = new Planner(actions, schema).findPlan(goalPredicates, snapshot);
-// or
-const steps    = new BackwardPlanner(actions, schema).findPlan(goalPredicates, snapshot);
+
+// One plan or null
+const steps = new Planner(actions, schema).findPlan(goalPredicates, snapshot);
+
+// All plans, one at a time (generator)
+const plans = new Planner(actions, schema).findPlans(goalPredicates, snapshot);
+
+// One plan with failure diagnostics
+const result = new Planner(actions, schema).findPlanDetailed(goalPredicates, snapshot);
 ```
 
-`goalPredicates` is an array of predicate objects — the same forms used in rule preconditions and action preconditions.
-
-`findPlan` returns either an array of `{ action, binding }` steps or `null` if no plan exists. An empty array means the goal is already satisfied in the snapshot.
+`goalPredicates` is an array of predicate objects — the same forms used in rule preconditions and action preconditions. Both planners accept the same arguments.
 
 ---
 
@@ -33,6 +37,157 @@ const steps    = new BackwardPlanner(actions, schema).findPlan(goalPredicates, s
 |--|--|--|
 | Strategy | Applies actions forward from the initial state | Works back from the goal, finding what achieves each sub-goal |
 | Best for | Short horizons, broad worlds | Deep plans, highly constrained goals |
+
+---
+
+## `findPlan` — one plan or null
+
+Returns the lowest-cost plan as an array of `{ action, binding }` steps, or `null` if the goal is unreachable. An empty array means the goal is already satisfied.
+
+```javascript
+const steps = new Planner(actions, schema).findPlan(goalPredicates, snapshot);
+
+if (steps) {
+  console.log(`plan: ${steps.map(s => s.action.name).join(' → ')}`);
+} else {
+  console.log('no plan found');
+}
+```
+
+---
+
+## `findPlans` — generator that yields each plan
+
+`findPlans` returns a JavaScript **generator** — an object that produces values one at a time and pauses between them. Each time you call `.next()` on it, the search resumes from where it left off and runs until it finds the next plan, at which point it pauses again and hands the plan back to you. When the search is exhausted, `.done` is `true`.
+
+This means you pay only for the plans you actually use. The search does not run to completion up front.
+
+```javascript
+// Take the first plan (equivalent to findPlan)
+const gen = planner.findPlans(goalPredicates, snapshot);
+const { value: steps, done } = gen.next();
+// steps is the plan array, or undefined if done is true (no plan found)
+
+// Collect all plans with for...of — the loop ends automatically when the search exhausts
+const allPlans = [];
+for (const plan of planner.findPlans(goalPredicates, snapshot)) {
+  allPlans.push(plan);
+}
+
+// Take the first N plans without exhausting the search
+const candidates = [];
+for (const plan of planner.findPlans(goalPredicates, snapshot)) {
+  candidates.push(plan);
+  if (candidates.length >= 3) break;
+}
+```
+
+Plans are yielded in order of increasing cost (fewest steps when no cost function is provided). The search finds each distinct path through the state space — multiple plans that reach the same goal via different action sequences are all yielded.
+
+---
+
+## `findPlanDetailed` — one plan with failure information
+
+Returns `{ steps, nearestMiss }`. On success, `steps` is the plan and `nearestMiss` is `null`. On failure, `steps` is `null` and `nearestMiss` describes how close the search got.
+
+```javascript
+const result = new Planner(actions, schema).findPlanDetailed(goalPredicates, snapshot);
+
+if (result.steps) {
+  console.log('plan found:', result.steps.map(s => s.action.name));
+} else {
+  console.log('no plan found');
+  // For Planner (forward): nearestMiss is the goal predicates still unsatisfied
+  // in the state where the most goal predicates were satisfied
+  console.log('still needed:', result.nearestMiss.map(p => p.name));
+  // For BackwardPlanner: nearestMiss is the remaining ground goal facts
+  // from the node that was closest to having everything satisfied
+}
+```
+
+`findPlanDetailed` is the right choice when you need to explain why a goal is unreachable, check which facts are blocking progress, or implement plan repair.
+
+---
+
+## Options: cost function and validators
+
+All three entry points accept the same options object:
+
+```javascript
+planner.findPlan(goalPredicates, snapshot, { cost, validators });
+planner.findPlans(goalPredicates, snapshot, { cost, validators });
+planner.findPlanDetailed(goalPredicates, snapshot, { cost, validators });
+```
+
+### Cost function
+
+By default the planner treats all actions as equal and returns the shortest plan (fewest steps). Provide a `cost` function to define what "best" means for your application:
+
+```javascript
+// cost(action, binding, snapshot) → number
+// snapshot is the current world state at that step (forward planner only;
+// BackwardPlanner always passes the initial snapshot since it doesn't simulate forward)
+const costFn = (action, binding, snapshot) => {
+  if (action.name === 'introduce') return 5;  // social actions are expensive
+  return 1;
+};
+
+const plan = planner.findPlan(goalPredicates, snapshot, { cost: costFn });
+```
+
+The planner uses a priority queue and explores paths in order of increasing total cost. A plan with two cheap steps will be returned before a plan with one expensive step, even though it is longer.
+
+```javascript
+// Example: prefer relay path (cost 2) over direct delivery (cost 10)
+const steps = planner.findPlan(goal, snapshot, {
+  cost: (action) => action.name === 'deliver' ? 10 : 1,
+});
+```
+
+### Validators
+
+Validators are functions that filter which plans are acceptable. A plan is only returned (or yielded) if all validators return `true`. If validators reject a plan, the search continues looking for another.
+
+```javascript
+// validator(steps, initialSnapshot) → boolean
+const validators = [
+  // Plan must not start with 'introduce'
+  (steps) => steps[0]?.action.name !== 'introduce',
+
+  // Plan must use at most 2 actions from the same agent
+  (steps) => {
+    const agentCounts = new Map();
+    for (const { binding } of steps) {
+      const agent = binding.resolve('A')?.name;
+      agentCounts.set(agent, (agentCounts.get(agent) ?? 0) + 1);
+    }
+    return [...agentCounts.values()].every(n => n <= 2);
+  },
+
+  // Constraint using intermediate state (replay from initialSnapshot)
+  (steps, initialSnapshot) => {
+    let snap = initialSnapshot;
+    for (const { action, binding } of steps) {
+      snap = snap.apply(action, binding);
+      const evalCtx = snap.createEvaluationContext();
+      // Reject any plan that ever asserts a forbidden fact mid-execution
+      if (snap.factStore.contains('forbidden', 'alice')) return false;
+    }
+    return true;
+  },
+];
+
+const plan = planner.findPlan(goalPredicates, snapshot, { validators });
+```
+
+Cost and validators can be combined:
+
+```javascript
+const plan = planner.findPlan(goalPredicates, snapshot, {
+  cost:       (action) => action.name === 'travel' ? 3 : 1,
+  validators: [(steps) => steps.length <= 5],
+});
+```
 
 ---
 

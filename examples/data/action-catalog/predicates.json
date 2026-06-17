@@ -1,9 +1,14 @@
 {
   "predicates": {
-    "tag":     { "type": "boolean", "args": ["action", "actionTag"] },
-    "targets": { "type": "boolean", "args": ["action", "kind"] },
-    "knows":   { "type": "boolean", "args": ["agent", "agent"] },
-    "gave":    { "type": "boolean", "args": ["agent", "agent"] },
-    "helped":  { "type": "boolean", "args": ["agent", "agent"] }
+    "tag":        { "type": "boolean", "args": ["action", "actionTag"] },
+    "targets":    { "type": "boolean", "args": ["action", "kind"] },
+    "knows":      { "type": "boolean", "args": ["agent", "agent"] },
+    "gave":       { "type": "boolean", "args": ["agent", "agent"] },
+    "helped":     { "type": "boolean", "args": ["agent", "agent"] },
+
+    "actionType": { "type": "boolean", "args": ["occurrence", "action"] },
+    "role":       { "type": "boolean", "args": ["occurrence", "roleName", "entity"] },
+    "reluctant":  { "type": "boolean", "args": ["occurrence"] },
+    "regretted":  { "type": "derived", "args": ["occurrence"] }
   }
 }

@@ -244,6 +244,83 @@ const candidates = interp.scoreActionset('dialogue', { SELF: 'alice' }, { minimu
 
 ---
 
+## Occurrences
+
+Where an `info:` block makes the action *type* queryable, an **occurrence** records that an action actually *happened* — a reified event you can query by pattern. Occurrences are a live-world record; they are not produced during hypothetical planner search.
+
+Recording an occurrence mints an entity of type `occurrence` and asserts the built-in vocabulary:
+
+```
+actionType(occ, "give")        // what happened
+role(occ, SELF, alice)         // who/what filled each declared role…
+role(occ, Y, bob)              // …keyed by the role variable's name (?SELF → SELF)
+```
+
+The roles come from the action's `roles:` signature, resolved through the binding. Any **context facts** supplied by the decision process are asserted too, with `?this` referring to the occurrence.
+
+### Recording
+
+Either record explicitly with `recordActionOccurrence`:
+
+```javascript
+import { recordActionOccurrence } from './src/recordActionOccurrence.js';
+
+const occId = recordActionOccurrence(give, binding, world, {
+  contextFacts: [
+    { name: 'reluctant', args: ['?this'] },          // reluctant(occ)
+    { name: 'runnerUp',  args: ['?this', 'apologize'] }, // runnerUp(occ, apologize)
+  ],
+});
+```
+
+…or fold it into execution with the opt-in `recordOccurrence` option (which also links the occurrence onto the resulting `ActionRecord` via `record.occurrence`):
+
+```javascript
+give.execute(binding, world.queryHandlers, null, {
+  world,
+  recordOccurrence: true,
+  occurrenceFacts: [{ name: 'reluctant', args: ['?this'] }],
+});
+```
+
+### Schema setup
+
+Declare the vocabulary so query variables get typed:
+
+```json
+"actionType": { "type": "boolean", "args": ["occurrence", "action"] },
+"role":       { "type": "boolean", "args": ["occurrence", "roleName", "entity"] }
+```
+
+The `occurrence` type is populated at runtime (one entity per recorded occurrence). The `roleName` and `entity` types are intentionally **never instantiated** — that is what makes them work. When a free query variable has a type with no registered entities, klugh binds it from the matching facts themselves, so `role`'s value slot is **polymorphic**: it resolves to whatever was actually recorded (an agent, an item, anything), without an `any` type.
+
+### Querying
+
+```javascript
+interp.query('actionType(?o, "give")');                        // every gift
+interp.query('actionType(?o, "give") ^ role(?o, SELF, alice)'); // gifts alice gave
+interp.query('role(?o, _, alice)');                            // alice in any role
+interp.query('role(occ3, ?r, ?v)');                            // every role of one occurrence
+```
+
+Rules layer on top — derive new facts over occurrences just like any other facts:
+
+```
+define "regretted a gift"
+  actionType(?o, "give")
+  ^ reluctant(?o)
+  => regretted(?o)
+```
+
+Two things to know:
+
+- **Extent-bound values come back as the stored value** — for an entity-valued role that is the name *string* (`'alice'`), not an entity object. Read them directly (`b.assignments.get('v')`), not via `.name`. Type-enumerated variables like `?o` still bind to entity objects.
+- **Occurrence ids are identifier-safe** (`occ1`, `occ2`, …) so they can be referenced bare in a query: `role(occ3, ?r, ?v)`.
+
+A runnable example is in `examples/action-occurrence.js`.
+
+---
+
 ## Action API
 
 | Method / property | Description |
@@ -251,7 +328,7 @@ const candidates = interp.scoreActionset('dialogue', { SELF: 'alice' }, { minimu
 | `arePreconditionsMet(binding, ctx)` | Returns `true` if every precondition holds for the given binding |
 | `score(binding, entityRegistry, ctx)` | Sums all utility sources and returns a number |
 | `scoreWithBreakdown(binding, entityRegistry, ctx)` | Returns `{ score, breakdown }` — the total and a per-source node tree; see [Action records](action-records.md) |
-| `execute(binding, queryHandlers, queue?, opts?)` | Applies effects immediately; enqueues them at `tickEnd` when a `StateChangeQueue` is supplied. `opts` accepts `{ privateStores, world, utilityBreakdown }` — pass `world` to record provenance |
+| `execute(binding, queryHandlers, queue?, opts?)` | Applies effects immediately; enqueues them at `tickEnd` when a `StateChangeQueue` is supplied. `opts` accepts `{ privateStores, world, utilityBreakdown, recordOccurrence, occurrenceFacts }` — pass `world` to record provenance; set `recordOccurrence: true` to reify an [occurrence](#occurrences) |
 | `enqueue(queue, binding, queryHandlers, opts?)` | Stages all effects at `tickEnd` without applying them |
 | `collectVariables()` | Returns all `LogicalVariable` instances referenced in preconditions and effects |
 | `action.content` | The `ContentItem` attached to the action, or `null` |

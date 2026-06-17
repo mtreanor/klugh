@@ -116,11 +116,6 @@ export class Interpreter {
       }
     }
 
-    const variableTypes = this.inferVariableTypes(predicates);
-    const candidates = this.ruleEvaluator.generateAllBindings(
-      freeVars, variableTypes, this.world.entityRegistry, startingBinding
-    );
-
     const entityRegistry = this.world.entityRegistry;
     let evaluationContext = this.world.createEvaluationContext();
     if (scopedTo !== null) {
@@ -128,6 +123,16 @@ export class Interpreter {
       if (!store) throw new Error(`"${scopedTo}" has no private store`);
       evaluationContext = evaluationContext.scopedToStore(store);
     }
+
+    // Pass the eval context + predicate entries so generateAllBindings can fall
+    // back to extent-based binding for a free variable whose type has no
+    // registered entities — e.g. the polymorphic value slot of an occurrence
+    // role(?o, ?r, ?v), where ?v is bound from the recorded facts themselves.
+    const variableTypes    = this.inferVariableTypes(predicates);
+    const predicateEntries = predicates.map(p => ({ predicate: p }));
+    const candidates = this.ruleEvaluator.generateAllBindings(
+      freeVars, variableTypes, entityRegistry, startingBinding, evaluationContext, predicateEntries
+    );
 
     return candidates.filter(binding =>
       bindingSatisfiesDistinctArguments(binding, predicates, this.schema, entityRegistry, this.world.entityTypeConfig) &&

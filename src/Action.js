@@ -2,6 +2,7 @@ import { LogicalVariable } from './LogicalVariable.js';
 import { applyStateChange } from './stateOperations/applyStateChange.js';
 import { ActionRecord } from './provenance/ActionRecord.js';
 import { ActionEffectProvenance } from './provenance/ActionEffectProvenance.js';
+import { recordActionOccurrence } from './recordActionOccurrence.js';
 
 export class Action {
   constructor(name, {
@@ -60,7 +61,7 @@ export class Action {
     }
   }
 
-  execute(binding, queryHandlers, stateChangeQueue = null, { privateStores = null, world = null, utilityBreakdown = null, planRecord = null } = {}) {
+  execute(binding, queryHandlers, stateChangeQueue = null, { privateStores = null, world = null, utilityBreakdown = null, planRecord = null, recordOccurrence = false, occurrenceFacts = [] } = {}) {
     if (this.effects.length === 0) return;
 
     let provenance = null;
@@ -74,6 +75,12 @@ export class Action {
       });
       world.actionLog.push(record);
       provenance = new ActionEffectProvenance(record);
+
+      // Reify the occurrence and link it to the action record, so the event is
+      // queryable and traceable back to what motivated it.
+      if (recordOccurrence) {
+        record.occurrence = recordActionOccurrence(this, binding, world, { contextFacts: occurrenceFacts });
+      }
     }
 
     if (stateChangeQueue) {

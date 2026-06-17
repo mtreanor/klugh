@@ -22,6 +22,7 @@ export class World {
     this.tickTracker      = { currentTick: 0 };
     this.actionLog        = [];
     this.planLog          = [];
+    this.occurrenceSeq    = 0;   // monotonic id source for reified action occurrences
 
     this.queryHandlers.register('factStore', new FactStoreQueryHandler(this.factStore, schema));
     this.queryHandlers.register('externalAPI', new ExternalAPIQueryHandler());

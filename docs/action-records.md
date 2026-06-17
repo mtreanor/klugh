@@ -29,6 +29,7 @@ Records are appended in the order effects fire. Only actions that have at least 
 | `binding` | `Binding` | The full variable binding the action fired with |
 | `utilityBreakdown` | `BreakdownNode[] \| null` | Per-source contribution tree; `null` if not provided |
 | `planRecord` | `PlanRecord \| null` | The plan this action was executing, if any |
+| `occurrence` | `string \| undefined` | The id of the reified [occurrence](actions.md#occurrences), when `execute` was called with `recordOccurrence: true` |
 
 `action.name` gives the action's string name. `binding.resolve(variable)` returns the entity assigned to a `LogicalVariable`. Entity objects carry a `name` string.
 

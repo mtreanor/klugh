@@ -524,13 +524,21 @@ describe('Stress scenario', () => {
   describe('action simulation — 16 social actions, 10 steps', () => {
     const AGENTS = ['mara', 'oren', 'petra', 'silas', 'talia', 'una', 'viggo', 'wren', 'yara', 'zeke'];
 
+    // The "norm" actions rewrite another action's info traits; they are kept out
+    // of the behavioral 'social' actionset so the 10-step narrative is unaffected,
+    // and exercised on their own in the runtime-mutable-traits suite below.
+    const NORM_ACTIONS = new Set(['denounce a practice', 'rehabilitate a practice']);
+
     function buildSimWorld() {
       const { interp, world, rules, nearPairs } = buildWorld();
       const actionsSource = readFileSync(join(stressDir, 'actions'), 'utf-8');
       const { actions } = new ActionLoader(interp.schema).load(
         new ActionParser().parse(actionsSource)
       );
-      interp.actionsets.set('social', actions);
+      // addActionset registers each action as a queryable `action` entity and
+      // asserts its info: facts, so tag(...) works and ?ACT can enumerate actions.
+      interp.addActionset('social', actions.filter(a => !NORM_ACTIONS.has(a.name)));
+      interp.addActionset('norms',  actions.filter(a =>  NORM_ACTIONS.has(a.name)));
       return { interp, world, rules, nearPairs };
     }
 
@@ -548,6 +556,7 @@ describe('Stress scenario', () => {
     it('loads 16 actions from the social actionset', () => {
       const { interp } = buildSimWorld();
       assert.equal(interp.actionsets.get('social').length, 16);
+      assert.equal(interp.actionsets.get('norms').length, 2);
     });
 
     it('all 10 agents find a scored action before step 1', () => {
@@ -613,6 +622,69 @@ describe('Stress scenario', () => {
       assert.ok(aggregators.has('avg'), 'avg aggregator missing');
       assert.ok(aggregators.has('min'), 'min aggregator missing');
       assert.ok(aggregators.has('max'), 'max aggregator missing');
+    });
+
+    describe('action info traits are runtime-mutable', () => {
+      // Picks the candidate from `actionset` whose ?ACT role binds to `target`.
+      function denounceOrRehab(interp, actionset, self, target) {
+        const candidates = interp.scoreActionset(actionset, { SELF: self }, { minimumScore: 0 });
+        return candidates.find(c => bound(c.binding, 'ACT') === target);
+      }
+
+      function runAction(candidate, world) {
+        candidate.action.execute(candidate.binding, world.queryHandlers, null, {
+          privateStores: world.privateStores,
+          world,
+        });
+      }
+
+      it('seeds info: traits as ordinary, queryable facts', () => {
+        const { interp } = buildSimWorld();
+        // tag facts come straight from each action's info: block.
+        assert.equal(q(interp, 'tag("share a kind word", prosocial)'), 1);
+        assert.equal(q(interp, 'tag("spread gossip", antisocial)'), 1);
+        // and the catalog is queryable by trait across all actions.
+        assert.ok(q(interp, 'tag(?a, prosocial)') >= 2);
+      });
+
+      it('lets an admired agent retract another action\'s seeded trait via a bound role', () => {
+        const { interp, world } = buildSimWorld();
+
+        const denounce = denounceOrRehab(interp, 'norms', 'mara', 'share a kind word');
+        assert.ok(denounce, 'mara (admired) should be able to denounce a prosocial practice');
+        assert.equal(denounce.action.name, 'denounce a practice');
+
+        runAction(denounce, world);
+
+        // The seeded prosocial trait is gone; the practice is now antisocial.
+        assert.equal(q(interp, 'tag("share a kind word", prosocial)'), 0);
+        assert.equal(q(interp, 'tag("share a kind word", antisocial)'), 1);
+        // Provenance: the temporal log still shows it WAS prosocial.
+        assert.equal(q(interp, 'tag("share a kind word", prosocial) [history]'), 1);
+      });
+
+      it('restores the trait with a later rehabilitating action', () => {
+        const { interp, world } = buildSimWorld();
+
+        runAction(denounceOrRehab(interp, 'norms', 'mara', 'share a kind word'), world);
+        assert.equal(q(interp, 'tag("share a kind word", antisocial)'), 1);
+
+        const rehab = denounceOrRehab(interp, 'norms', 'mara', 'share a kind word');
+        assert.ok(rehab, 'the now-antisocial practice should be rehabilitable');
+        assert.equal(rehab.action.name, 'rehabilitate a practice');
+
+        runAction(rehab, world);
+
+        assert.equal(q(interp, 'tag("share a kind word", prosocial)'), 1);
+        assert.equal(q(interp, 'tag("share a kind word", antisocial)'), 0);
+      });
+
+      it('gates norm-reshaping on reputation: a dubious agent cannot denounce', () => {
+        const { interp } = buildSimWorld();
+        // silas has reputation 49 (dubious), below the admired tier.
+        const candidates = interp.scoreActionset('norms', { SELF: 'silas' }, { minimumScore: 0 });
+        assert.equal(candidates.length, 0);
+      });
     });
   });
 });

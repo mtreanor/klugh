@@ -80,7 +80,9 @@ Entities are declared in `entities.json`, grouped by type. Each type maps entity
 }
 ```
 
-Argument type names in the predicate schema (`"agent"`, `"knowledge"`, etc.) must match the type keys in `entities.json`.
+Argument type names in the predicate schema (`"agent"`, `"knowledge"`, etc.) match the type keys in `entities.json`. The exceptions are the types the engine populates itself: actions register as `action` entities from their [`info:` blocks](actions.md#info), and [occurrences](actions.md#occurrences) are minted at runtime — neither is declared here.
+
+When a free variable's argument type has no registered entities at all, the engine cannot enumerate an extent for it, so it instead binds the variable from whatever facts match — [extent binding](actions.md#querying). This is how the occurrence `role` predicate gets a polymorphic value slot; it is not a general-purpose tool.
 
 ### Type-level configuration
 

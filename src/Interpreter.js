@@ -70,10 +70,21 @@ export class Interpreter {
     }
   }
 
-  // Parses an actionset, registers each action as a queryable 'action' entity
-  // (asserting its info: facts), and stores it under `name`. Returns the actions.
+  // Parses an actionset and attaches it under `name`. Returns the actions.
   loadActions(source, name) {
     const { actions } = new ActionLoader(this.schema).load(new ActionParser().parse(source));
+    return this.addActionset(name, actions);
+  }
+
+  // Attaches an already-built actionset under `name`, registering each action as
+  // a queryable 'action' entity and asserting its info: facts. This is the only
+  // supported way to populate an actionset: it guarantees that tag(...) and other
+  // action predicates work, and that ?ACT-style roles can enumerate over actions.
+  //
+  // Registration is a once-at-load seeding step — it is deliberately NOT re-run
+  // when actions are used (e.g. in scoreActionset), because re-asserting info:
+  // facts would resurrect traits that effects retracted at run time.
+  addActionset(name, actions) {
     registerActionEntities(actions, this.world);
     this.actionsets.set(name, actions);
     return actions;

@@ -301,3 +301,39 @@ action "air a suspicion"
   effects
     ?SELF.grudgeAgainst(?SELF, ?Y)
     trust(?SELF, ?Y) -= 5
+
+# ── Reshaping the norms: actions that rewrite another action's info traits ────
+# These bind a *target action* as a role (?ACT, typed `action` from tag's first
+# arg). The precondition matches an action by its current info trait; the effect
+# retracts that trait and writes a new one. The trait was only seeded by the
+# target action's own info: block — it lives in the fact store like any other
+# fact, so an influential agent can flip it at run time.
+
+action "denounce a practice"
+  roles: ?SELF, ?ACT
+  info:
+    tag(?this, leadership)
+  preconditions
+    tag(?ACT, prosocial)              # any action currently deemed prosocial
+    ^ reputation.admired(?SELF)       # only the admired can shift the village's norms
+  utility
+    reputation(?SELF)
+  content text: "?SELF denounces ?ACT before the village"
+  effects
+    not tag(?ACT, prosocial)          # retract the trait its info: block seeded
+    tag(?ACT, antisocial)             # and re-cast the practice as antisocial
+
+action "rehabilitate a practice"
+  roles: ?SELF, ?ACT
+  info:
+    tag(?this, reconciliation)
+  preconditions
+    tag(?ACT, antisocial)             # a practice that was denounced earlier
+    ^ not tag(?ACT, prosocial)        # and has not already been restored
+    ^ reputation.admired(?SELF)
+  utility
+    reputation(?SELF)
+  content text: "?SELF makes the case to restore ?ACT's good name"
+  effects
+    not tag(?ACT, antisocial)
+    tag(?ACT, prosocial)              # restore the original trait

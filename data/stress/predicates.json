@@ -83,6 +83,8 @@
     "trustedConfidant": { "type": "derived", "args": ["agent", "agent"] },
     "companionAtHand":  { "type": "derived", "args": ["agent", "agent"] },
     "marketRival":      { "type": "derived", "args": ["agent", "agent"] },
-    "kinOf":            { "type": "derived", "args": ["agent", "agent"] }
+    "kinOf":            { "type": "derived", "args": ["agent", "agent"] },
+
+    "tag":              { "type": "boolean", "args": ["action", "actionTag"] }
   }
 }

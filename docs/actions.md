@@ -74,10 +74,10 @@ This asserts `tag(give, generous)`, `tag(give, social)`, and `targets(give, agen
 Once actions describe themselves, finding actions by spec is just querying — with partial bindings and full enumeration for free:
 
 ```javascript
-interp.query('tag(?a, social)');                    // every action tagged social
-interp.query('tag(?a, social) ^ tag(?a, generous)'); // actions that are both
-interp.query('targets(?a, agent) ^ not tag(?a, aggressive)');  // NAF works too
-interp.query('tag(?a, ?t)', { a: 'give' });          // enumerate one action's tags
+engine.query('tag(?a, social)');                    // every action tagged social
+engine.query('tag(?a, social) ^ tag(?a, generous)'); // actions that are both
+engine.query('targets(?a, agent) ^ not tag(?a, aggressive)');  // NAF works too
+engine.query('tag(?a, ?t)', { a: 'give' });          // enumerate one action's tags
 ```
 
 The facts are ordinary facts, so they are **mutable** — `assert`/`retract` a tag at runtime to reclassify an action (e.g. a social norm shifts and `insult` is no longer `aggressive`).
@@ -232,21 +232,21 @@ Declare named actionsets in `project.config.json` under your scenario:
 }
 ```
 
-All actionsets are loaded at `Interpreter` construction time. Score one by name:
+All actionsets are loaded at `Engine` construction time. Score one by name:
 
 ```javascript
-const candidates = interp.scoreActionset('dialogue', { SELF: 'alice' });
+const candidates = engine.scoreActionset('dialogue', { SELF: 'alice' });
 // candidates: [{ action, binding, score }, ...] sorted by score descending
 ```
 
 `scoreActionset` enumerates all free variables in each action against the entity registry, checks preconditions, sums utility sources, and returns sorted results. The first entry is the highest-scoring eligible candidate.
 
 ```javascript
-const [best] = interp.scoreActionset('dialogue', { SELF: 'alice' });
+const [best] = engine.scoreActionset('dialogue', { SELF: 'alice' });
 if (best) {
   console.log(best.action.content?.render(best.binding) ?? best.action.name);
-  best.action.execute(best.binding, interp.world.queryHandlers, null, {
-    privateStores: interp.world.privateStores,
+  best.action.execute(best.binding, engine.world.queryHandlers, null, {
+    privateStores: engine.world.privateStores,
   });
 }
 ```
@@ -254,7 +254,7 @@ if (best) {
 Pass `minimumScore` to filter out low-scoring candidates:
 
 ```javascript
-const candidates = interp.scoreActionset('dialogue', { SELF: 'alice' }, { minimumScore: 0 });
+const candidates = engine.scoreActionset('dialogue', { SELF: 'alice' }, { minimumScore: 0 });
 ```
 
 ---
@@ -326,10 +326,10 @@ The `occurrence` type is populated at runtime (one entity per recorded occurrenc
 ### Querying
 
 ```javascript
-interp.query('actionType(?o, "give")');                        // every gift
-interp.query('actionType(?o, "give") ^ role(?o, SELF, alice)'); // gifts alice gave
-interp.query('role(?o, _, alice)');                            // alice in any role
-interp.query('role(occ3, ?r, ?v)');                            // every role of one occurrence
+engine.query('actionType(?o, "give")');                        // every gift
+engine.query('actionType(?o, "give") ^ role(?o, SELF, alice)'); // gifts alice gave
+engine.query('role(?o, _, alice)');                            // alice in any role
+engine.query('role(occ3, ?r, ?v)');                            // every role of one occurrence
 ```
 
 Rules layer on top — derive new facts over occurrences just like any other facts:

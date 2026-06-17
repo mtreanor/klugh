@@ -20,7 +20,7 @@ import { applyStateChange } from './stateOperations/applyStateChange.js';
 import { THIS_ACTION } from './actionVariables.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
 
-export class Interpreter {
+export class Engine {
   // Accepts either a scenario directory path (string) or an explicit config
   // object: { predicates, entities, state } — absolute or relative file paths.
   constructor(dataDirOrConfig) {

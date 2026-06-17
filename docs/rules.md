@@ -98,21 +98,21 @@ Declare named rulesets in `project.config.json` under your scenario:
 }
 ```
 
-All rulesets are loaded at `Interpreter` construction time. Run one by name:
+All rulesets are loaded at `Engine` construction time. Run one by name:
 
 ```javascript
-const fired = interp.runRuleset('social');
+const fired = engine.runRuleset('social');
 // fired: RuleApplication[] — every application that was committed this run
 ```
 
 `runRuleset` runs to fixpoint and applies all fully-satisfied rule applications. Pass `minimumSatisfactionScore` to allow partial-satisfaction firing:
 
 ```javascript
-const fired = interp.runRuleset('social', { minimumSatisfactionScore: 0.5 });
+const fired = engine.runRuleset('social', { minimumSatisfactionScore: 0.5 });
 ```
 
 To pre-bind a variable (run rules only for one agent):
 
 ```javascript
-const fired = interp.runRuleset('social', { startingBinding: { SELF: 'alice' } });
+const fired = engine.runRuleset('social', { startingBinding: { SELF: 'alice' } });
 ```

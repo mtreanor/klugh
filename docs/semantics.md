@@ -352,7 +352,7 @@ A fact asserted by rule R₁ in pass i is visible to derived predicates beginnin
 
 ### Backward chaining outside forward chaining
 
-At query time (interactive queries, `Interpreter.query()`), the backward chainer uses the standard tick-based cache. Results are memoized per (predicate name, ground arguments, store scope, tick) and persist until the tick advances.
+At query time (interactive queries, `Engine.query()`), the backward chainer uses the standard tick-based cache. Results are memoized per (predicate name, ground arguments, store scope, tick) and persist until the tick advances.
 
 ### Constraints on derived predicates
 

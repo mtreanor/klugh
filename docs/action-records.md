@@ -118,7 +118,7 @@ Use this when you need the breakdown and don't want to score the action twice.
 To produce an `ActionRecord`, pass `world` in the options to `action.execute()`:
 
 ```javascript
-const { score, breakdown } = action.scoreWithBreakdown(binding, interp.entityRegistry, evaluationContext);
+const { score, breakdown } = action.scoreWithBreakdown(binding, engine.entityRegistry, evaluationContext);
 
 action.execute(binding, world.queryHandlers, null, {
   privateStores:    world.privateStores,
@@ -142,7 +142,7 @@ action.execute(binding, world.queryHandlers, null, {
 A typical selection loop:
 
 ```javascript
-const candidates = interp.scoreActionset('social', { SELF: agentName });
+const candidates = engine.scoreActionset('social', { SELF: agentName });
 if (candidates.length === 0) return;
 
 const { action, binding } = candidates[0];

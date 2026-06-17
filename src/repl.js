@@ -2,7 +2,7 @@ import { createInterface } from 'readline';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
-import { Interpreter } from './Interpreter.js';
+import { Engine } from './Engine.js';
 import { formatBoundRule } from './RuleFormatter.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,10 +18,10 @@ const paths = {
   actionsets:  Object.fromEntries(Object.entries(scenario.actionsets ?? {}).map(([k, v]) => [k, resolve(repoRoot, v)])),
 };
 
-const interp = new Interpreter(paths);
+const engine = new Engine(paths);
 
-const predNames   = [...interp.schema.definitions.keys()];
-const entityNames = [...interp.world.entityRegistry.values()].flat().map(e => e.name ?? e);
+const predNames   = [...engine.schema.definitions.keys()];
+const entityNames = [...engine.world.entityRegistry.values()].flat().map(e => e.name ?? e);
 const variables   = ['?X', '?Y', '?Z', '?W', '?K', '?SELF'];
 
 function completer(line) {
@@ -29,7 +29,7 @@ function completer(line) {
   const dotMatch = line.match(/^(.*?\b([\w-]+))\.([\w-]*)$/);
   if (dotMatch) {
     const [, prefix, predName, partial] = dotMatch;
-    const def = interp.schema.getDefinition(predName);
+    const def = engine.schema.getDefinition(predName);
     if (def?.tiers) {
       const hits = Object.keys(def.tiers)
         .filter(t => t.startsWith(partial))
@@ -116,7 +116,7 @@ function printStore(label, factStore) {
 }
 
 function handleFactsCommand(args) {
-  const { world } = interp;
+  const { world } = engine;
 
   if (args.length === 0) {
     printStore('world', world.factStore);
@@ -142,7 +142,7 @@ function handleFactsCommand(args) {
 }
 
 function printEntities() {
-  const { world } = interp;
+  const { world } = engine;
   const types = [...world.entityRegistry.keys()].sort();
   const hasAnyPrivateStore = world.privateStores.size > 0;
 
@@ -202,27 +202,27 @@ function parseBindings(tokens) {
 }
 
 function handleRulesetsCommand() {
-  if (interp.rulesets.size === 0) {
+  if (engine.rulesets.size === 0) {
     console.log('  (no rulesets loaded)');
     return;
   }
-  for (const [name, rules] of interp.rulesets) {
+  for (const [name, rules] of engine.rulesets) {
     console.log(`  [${name}]  ${rules.length} rule${rules.length === 1 ? '' : 's'}`);
   }
 }
 
 function handleActionsetsCommand() {
-  if (interp.actionsets.size === 0) {
+  if (engine.actionsets.size === 0) {
     console.log('  (no actionsets loaded)');
     return;
   }
-  for (const [name, actions] of interp.actionsets) {
+  for (const [name, actions] of engine.actionsets) {
     console.log(`  [${name}]  ${actions.length} action${actions.length === 1 ? '' : 's'}`);
   }
 }
 
 function handleRulesCommand(name) {
-  const rules = interp.rulesets.get(name);
+  const rules = engine.rulesets.get(name);
   if (!rules) throw new Error(`No ruleset named "${name}"`);
   console.log(`[${name}]`);
   for (const rule of rules) {
@@ -232,7 +232,7 @@ function handleRulesCommand(name) {
 }
 
 function handleActionsCommand(name) {
-  const actions = interp.actionsets.get(name);
+  const actions = engine.actionsets.get(name);
   if (!actions) throw new Error(`No actionset named "${name}"`);
   console.log(`[${name}]`);
   for (const action of actions) {
@@ -245,7 +245,7 @@ function handleRunCommand(parts) {
   if (parts.length === 0) throw new Error('Usage: run <name> [?VAR=entity …]');
   const [name, ...bindingTokens] = parts;
   const partialBinding = parseBindings(bindingTokens);
-  const fired = interp.runRuleset(name, { startingBinding: partialBinding });
+  const fired = engine.runRuleset(name, { startingBinding: partialBinding });
   if (fired.length === 0) {
     console.log('  (no rules fired)');
     return;
@@ -272,7 +272,7 @@ function handleScoreCommand(parts) {
   if (parts.length === 0) throw new Error('Usage: score <name> [?VAR=entity …]');
   const [name, ...bindingTokens] = parts;
   const partialBinding = parseBindings(bindingTokens);
-  const candidates = interp.scoreActionset(name, partialBinding);
+  const candidates = engine.scoreActionset(name, partialBinding);
   if (candidates.length === 0) {
     console.log('  (no eligible actions)');
     return;
@@ -285,7 +285,7 @@ function handleSelectCommand(parts) {
   if (parts.length === 0) throw new Error('Usage: select <name> [?VAR=entity …]');
   const [name, ...bindingTokens] = parts;
   const partialBinding = parseBindings(bindingTokens);
-  const candidates = interp.scoreActionset(name, partialBinding);
+  const candidates = engine.scoreActionset(name, partialBinding);
   if (candidates.length === 0) {
     console.log('  (no eligible actions)');
     return;
@@ -295,7 +295,7 @@ function handleSelectCommand(parts) {
   if (best.action.content) {
     console.log(`  → ${best.action.content.render(best.binding)}`);
   }
-  best.action.execute(best.binding, interp.world.queryHandlers, null, interp.world.privateStores);
+  best.action.execute(best.binding, engine.world.queryHandlers, null, engine.world.privateStores);
   console.log('  ok');
 }
 
@@ -327,19 +327,19 @@ rl.on('line', (line) => {
 
   try {
     if (text.startsWith('assert ')) {
-      interp.assert(text.slice('assert '.length).trim());
+      engine.assert(text.slice('assert '.length).trim());
       console.log('  ok');
     } else if (text === 'facts' || text.startsWith('facts ')) {
       handleFactsCommand(text === 'facts' ? [] : text.slice('facts '.length).trim().split(/\s+/));
     } else if (text === 'entities') {
       printEntities();
     } else if (text.startsWith('degree ')) {
-      printDegreeResults(interp.evaluateDegrees(text.slice('degree '.length).trim()));
+      printDegreeResults(engine.evaluateDegrees(text.slice('degree '.length).trim()));
     } else if (/^as \w+:/.test(text)) {
       const colonIdx  = text.indexOf(':');
       const scopedTo  = text.slice('as '.length, colonIdx).trim();
       const queryText = text.slice(colonIdx + 1).trim();
-      const bindings  = interp.query(queryText, {}, { scopedTo });
+      const bindings  = engine.query(queryText, {}, { scopedTo });
       console.log(`  [as ${scopedTo}]`);
       if (bindings.length === 0) {
         console.log('  (no results)');
@@ -353,8 +353,8 @@ rl.on('line', (line) => {
       const arg    = text.slice('tick'.length).trim();
       const amount = arg ? parseInt(arg, 10) : 1;
       if (isNaN(amount) || amount < 1) throw new Error('Usage: tick [N]');
-      interp.advanceTick(amount);
-      console.log(`  tick → ${interp.world.tickTracker.currentTick}`);
+      engine.advanceTick(amount);
+      console.log(`  tick → ${engine.world.tickTracker.currentTick}`);
     } else if (text === 'rulesets') {
       handleRulesetsCommand();
     } else if (text === 'actionsets') {
@@ -374,7 +374,7 @@ rl.on('line', (line) => {
     } else if (text.startsWith('select ')) {
       handleSelectCommand(text.slice('select '.length).trim().split(/\s+/));
     } else {
-      const bindings = interp.query(text);
+      const bindings = engine.query(text);
       if (bindings.length === 0) {
         console.log('  (no results)');
       } else {

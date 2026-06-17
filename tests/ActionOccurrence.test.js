@@ -9,7 +9,7 @@ import { Action } from '../src/Action.js';
 import { Binding } from '../src/Binding.js';
 import { LogicalVariable } from '../src/LogicalVariable.js';
 import { StateOperation } from '../src/stateOperations/StateOperation.js';
-import { Interpreter } from '../src/Interpreter.js';
+import { Engine } from '../src/Engine.js';
 import { recordActionOccurrence } from '../src/recordActionOccurrence.js';
 
 const SELF = new LogicalVariable('SELF');
@@ -177,7 +177,7 @@ describe('Action.execute — ?this_occurrence in effects', () => {
 
 // ── End-to-end: query occurrences by pattern ─────────────────────────────────
 
-function makeInterpreter() {
+function makeEngine() {
   const dir = mkdtempSync(join(tmpdir(), 'klugh-occurrence-'));
 
   writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
@@ -203,7 +203,7 @@ function makeInterpreter() {
       effects helped(?SELF, ?Y)
   `);
 
-  const interp = new Interpreter({
+  const engine = new Engine({
     predicates: join(dir, 'predicates.json'),
     entities:   join(dir, 'entities.json'),
     state:      join(dir, 'state'),
@@ -211,75 +211,75 @@ function makeInterpreter() {
   });
 
   // A derived predicate layered on top of the occurrence facts (path b).
-  interp.loadDefinitions(`
+  engine.loadDefinitions(`
     define "regretted a gift"
       actionType(?o, "give")
       ^ reluctant(?o)
       => regretted(?o)
   `);
 
-  return interp;
+  return engine;
 }
 
-function ent(interp, name) {
-  return interp.findEntityByName(name) ?? name;
+function ent(engine, name) {
+  return engine.findEntityByName(name) ?? name;
 }
 
 describe('action occurrences — querying by pattern', () => {
   it('records and finds occurrences by action type and role', () => {
-    const interp = makeInterpreter();
-    const give   = interp.actionsets.get('social')[0];
+    const engine = makeEngine();
+    const give   = engine.actionsets.get('social')[0];
 
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'alice')], [Y, ent(interp, 'bob')]),  interp.world);
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'carol')], [Y, ent(interp, 'alice')]), interp.world, {
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'alice')], [Y, ent(engine, 'bob')]),  engine.world);
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'carol')], [Y, ent(engine, 'alice')]), engine.world, {
       contextFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
     });
 
     // All "give" occurrences
-    assert.equal(interp.query('actionType(?o, "give")').length, 2);
+    assert.equal(engine.query('actionType(?o, "give")').length, 2);
 
     // Occurrences where alice was the SELF
-    const aliceGave = interp.query('actionType(?o, "give") ^ role(?o, SELF, alice)');
+    const aliceGave = engine.query('actionType(?o, "give") ^ role(?o, SELF, alice)');
     assert.equal(aliceGave.length, 1);
     assert.equal(aliceGave[0].assignments.get('o').name, 'occ1');
   });
 
   it('enumerates all roles of one occurrence via extent binding (polymorphic value slot)', () => {
-    const interp = makeInterpreter();
-    const give   = interp.actionsets.get('social')[0];
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'alice')], [Y, ent(interp, 'bob')]), interp.world);
+    const engine = makeEngine();
+    const give   = engine.actionsets.get('social')[0];
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'alice')], [Y, ent(engine, 'bob')]), engine.world);
 
     // ?r (roleName) and ?v (entity) have no registered entities → bound from the
     // recorded role facts themselves. Values come back as the stored name strings.
-    const roles = interp.query('role(occ1, ?r, ?v)')
+    const roles = engine.query('role(occ1, ?r, ?v)')
       .map(b => `${b.assignments.get('r')}=${b.assignments.get('v')}`)
       .sort();
     assert.deepEqual(roles, ['SELF=alice', 'Y=bob']);
   });
 
   it('finds an occurrence by who appeared in any role', () => {
-    const interp = makeInterpreter();
-    const give   = interp.actionsets.get('social')[0];
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'alice')], [Y, ent(interp, 'bob')]),  interp.world);
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'carol')], [Y, ent(interp, 'alice')]), interp.world);
+    const engine = makeEngine();
+    const give   = engine.actionsets.get('social')[0];
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'alice')], [Y, ent(engine, 'bob')]),  engine.world);
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'carol')], [Y, ent(engine, 'alice')]), engine.world);
 
     // alice appears in occ1 (SELF) and occ2 (Y)
-    const withAlice = interp.query('role(?o, _, alice)')
+    const withAlice = engine.query('role(?o, _, alice)')
       .map(b => b.assignments.get('o').name)
       .sort();
     assert.deepEqual(withAlice, ['occ1', 'occ2']);
   });
 
   it('lets rules derive new facts over occurrences (context layered on top)', () => {
-    const interp = makeInterpreter();
-    const give   = interp.actionsets.get('social')[0];
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'alice')], [Y, ent(interp, 'bob')]), interp.world);
-    recordActionOccurrence(give, bind([SELF, ent(interp, 'carol')], [Y, ent(interp, 'alice')]), interp.world, {
+    const engine = makeEngine();
+    const give   = engine.actionsets.get('social')[0];
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'alice')], [Y, ent(engine, 'bob')]), engine.world);
+    recordActionOccurrence(give, bind([SELF, ent(engine, 'carol')], [Y, ent(engine, 'alice')]), engine.world, {
       contextFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
     });
 
     // Only the reluctant gift is regretted (derived).
-    const regretted = interp.query('regretted(?o)').map(b => b.assignments.get('o').name);
+    const regretted = engine.query('regretted(?o)').map(b => b.assignments.get('o').name);
     assert.deepEqual(regretted, ['occ2']);
   });
 });

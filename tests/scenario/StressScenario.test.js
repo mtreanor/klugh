@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { Interpreter } from '../../src/Interpreter.js';
+import { Engine } from '../../src/Engine.js';
 import { SensorQueryHandler } from '../../src/queryHandlers/SensorQueryHandler.js';
 import { Sensor } from '../../src/Sensor.js';
 import { NumericSensor } from '../../src/NumericSensor.js';
@@ -37,7 +37,7 @@ class TableDistanceSensor extends NumericSensor {
 }
 
 function buildWorld() {
-  const interp = new Interpreter(stressDir);
+  const engine = new Engine(stressDir);
 
   const nearPairs = new Set([
     'mara:petra', 'mara:una', 'oren:wren', 'oren:zeke', 'silas:viggo', 'talia:yara',
@@ -49,9 +49,9 @@ function buildWorld() {
   const sensors = new SensorQueryHandler();
   sensors.register('near', new TableNearSensor(nearPairs));
   sensors.registerNumeric('distanceTo', new TableDistanceSensor(distances));
-  interp.world.queryHandlers.register('sensor', sensors);
+  engine.world.queryHandlers.register('sensor', sensors);
 
-  const derived = interp.world.queryHandlers.getHandler('derived');
+  const derived = engine.world.queryHandlers.getHandler('derived');
   // kinOf has no authored definitions — answered by this code handler.
   derived.define('kinOf', ([a, b]) =>
     (a === 'talia' && b === 'yara') || (a === 'yara' && b === 'talia'));
@@ -59,14 +59,14 @@ function buildWorld() {
   // consulted (authored definitions take precedence over code handlers).
   derived.define('rivals', () => true);
 
-  const { rules } = interp.ruleLoader.load(
-    interp.ruleParser.parse(readFileSync(join(stressDir, 'rules'), 'utf-8'))
+  const { rules } = engine.ruleLoader.load(
+    engine.ruleParser.parse(readFileSync(join(stressDir, 'rules'), 'utf-8'))
   );
 
-  return { interp, world: interp.world, rules, nearPairs };
+  return { engine, world: engine.world, rules, nearPairs };
 }
 
-const q = (interp, text) => interp.query(text).length;
+const q = (engine, text) => engine.query(text).length;
 
 // Extracts a bound entity/value name from a query result binding.
 function bound(binding, varName) {
@@ -116,38 +116,38 @@ describe('Stress scenario', () => {
     });
 
     it('passes schema annotations through opaquely', () => {
-      const { interp } = buildWorld();
-      assert.equal(interp.schema.getDefinition('goodwill').annotations.ephemeral, true);
+      const { engine } = buildWorld();
+      assert.equal(engine.schema.getDefinition('goodwill').annotations.ephemeral, true);
     });
 
     it('rejects the cyclic rule set', () => {
-      const { interp } = buildWorld();
+      const { engine } = buildWorld();
       const source = readFileSync(join(stressDir, 'invalid/rules-cycle'), 'utf-8');
       assert.throws(
-        () => interp.ruleLoader.load(interp.ruleParser.parse(source)),
+        () => engine.ruleLoader.load(engine.ruleParser.parse(source)),
         /Cyclic rule dependency/
       );
     });
 
     it('rejects the cyclic definition set', () => {
-      const { interp } = buildWorld();
+      const { engine } = buildWorld();
       const source = readFileSync(join(stressDir, 'invalid/definitions-cycle'), 'utf-8');
-      assert.throws(() => interp.loadDefinitions(source), /Cyclic derived-predicate/);
+      assert.throws(() => engine.loadDefinitions(source), /Cyclic derived-predicate/);
     });
   });
 
   describe('state and stores', () => {
     it('answers symmetric facts in both directions', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'knows(oren, mara)'), 1);
-      assert.equal(q(interp, 'feuding(wren, viggo)'), 1);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'knows(oren, mara)'), 1);
+      assert.equal(q(engine, 'feuding(wren, viggo)'), 1);
     });
 
     it('propagates symmetric retraction to both directions', () => {
-      const { interp } = buildWorld();
-      interp.assert('not knows(mara, zeke)');
-      assert.equal(q(interp, 'knows(mara, zeke)'), 0);
-      assert.equal(q(interp, 'knows(zeke, mara)'), 0);
+      const { engine } = buildWorld();
+      engine.assert('not knows(mara, zeke)');
+      assert.equal(q(engine, 'knows(mara, zeke)'), 0);
+      assert.equal(q(engine, 'knows(zeke, mara)'), 0);
     });
 
     it('records backdated ticks and strengths', () => {
@@ -158,182 +158,182 @@ describe('Stress scenario', () => {
     });
 
     it('distinguishes all five negation forms on the same fact', () => {
-      const { interp } = buildWorld();
+      const { engine } = buildWorld();
       // wantsVisitors(silas): asserted at -8, retracted, explicit disbelief added.
-      assert.equal(q(interp, 'wantsVisitors(silas)'), 0);
-      assert.equal(q(interp, 'wantsVisitors(silas) [history]'), 1);
-      assert.equal(q(interp, '-wantsVisitors(silas)'), 1);
-      assert.equal(q(interp, 'not wantsVisitors(silas)'), 1);
-      assert.equal(q(interp, '~wantsVisitors(silas)'), 1);
-      assert.equal(q(interp, 'not -wantsVisitors(silas)'), 0);
+      assert.equal(q(engine, 'wantsVisitors(silas)'), 0);
+      assert.equal(q(engine, 'wantsVisitors(silas) [history]'), 1);
+      assert.equal(q(engine, '-wantsVisitors(silas)'), 1);
+      assert.equal(q(engine, 'not wantsVisitors(silas)'), 1);
+      assert.equal(q(engine, '~wantsVisitors(silas)'), 1);
+      assert.equal(q(engine, 'not -wantsVisitors(silas)'), 0);
     });
 
     it('allow policy: contradictory private beliefs coexist and ~ diverges from NAF', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'petra.suspects(petra, oren)'), 1);
-      assert.equal(q(interp, '-petra.suspects(petra, oren)'), 1);
-      assert.equal(q(interp, 'not petra.suspects(petra, oren)'), 0);
-      assert.equal(q(interp, '~petra.suspects(petra, oren)'), 1);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'petra.suspects(petra, oren)'), 1);
+      assert.equal(q(engine, '-petra.suspects(petra, oren)'), 1);
+      assert.equal(q(engine, 'not petra.suspects(petra, oren)'), 0);
+      assert.equal(q(engine, '~petra.suspects(petra, oren)'), 1);
     });
 
     it('block policy: the conflicting disbelief was silently dropped', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'silas.grudgeAgainst(silas, oren)'), 1);
-      assert.equal(q(interp, '-silas.grudgeAgainst(silas, oren)'), 0);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'silas.grudgeAgainst(silas, oren)'), 1);
+      assert.equal(q(engine, '-silas.grudgeAgainst(silas, oren)'), 0);
     });
 
     it('lastWins policy: world disbelief retracts the positive fact', () => {
-      const { interp } = buildWorld();
-      interp.assert('-outsider(una)');
-      assert.equal(q(interp, 'outsider(una)'), 0);
-      assert.equal(q(interp, '-outsider(una)'), 1);
+      const { engine } = buildWorld();
+      engine.assert('-outsider(una)');
+      assert.equal(q(engine, 'outsider(una)'), 0);
+      assert.equal(q(engine, '-outsider(una)'), 1);
     });
 
     it('owner without a private store: positive and ~ are false, NAF is true', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'zeke.grudgeAgainst(zeke, mara)'), 0);
-      assert.equal(q(interp, '~zeke.grudgeAgainst(zeke, mara)'), 0);
-      assert.equal(q(interp, 'not zeke.grudgeAgainst(zeke, mara)'), 1);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'zeke.grudgeAgainst(zeke, mara)'), 0);
+      assert.equal(q(engine, '~zeke.grudgeAgainst(zeke, mara)'), 0);
+      assert.equal(q(engine, 'not zeke.grudgeAgainst(zeke, mara)'), 1);
     });
 
     it('enumerates a variable private-store owner in queries', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, '?W.suspects(?W, oren)'), 2); // petra, silas
+      const { engine } = buildWorld();
+      assert.equal(q(engine, '?W.suspects(?W, oren)'), 2); // petra, silas
     });
   });
 
   describe('query forms', () => {
     it('evaluates at-tick against past world state', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'knows(oren, silas) [at: -25]'), 1);
-      assert.equal(q(interp, 'knows(mara, petra) [at: -25]'), 0); // asserted at 0
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'knows(oren, silas) [at: -25]'), 1);
+      assert.equal(q(engine, 'knows(mara, petra) [at: -25]'), 0); // asserted at 0
     });
 
     it('bounds historical checks by window', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'helped(mara, una) [history: 3]'), 1);   // -2
-      assert.equal(q(interp, 'helped(mara, talia) [history: 3]'), 0); // -12
-      assert.equal(q(interp, 'betrayed(oren, mara) [history: 25]'), 1);  // -20
-      assert.equal(q(interp, 'betrayed(oren, silas) [history: 25]'), 0); // -30
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'helped(mara, una) [history: 3]'), 1);   // -2
+      assert.equal(q(engine, 'helped(mara, talia) [history: 3]'), 0); // -12
+      assert.equal(q(engine, 'betrayed(oren, mara) [history: 25]'), 1);  // -20
+      assert.equal(q(engine, 'betrayed(oren, silas) [history: 25]'), 0); // -30
     });
 
     it('checks numeric tiers historically', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'trust.devoted(yara, mara)'), 0);            // now 58
-      assert.equal(q(interp, 'trust.devoted(yara, mara) [history]'), 1);  // once 88
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'trust.devoted(yara, mara)'), 0);            // now 58
+      assert.equal(q(engine, 'trust.devoted(yara, mara) [history]'), 1);  // once 88
     });
 
     it('honors temporal chain order and windows', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'betrayed(oren, mara) then apologized(oren, mara)'), 1);
-      assert.equal(q(interp, 'betrayed(oren, mara) then[6] apologized(oren, mara)'), 1);
-      assert.equal(q(interp, 'betrayed(oren, mara) then[3] apologized(oren, mara)'), 0);
-      assert.equal(q(interp, 'apologized(oren, mara) then betrayed(oren, mara)'), 0);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'betrayed(oren, mara) then apologized(oren, mara)'), 1);
+      assert.equal(q(engine, 'betrayed(oren, mara) then[6] apologized(oren, mara)'), 1);
+      assert.equal(q(engine, 'betrayed(oren, mara) then[3] apologized(oren, mara)'), 0);
+      assert.equal(q(engine, 'apologized(oren, mara) then betrayed(oren, mara)'), 0);
       assert.equal(
-        q(interp, 'betrayed(oren, mara) then apologized(oren, mara) then forgave(mara, oren)'),
+        q(engine, 'betrayed(oren, mara) then apologized(oren, mara) then forgave(mara, oren)'),
         1
       );
     });
 
     it('evaluates tier boundaries as lower-inclusive', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'trust.high(petra, wren)'), 1);      // exactly 60
-      assert.equal(q(interp, 'reputation.admired(talia)'), 1);    // exactly 75
-      assert.equal(q(interp, 'reputation.dubious(silas)'), 1);    // 49
-      assert.equal(q(interp, 'reputation(una) = 50'), 1);
-      assert.equal(q(interp, 'trust(petra, mara) >= 80'), 1);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'trust.high(petra, wren)'), 1);      // exactly 60
+      assert.equal(q(engine, 'reputation.admired(talia)'), 1);    // exactly 75
+      assert.equal(q(engine, 'reputation.dubious(silas)'), 1);    // 49
+      assert.equal(q(engine, 'reputation(una) = 50'), 1);
+      assert.equal(q(engine, 'trust(petra, mara) >= 80'), 1);
     });
 
     it('counts entity combinations, including symmetric and tier predicates', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, '|gossipedAbout(_, una)| = 2'), 1);
-      assert.equal(q(interp, '|knows(mara, _)| >= 6'), 1);
-      assert.equal(q(interp, '|trust.devoted(_, mara)| >= 3'), 1); // oren, talia, petra
-      assert.equal(q(interp, '|feuding(wren, _)| > 0'), 1);        // via symmetry
+      const { engine } = buildWorld();
+      assert.equal(q(engine, '|gossipedAbout(_, una)| = 2'), 1);
+      assert.equal(q(engine, '|knows(mara, _)| >= 6'), 1);
+      assert.equal(q(engine, '|trust.devoted(_, mara)| >= 3'), 1); // oren, talia, petra
+      assert.equal(q(engine, '|feuding(wren, _)| > 0'), 1);        // via symmetry
     });
 
     it('answers sensors directly in queries', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'near(mara, petra)'), 1);
-      assert.equal(q(interp, 'near(mara, silas)'), 0);
-      assert.equal(q(interp, 'distanceTo.close(zeke, market)'), 1);
-      assert.equal(q(interp, 'distanceTo(talia, market) >= 10'), 1);
-      assert.equal(q(interp, 'distanceTo.far(talia, market)'), 1);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'near(mara, petra)'), 1);
+      assert.equal(q(engine, 'near(mara, silas)'), 0);
+      assert.equal(q(engine, 'distanceTo.close(zeke, market)'), 1);
+      assert.equal(q(engine, 'distanceTo(talia, market) >= 10'), 1);
+      assert.equal(q(engine, 'distanceTo.far(talia, market)'), 1);
     });
   });
 
   describe('derived predicates', () => {
     it('proves simple definitions with negation premises', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'acquaintedPair(mara, oren)'), 1);
-      assert.equal(q(interp, 'acquaintedPair(viggo, wren)'), 0); // feuding
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'acquaintedPair(mara, oren)'), 1);
+      assert.equal(q(engine, 'acquaintedPair(viggo, wren)'), 0); // feuding
     });
 
     it('proves multi-head definitions through either branch', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'closeAllies(mara, oren)'), 1);  // mutual devotion
-      assert.equal(q(interp, 'closeAllies(talia, mara)'), 1); // proven by deeds
-      assert.equal(q(interp, 'closeAllies(petra, mara)'), 0); // one-sided devotion
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'closeAllies(mara, oren)'), 1);  // mutual devotion
+      assert.equal(q(engine, 'closeAllies(talia, mara)'), 1); // proven by deeds
+      assert.equal(q(engine, 'closeAllies(petra, mara)'), 0); // one-sided devotion
     });
 
     it('chains derived predicates three deep (marketRival → rivals → tension)', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'rivals(viggo, wren)'), 1);      // via feuding
-      assert.equal(q(interp, 'marketRival(oren, wren)'), 0);  // no tension yet
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'rivals(viggo, wren)'), 1);      // via feuding
+      assert.equal(q(engine, 'marketRival(oren, wren)'), 0);  // no tension yet
     });
 
     it('evaluates counts, history, and negation-over-derived inside definitions', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'respectedElder(mara)'), 1);
-      assert.equal(q(interp, 'respectedElder(talia)'), 0);  // admired but knows < 4
-      assert.equal(q(interp, 'respectedElder(oren)'), 0);   // known but not admired
-      assert.equal(q(interp, 'communityPillar(mara)'), 1);
-      assert.equal(q(interp, 'whisperTarget(una)'), 1);
-      assert.equal(q(interp, 'whisperTarget(zeke)'), 0);    // only one gossip
-      assert.equal(q(interp, 'oldWound(silas, oren)'), 1);
-      assert.equal(q(interp, 'oldWound(mara, oren)'), 0);   // forgiven
-      assert.equal(q(interp, 'healedRift(oren, mara)'), 1); // 3-step chain
-      assert.equal(q(interp, 'healedRift(oren, silas)'), 0);
-      assert.equal(q(interp, 'mentorFigure(oren, silas)'), 1);
-      assert.equal(q(interp, 'mentorFigure(silas, oren)'), 0); // reputation 49
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'respectedElder(mara)'), 1);
+      assert.equal(q(engine, 'respectedElder(talia)'), 0);  // admired but knows < 4
+      assert.equal(q(engine, 'respectedElder(oren)'), 0);   // known but not admired
+      assert.equal(q(engine, 'communityPillar(mara)'), 1);
+      assert.equal(q(engine, 'whisperTarget(una)'), 1);
+      assert.equal(q(engine, 'whisperTarget(zeke)'), 0);    // only one gossip
+      assert.equal(q(engine, 'oldWound(silas, oren)'), 1);
+      assert.equal(q(engine, 'oldWound(mara, oren)'), 0);   // forgiven
+      assert.equal(q(engine, 'healedRift(oren, mara)'), 1); // 3-step chain
+      assert.equal(q(engine, 'healedRift(oren, silas)'), 0);
+      assert.equal(q(engine, 'mentorFigure(oren, silas)'), 1);
+      assert.equal(q(engine, 'mentorFigure(silas, oren)'), 0); // reputation 49
     });
 
     it('discovers string variables from the fact store', () => {
-      const { interp } = buildWorld();
-      const consolers = interp.query('canConsole(?X, una)').map(b => bound(b, 'X'));
+      const { engine } = buildWorld();
+      const consolers = engine.query('canConsole(?X, una)').map(b => bound(b, 'X'));
       assert.deepEqual(consolers.sort(), ['mara', 'talia']);
-      assert.equal(q(interp, 'canConsole(mara, silas)'), 0);
+      assert.equal(q(engine, 'canConsole(mara, silas)'), 0);
     });
 
     it('reads private premises for world conclusions', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'privateEnemy(viggo, wren)'), 1);
-      assert.equal(q(interp, 'privateEnemy(wren, viggo)'), 0); // disbelief only
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'privateEnemy(viggo, wren)'), 1);
+      assert.equal(q(engine, 'privateEnemy(wren, viggo)'), 0); // disbelief only
     });
 
     it('keeps private conclusions separate from world conclusions', () => {
-      const { interp } = buildWorld();
-      const confidants = interp.query('?X.trustedConfidant(?X, ?Y)', { X: 'mara' });
+      const { engine } = buildWorld();
+      const confidants = engine.query('?X.trustedConfidant(?X, ?Y)', { X: 'mara' });
       assert.equal(confidants.length, 1);
       assert.equal(bound(confidants[0], 'Y'), 'talia');
       // No world-level definition exists for trustedConfidant.
-      assert.equal(q(interp, 'trustedConfidant(mara, talia)'), 0);
+      assert.equal(q(engine, 'trustedConfidant(mara, talia)'), 0);
     });
 
     it('accepts sensor premises in definitions', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'companionAtHand(mara, petra)'), 1);
-      assert.equal(q(interp, 'companionAtHand(oren, zeke)'), 0); // near but strangers
-      assert.equal(q(interp, 'companionAtHand(mara, silas)'), 0); // not near
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'companionAtHand(mara, petra)'), 1);
+      assert.equal(q(engine, 'companionAtHand(oren, zeke)'), 0); // near but strangers
+      assert.equal(q(engine, 'companionAtHand(mara, silas)'), 0); // not near
     });
 
     it('falls back to a code handler only when no definitions exist', () => {
-      const { interp } = buildWorld();
-      assert.equal(q(interp, 'kinOf(talia, yara)'), 1);  // handler-only predicate
-      assert.equal(q(interp, 'kinOf(mara, talia)'), 0);
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'kinOf(talia, yara)'), 1);  // handler-only predicate
+      assert.equal(q(engine, 'kinOf(mara, talia)'), 0);
       // rivals has authored definitions, so its decoy always-true handler is
       // never consulted.
-      assert.equal(q(interp, 'rivals(mara, talia)'), 0);
+      assert.equal(q(engine, 'rivals(mara, talia)'), 0);
     });
   });
 
@@ -401,8 +401,8 @@ describe('Stress scenario', () => {
 
   describe('partial truth and importance', () => {
     it('scores weighted conjunctions by satisfied importance', () => {
-      const { interp } = buildWorld();
-      const apps = interp.evaluateDegrees(
+      const { engine } = buildWorld();
+      const apps = engine.evaluateDegrees(
         'knows(?X, ?Y) [importance: 1.5] ^ trust(?X, ?Y) >= 95 [importance: 0.5]',
         { X: 'mara', Y: 'oren' }
       );
@@ -434,59 +434,59 @@ describe('Stress scenario', () => {
 
   describe('boolean cascade — fixpoint vs single pass', () => {
     it('completes the reverse-ordered cascade only under fixpoint apply()', () => {
-      const { interp, world, rules } = buildWorld();
+      const { engine, world, rules } = buildWorld();
       const kRules = rules.filter(r => r.name.startsWith('K'));
       world.apply(kRules, { advanceTick: true, minimumSatisfactionScore: 1 });
 
-      assert.equal(q(interp, 'nominatedElder(mara)'), 1);
-      assert.equal(q(interp, 'electedElder(mara)'), 1);
-      assert.equal(q(interp, 'invitedTo(mara, chapel)'), 1);
-      assert.equal(q(interp, 'helped(mara, silas)'), 1);
-      assert.equal(q(interp, 'forgave(oren, mara)'), 1);
+      assert.equal(q(engine, 'nominatedElder(mara)'), 1);
+      assert.equal(q(engine, 'electedElder(mara)'), 1);
+      assert.equal(q(engine, 'invitedTo(mara, chapel)'), 1);
+      assert.equal(q(engine, 'helped(mara, silas)'), 1);
+      assert.equal(q(engine, 'forgave(oren, mara)'), 1);
       // K4 dissolved the feud (symmetric retraction).
-      assert.equal(q(interp, 'feuding(viggo, wren)'), 0);
-      assert.equal(q(interp, 'feuding(wren, viggo)'), 0);
+      assert.equal(q(engine, 'feuding(viggo, wren)'), 0);
+      assert.equal(q(engine, 'feuding(wren, viggo)'), 0);
     });
 
     it('stalls after the first stage under applyOnce()', () => {
-      const { interp, world, rules } = buildWorld();
+      const { engine, world, rules } = buildWorld();
       const kRules = rules.filter(r => r.name.startsWith('K'));
       world.applyOnce(kRules, { advanceTick: true, minimumSatisfactionScore: 1 });
 
-      assert.equal(q(interp, 'nominatedElder(mara)'), 1);
-      assert.equal(q(interp, 'electedElder(mara)'), 0); // needs a second pass
-      assert.equal(q(interp, 'forgave(oren, mara)'), 1); // K7 is history-driven
+      assert.equal(q(engine, 'nominatedElder(mara)'), 1);
+      assert.equal(q(engine, 'electedElder(mara)'), 0); // needs a second pass
+      assert.equal(q(engine, 'forgave(oren, mara)'), 1); // K7 is history-driven
     });
   });
 
   describe('multi-tick simulation', () => {
     it('evolves the village over four ticks', () => {
-      const { interp, world, rules, nearPairs } = buildWorld();
+      const { engine, world, rules, nearPairs } = buildWorld();
 
       tick(world, rules); // tick 1
-      assert.equal(q(interp, 'nominatedElder(mara)'), 1);
-      assert.equal(q(interp, 'electedElder(mara)'), 0);
+      assert.equal(q(engine, 'nominatedElder(mara)'), 1);
+      assert.equal(q(engine, 'electedElder(mara)'), 0);
       // L4 made oren's old betrayal common gossip. (The derived whisperTarget
       // flip only shows after the tick advances — derived results are cached
       // per tick, so the count is checked raw here and the predicate below.)
-      assert.equal(q(interp, '|gossipedAbout(_, oren)| >= 2'), 1);
+      assert.equal(q(engine, '|gossipedAbout(_, oren)| >= 2'), 1);
       // ...and L7 reopened silas's door after yara's recent kindness.
-      assert.equal(q(interp, 'not -wantsVisitors(silas)'), 1);
+      assert.equal(q(engine, 'not -wantsVisitors(silas)'), 1);
 
       // The village stirs: una gossips back about petra, and the feuding
       // farmers end up side by side at the mill.
-      interp.assert('gossipedAbout(una, petra)');
+      engine.assert('gossipedAbout(una, petra)');
       nearPairs.add('viggo:wren');
 
       tick(world, rules); // tick 2
-      assert.equal(q(interp, 'electedElder(mara)'), 1);
-      assert.equal(q(interp, 'whisperTarget(oren)'), 1);
+      assert.equal(q(engine, 'electedElder(mara)'), 1);
+      assert.equal(q(engine, 'whisperTarget(oren)'), 1);
       // Market tension has crossed the rivals threshold by now.
-      assert.equal(q(interp, 'marketRival(oren, wren)'), 1);
+      assert.equal(q(engine, 'marketRival(oren, wren)'), 1);
 
       tick(world, rules); // tick 3
-      assert.equal(q(interp, 'invitedTo(mara, chapel)'), 1);
-      assert.equal(q(interp, 'feuding(viggo, wren)'), 0); // K4 soothed it
+      assert.equal(q(engine, 'invitedTo(mara, chapel)'), 1);
+      assert.equal(q(engine, 'feuding(viggo, wren)'), 0); // K4 soothed it
 
       tick(world, rules); // tick 4
 
@@ -530,65 +530,65 @@ describe('Stress scenario', () => {
     const NORM_ACTIONS = new Set(['denounce a practice', 'rehabilitate a practice']);
 
     function buildSimWorld() {
-      const { interp, world, rules, nearPairs } = buildWorld();
+      const { engine, world, rules, nearPairs } = buildWorld();
       const actionsSource = readFileSync(join(stressDir, 'actions'), 'utf-8');
-      const { actions } = new ActionLoader(interp.schema).load(
+      const { actions } = new ActionLoader(engine.schema).load(
         new ActionParser().parse(actionsSource)
       );
       // addActionset registers each action as a queryable `action` entity and
       // asserts its info: facts, so tag(...) works and ?ACT can enumerate actions.
-      interp.addActionset('social', actions.filter(a => !NORM_ACTIONS.has(a.name)));
-      interp.addActionset('norms',  actions.filter(a =>  NORM_ACTIONS.has(a.name)));
-      return { interp, world, rules, nearPairs };
+      engine.addActionset('social', actions.filter(a => !NORM_ACTIONS.has(a.name)));
+      engine.addActionset('norms',  actions.filter(a =>  NORM_ACTIONS.has(a.name)));
+      return { engine, world, rules, nearPairs };
     }
 
-    function runStep(interp, world, rules) {
+    function runStep(engine, world, rules) {
       for (const agentName of AGENTS) {
-        const candidates = interp.scoreActionset('social', { SELF: agentName }, { minimumScore: 0 });
+        const candidates = engine.scoreActionset('social', { SELF: agentName }, { minimumScore: 0 });
         if (candidates.length > 0) {
           const { action, binding } = candidates[0];
-          action.execute(binding, interp.world.queryHandlers, null, { privateStores: interp.world.privateStores });
+          action.execute(binding, engine.world.queryHandlers, null, { privateStores: engine.world.privateStores });
         }
       }
       world.applyOnce(rules, { advanceTick: true, minimumSatisfactionScore: 1 });
     }
 
     it('loads 16 actions from the social actionset', () => {
-      const { interp } = buildSimWorld();
-      assert.equal(interp.actionsets.get('social').length, 16);
-      assert.equal(interp.actionsets.get('norms').length, 2);
+      const { engine } = buildSimWorld();
+      assert.equal(engine.actionsets.get('social').length, 16);
+      assert.equal(engine.actionsets.get('norms').length, 2);
     });
 
     it('all 10 agents find a scored action before step 1', () => {
-      const { interp } = buildSimWorld();
+      const { engine } = buildSimWorld();
       for (const agent of AGENTS) {
-        const candidates = interp.scoreActionset('social', { SELF: agent }, { minimumScore: 0 });
+        const candidates = engine.scoreActionset('social', { SELF: agent }, { minimumScore: 0 });
         assert.ok(candidates.length > 0, `${agent} has no eligible action`);
       }
     });
 
     it('viggo\'s top action on step 1 is "end a feud" and its content renders', () => {
-      const { interp } = buildSimWorld();
-      const candidates = interp.scoreActionset('social', { SELF: 'viggo' }, { minimumScore: 0 });
+      const { engine } = buildSimWorld();
+      const candidates = engine.scoreActionset('social', { SELF: 'viggo' }, { minimumScore: 0 });
       assert.equal(candidates[0].action.name, 'end a feud');
       assert.equal(candidates[0].action.content.render(candidates[0].binding), 'viggo makes peace with wren');
     });
 
     it('evolves the village over 10 steps — repairs and consequences accumulate', () => {
-      const { interp, world, rules } = buildSimWorld();
+      const { engine, world, rules } = buildSimWorld();
 
-      runStep(interp, world, rules); // step 1
+      runStep(engine, world, rules); // step 1
       // viggo ends the feud immediately (highest scoring action, score 5 vs others < 2)
-      assert.equal(q(interp, 'feuding(viggo, wren)'), 0);
-      assert.equal(q(interp, 'feuding(wren, viggo)'), 0);
+      assert.equal(q(engine, 'feuding(viggo, wren)'), 0);
+      assert.equal(q(engine, 'feuding(wren, viggo)'), 0);
 
-      for (let i = 1; i < 10; i++) runStep(interp, world, rules); // steps 2–10
+      for (let i = 1; i < 10; i++) runStep(engine, world, rules); // steps 2–10
 
       // oren market-hustles until rep hits 75, then seeks forgiveness from silas
-      assert.equal(q(interp, 'apologized(oren, silas)'), 1);
+      assert.equal(q(engine, 'apologized(oren, silas)'), 1);
 
       // silas accepts oren's apology once the temporal chain is satisfied
-      assert.equal(q(interp, 'forgave(silas, oren)'), 1);
+      assert.equal(q(engine, 'forgave(silas, oren)'), 1);
 
       // zeke benefited from seeking patronage (prosperity rises above initial 10)
       assert.ok(numericValue(world, 'prosperity', ['zeke']) > 10);
@@ -598,8 +598,8 @@ describe('Stress scenario', () => {
     });
 
     it('exercises every utility source type across the actionset', () => {
-      const { interp } = buildSimWorld();
-      const actions = interp.actionsets.get('social');
+      const { engine } = buildSimWorld();
+      const actions = engine.actionsets.get('social');
       const sourceTypes = new Set(
         actions.flatMap(a => a.utilitySources.map(s => s.constructor.name))
       );
@@ -611,9 +611,9 @@ describe('Stress scenario', () => {
     });
 
     it('exercises all four aggregate operators across the actionset', () => {
-      const { interp } = buildSimWorld();
+      const { engine } = buildSimWorld();
       const aggregators = new Set(
-        interp.actionsets.get('social')
+        engine.actionsets.get('social')
           .flatMap(a => a.utilitySources)
           .filter(s => s.constructor.name === 'AggregateUtilitySource')
           .map(s => s.aggregator)
@@ -626,8 +626,8 @@ describe('Stress scenario', () => {
 
     describe('action info traits are runtime-mutable', () => {
       // Picks the candidate from `actionset` whose ?ACT role binds to `target`.
-      function denounceOrRehab(interp, actionset, self, target) {
-        const candidates = interp.scoreActionset(actionset, { SELF: self }, { minimumScore: 0 });
+      function denounceOrRehab(engine, actionset, self, target) {
+        const candidates = engine.scoreActionset(actionset, { SELF: self }, { minimumScore: 0 });
         return candidates.find(c => bound(c.binding, 'ACT') === target);
       }
 
@@ -639,50 +639,50 @@ describe('Stress scenario', () => {
       }
 
       it('seeds info: traits as ordinary, queryable facts', () => {
-        const { interp } = buildSimWorld();
+        const { engine } = buildSimWorld();
         // tag facts come straight from each action's info: block.
-        assert.equal(q(interp, 'tag("share a kind word", prosocial)'), 1);
-        assert.equal(q(interp, 'tag("spread gossip", antisocial)'), 1);
+        assert.equal(q(engine, 'tag("share a kind word", prosocial)'), 1);
+        assert.equal(q(engine, 'tag("spread gossip", antisocial)'), 1);
         // and the catalog is queryable by trait across all actions.
-        assert.ok(q(interp, 'tag(?a, prosocial)') >= 2);
+        assert.ok(q(engine, 'tag(?a, prosocial)') >= 2);
       });
 
       it('lets an admired agent retract another action\'s seeded trait via a bound role', () => {
-        const { interp, world } = buildSimWorld();
+        const { engine, world } = buildSimWorld();
 
-        const denounce = denounceOrRehab(interp, 'norms', 'mara', 'share a kind word');
+        const denounce = denounceOrRehab(engine, 'norms', 'mara', 'share a kind word');
         assert.ok(denounce, 'mara (admired) should be able to denounce a prosocial practice');
         assert.equal(denounce.action.name, 'denounce a practice');
 
         runAction(denounce, world);
 
         // The seeded prosocial trait is gone; the practice is now antisocial.
-        assert.equal(q(interp, 'tag("share a kind word", prosocial)'), 0);
-        assert.equal(q(interp, 'tag("share a kind word", antisocial)'), 1);
+        assert.equal(q(engine, 'tag("share a kind word", prosocial)'), 0);
+        assert.equal(q(engine, 'tag("share a kind word", antisocial)'), 1);
         // Provenance: the temporal log still shows it WAS prosocial.
-        assert.equal(q(interp, 'tag("share a kind word", prosocial) [history]'), 1);
+        assert.equal(q(engine, 'tag("share a kind word", prosocial) [history]'), 1);
       });
 
       it('restores the trait with a later rehabilitating action', () => {
-        const { interp, world } = buildSimWorld();
+        const { engine, world } = buildSimWorld();
 
-        runAction(denounceOrRehab(interp, 'norms', 'mara', 'share a kind word'), world);
-        assert.equal(q(interp, 'tag("share a kind word", antisocial)'), 1);
+        runAction(denounceOrRehab(engine, 'norms', 'mara', 'share a kind word'), world);
+        assert.equal(q(engine, 'tag("share a kind word", antisocial)'), 1);
 
-        const rehab = denounceOrRehab(interp, 'norms', 'mara', 'share a kind word');
+        const rehab = denounceOrRehab(engine, 'norms', 'mara', 'share a kind word');
         assert.ok(rehab, 'the now-antisocial practice should be rehabilitable');
         assert.equal(rehab.action.name, 'rehabilitate a practice');
 
         runAction(rehab, world);
 
-        assert.equal(q(interp, 'tag("share a kind word", prosocial)'), 1);
-        assert.equal(q(interp, 'tag("share a kind word", antisocial)'), 0);
+        assert.equal(q(engine, 'tag("share a kind word", prosocial)'), 1);
+        assert.equal(q(engine, 'tag("share a kind word", antisocial)'), 0);
       });
 
       it('gates norm-reshaping on reputation: a dubious agent cannot denounce', () => {
-        const { interp } = buildSimWorld();
+        const { engine } = buildSimWorld();
         // silas has reputation 49 (dubious), below the admired tier.
-        const candidates = interp.scoreActionset('norms', { SELF: 'silas' }, { minimumScore: 0 });
+        const candidates = engine.scoreActionset('norms', { SELF: 'silas' }, { minimumScore: 0 });
         assert.equal(candidates.length, 0);
       });
     });

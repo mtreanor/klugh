@@ -161,7 +161,7 @@ Some things to try:
 
 ---
 
-## 5. Create an Interpreter in your application
+## 5. Create an Engine in your application
 
 Load the active scenario from `project.config.json` the same way the REPL does:
 
@@ -169,13 +169,13 @@ Load the active scenario from `project.config.json` the same way the REPL does:
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { Interpreter } from './src/Interpreter.js';
+import { Engine } from './src/Engine.js';
 
 const root   = dirname(fileURLToPath(import.meta.url));
 const config   = JSON.parse(readFileSync(resolve(root, 'project.config.json'), 'utf-8'));
 const scenario = config.scenarios[config.active];
 
-const interp = new Interpreter({
+const engine = new Engine({
   predicates:  resolve(root, scenario.predicates),
   entities:    resolve(root, scenario.entities),
   state:       resolve(root, scenario.state),
@@ -188,7 +188,7 @@ Switching scenarios is a one-line change in `project.config.json` — set `"acti
 The constructor also accepts a plain directory path if you want to skip the config entirely:
 
 ```javascript
-const interp = new Interpreter('./data/demo');
+const engine = new Engine('./data/demo');
 ```
 
 ### Querying
@@ -197,26 +197,26 @@ const interp = new Interpreter('./data/demo');
 
 ```javascript
 // All agents alice knows
-const bindings = interp.query('knows(alice, ?Y)');
+const bindings = engine.query('knows(alice, ?Y)');
 for (const b of bindings) {
   console.log(b.resolve('Y').name);  // 'bob', 'carol'
 }
 
 // Ground check — does alice know bob?
-const [match] = interp.query('knows(alice, bob)');
+const [match] = engine.query('knows(alice, bob)');
 if (match) { ... }
 
 // Pre-bind a variable
-const results = interp.query('knows(?X, ?Y)', { X: 'alice' });
+const results = engine.query('knows(?X, ?Y)', { X: 'alice' });
 
 // Query from an entity's private-store perspective
-const aliceView = interp.query('friendship.warm(?X, ?Y)', {}, { scopedTo: 'alice' });
+const aliceView = engine.query('friendship.warm(?X, ?Y)', {}, { scopedTo: 'alice' });
 ```
 
 `evaluateDegrees()` scores every binding by partial satisfaction — useful when rules or decisions should fire even if conditions are only partially met:
 
 ```javascript
-const scored = interp.evaluateDegrees(
+const scored = engine.evaluateDegrees(
   'knows(alice, ?Y) ^ friendship.warm(alice, ?Y) ^ trusts(alice, ?Y)'
 );
 for (const app of scored) {
@@ -227,9 +227,9 @@ for (const app of scored) {
 ### Asserting facts
 
 ```javascript
-interp.assert('trusts(alice, bob)');
-interp.assert('friendship(alice, carol) += 10');
-interp.assert('not knows(alice, carol)');
+engine.assert('trusts(alice, bob)');
+engine.assert('friendship(alice, carol) += 10');
+engine.assert('not knows(alice, carol)');
 ```
 
 ---
@@ -258,14 +258,14 @@ Declare your rulesets by name in `project.config.json`:
 Run a ruleset by name. It runs to fixpoint and returns every rule application that fired:
 
 ```javascript
-const fired = interp.runRuleset('social');
+const fired = engine.runRuleset('social');
 ```
 
 To pre-bind `?SELF` (run rules for one agent at a time) or allow partial-satisfaction firing:
 
 ```javascript
-const fired = interp.runRuleset('social', { startingBinding: { SELF: 'alice' } });
-const fired = interp.runRuleset('social', { minimumSatisfactionScore: 0.5 });
+const fired = engine.runRuleset('social', { startingBinding: { SELF: 'alice' } });
+const fired = engine.runRuleset('social', { minimumSatisfactionScore: 0.5 });
 ```
 
 ### Importance and partial truth
@@ -290,15 +290,15 @@ Once rules have run and state has changed, query the world to drive application 
 
 ```javascript
 // Check a condition
-const [aliceTrustedByBob] = interp.query('trusts(bob, alice)');
+const [aliceTrustedByBob] = engine.query('trusts(bob, alice)');
 if (aliceTrustedByBob) { ... }
 
 // Get all warm friendships
-const warm = interp.query('friendship.warm(?X, ?Y)');
+const warm = engine.query('friendship.warm(?X, ?Y)');
 
 // Score relationships to rank choices — returns all bindings sorted by satisfactionScore desc,
 // including partial matches. Each entry has .binding, .satisfactionScore, and .predicateResults.
-const options = interp.evaluateDegrees(
+const options = engine.evaluateDegrees(
   'knows(?SELF, ?Y) ^ trusts(?SELF, ?Y) ^ friendship.warm(?SELF, ?Y)',
   { SELF: 'alice' }
 );
@@ -307,7 +307,7 @@ const bestOption = options[0]?.binding.resolve('Y');
 // options[0].predicateResults — per-predicate breakdown of what held and what didn't
 ```
 
-State persists on the `Interpreter` instance between calls — assert facts, run rules, and query in whatever order your simulation or application loop needs.
+State persists on the `Engine` instance between calls — assert facts, run rules, and query in whatever order your simulation or application loop needs.
 
 ---
 
@@ -358,14 +358,14 @@ Declare your actionsets by name in `project.config.json` alongside your rulesets
 Score an actionset by name. Free variables are enumerated automatically; `?SELF` is pre-bound here so only alice's options are scored:
 
 ```javascript
-const candidates = interp.scoreActionset('social', { SELF: 'alice' });
+const candidates = engine.scoreActionset('social', { SELF: 'alice' });
 // [{ action, binding, score }, ...] sorted by score descending
 
 const [best] = candidates;
 if (best) {
   const label = best.action.content?.render(best.binding) ?? best.action.name;
   console.log(`Selected: ${label}  (score ${best.score.toFixed(2)})`);
-  best.action.execute(best.binding, interp.world.queryHandlers);
+  best.action.execute(best.binding, engine.world.queryHandlers);
 }
 ```
 

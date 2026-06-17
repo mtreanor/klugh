@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { World } from '../src/World.js';
 import { PredicateSchema } from '../src/PredicateSchema.js';
 import { Action } from '../src/Action.js';
-import { Interpreter } from '../src/Interpreter.js';
+import { Engine } from '../src/Engine.js';
 import { registerActionEntities } from '../src/loader/registerActionEntities.js';
 
 // ── registerActionEntities (the mechanism) ───────────────────────────────────
@@ -46,7 +46,7 @@ describe('registerActionEntities', () => {
 
 // ── End-to-end: info: DSL block → queryable action catalog ───────────────────
 
-function makeInterpreter() {
+function makeEngine() {
   const dir = mkdtempSync(join(tmpdir(), 'klugh-actioninfo-'));
 
   writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
@@ -86,7 +86,7 @@ function makeInterpreter() {
       effects helped(?SELF, ?Y)
   `);
 
-  return new Interpreter({
+  return new Engine({
     predicates: join(dir, 'predicates.json'),
     entities:   join(dir, 'entities.json'),
     state:      join(dir, 'state'),
@@ -96,43 +96,43 @@ function makeInterpreter() {
 
 describe('action info — querying the action catalog', () => {
   it('finds all actions matching a tag spec', () => {
-    const interp = makeInterpreter();
-    const names = interp.query('tag(?a, social)')
+    const engine = makeEngine();
+    const names = engine.query('tag(?a, social)')
       .map(b => b.assignments.get('a').name)
       .sort();
     assert.deepEqual(names, ['give', 'share a kind word']);
   });
 
   it('finds an action by a tag no other action has', () => {
-    const interp = makeInterpreter();
-    const names = interp.query('tag(?a, aggressive)').map(b => b.assignments.get('a').name);
+    const engine = makeEngine();
+    const names = engine.query('tag(?a, aggressive)').map(b => b.assignments.get('a').name);
     assert.deepEqual(names, ['insult']);
   });
 
   it('enumerates all tags of one action via a partial binding', () => {
-    const interp = makeInterpreter();
-    const tags = interp.query('tag(?a, ?t)', { a: 'give' })
+    const engine = makeEngine();
+    const tags = engine.query('tag(?a, ?t)', { a: 'give' })
       .map(b => b.assignments.get('t').name)
       .sort();
     assert.deepEqual(tags, ['generous', 'social']);
   });
 
   it('matches a multi-predicate spec (conjunction of tags)', () => {
-    const interp = makeInterpreter();
-    const names = interp.query('tag(?a, social) ^ tag(?a, generous)')
+    const engine = makeEngine();
+    const names = engine.query('tag(?a, social) ^ tag(?a, generous)')
       .map(b => b.assignments.get('a').name);
     assert.deepEqual(names, ['give']);
   });
 
   it('references an action with spaces in its name via a string literal', () => {
-    const interp = makeInterpreter();
-    const result = interp.query('tag("share a kind word", social)');
+    const engine = makeEngine();
+    const result = engine.query('tag("share a kind word", social)');
     assert.equal(result.length, 1);  // ground query: one empty binding when true
   });
 
   it('registers every loaded action as an action entity', () => {
-    const interp = makeInterpreter();
-    const actionNames = interp.world.entityRegistry.get('action').map(e => e.name).sort();
+    const engine = makeEngine();
+    const actionNames = engine.world.entityRegistry.get('action').map(e => e.name).sort();
     assert.deepEqual(actionNames, ['give', 'insult', 'share a kind word']);
   });
 });

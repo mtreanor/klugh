@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Interpreter } from '../src/Interpreter.js';
+import { Engine } from '../src/Engine.js';
 import { ActionParser } from '../src/loader/ActionParser.js';
 import { ActionLoader } from '../src/loader/ActionLoader.js';
 
 // ── ?this_action available everywhere a binding works ────────────────────────
 
-function makeInterpreter() {
+function makeEngine() {
   const dir = mkdtempSync(join(tmpdir(), 'klugh-thisvars-'));
 
   writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
@@ -47,7 +47,7 @@ function makeInterpreter() {
       effects did(?SELF, ?this_action)
   `);
 
-  return new Interpreter({
+  return new Engine({
     predicates: join(dir, 'predicates.json'),
     entities:   join(dir, 'entities.json'),
     state:      join(dir, 'state'),
@@ -57,8 +57,8 @@ function makeInterpreter() {
 
 describe('?this_action', () => {
   it('binds to the current action in preconditions (not enumerated over all actions)', () => {
-    const interp = makeInterpreter();
-    const candidates = interp.scoreActionset('test', { SELF: 'alice' });
+    const engine = makeEngine();
+    const candidates = engine.scoreActionset('test', { SELF: 'alice' });
 
     // Only "give" passes — its tag(?this_action, generous) precondition resolves
     // to *give*. "insult" is excluded: tag(insult, generous) is false, even though
@@ -68,17 +68,17 @@ describe('?this_action', () => {
   });
 
   it('resolves to the current action in utility scoring', () => {
-    const interp = makeInterpreter();
-    const [best] = interp.scoreActionset('test', { SELF: 'alice' });
+    const engine = makeEngine();
+    const [best] = engine.scoreActionset('test', { SELF: 'alice' });
     assert.equal(best.score, 5);
   });
 
   it('resolves to the current action in effects', () => {
-    const interp = makeInterpreter();
-    const [best] = interp.scoreActionset('test', { SELF: 'alice' });
-    best.action.execute(best.binding, interp.world.queryHandlers, null, { world: interp.world });
+    const engine = makeEngine();
+    const [best] = engine.scoreActionset('test', { SELF: 'alice' });
+    best.action.execute(best.binding, engine.world.queryHandlers, null, { world: engine.world });
 
-    assert.ok(interp.world.factStore.contains('did', 'alice', 'give'));
+    assert.ok(engine.world.factStore.contains('did', 'alice', 'give'));
   });
 });
 

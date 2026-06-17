@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { Interpreter } from '../src/Interpreter.js';
+import { Engine } from '../src/Engine.js';
 import { World } from '../src/World.js';
 import { PredicateSchema } from '../src/PredicateSchema.js';
 import { RuleParser } from '../src/loader/RuleParser.js';
@@ -18,23 +18,23 @@ import { Fact } from '../src/Fact.js';
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../data/demo-volition');
 
 describe('Derived fact inference', () => {
-  let interp;
+  let engine;
 
   beforeEach(() => {
-    interp = new Interpreter(dataDir);
+    engine = new Engine(dataDir);
   });
 
   describe('authored definitions — chaining', () => {
     it('proves a two-step chain (canHaveNeedMet via canPair)', () => {
-      assert.equal(interp.query('canHaveNeedMet(alice, bob)').length, 1);
+      assert.equal(engine.query('canHaveNeedMet(alice, bob)').length, 1);
     });
 
     it('returns false when an intermediate step fails', () => {
-      assert.deepEqual(interp.query('canHaveNeedMet(bob, carol)'), []);
+      assert.deepEqual(engine.query('canHaveNeedMet(bob, carol)'), []);
     });
 
     it('enumerates pairs satisfying the chained derivation', () => {
-      const pairs = interp.query('canHaveNeedMet(?X, ?Y)')
+      const pairs = engine.query('canHaveNeedMet(?X, ?Y)')
         .map(b => `${b.assignments.get('X').name},${b.assignments.get('Y').name}`)
         .sort();
       assert.deepEqual(pairs, ['alice,bob']);
@@ -43,8 +43,8 @@ describe('Derived fact inference', () => {
 
   describe('per-tick cache', () => {
     it('reuses cached results within the same tick', () => {
-      const handler = interp.world.queryHandlers.getHandler('derived');
-      const ctx     = interp.world.createEvaluationContext();
+      const handler = engine.world.queryHandlers.getHandler('derived');
+      const ctx     = engine.world.createEvaluationContext();
       const pred    = new DerivedFactPredicate('canPair', 'alice', 'bob');
       const binding = new Binding();
 
@@ -56,15 +56,15 @@ describe('Derived fact inference', () => {
     });
 
     it('clears the cache when the tick advances', () => {
-      const handler = interp.world.queryHandlers.getHandler('derived');
-      const ctx     = interp.world.createEvaluationContext();
+      const handler = engine.world.queryHandlers.getHandler('derived');
+      const ctx     = engine.world.createEvaluationContext();
       const pred    = new DerivedFactPredicate('canPair', 'alice', 'bob');
       const binding = new Binding();
 
       handler.evaluate(pred, binding, ctx);
       assert.equal(handler.cache.size, 1);
 
-      interp.world.tickTracker.currentTick++;
+      engine.world.tickTracker.currentTick++;
       handler.evaluate(pred, binding, ctx);
       assert.equal(handler.cache.size, 1);
       assert.equal(handler.cacheTick, 1);
@@ -94,10 +94,10 @@ describe('Derived fact inference', () => {
     });
 
     it('prefers authored rules over a JS handler with the same name', () => {
-      const handler = interp.world.queryHandlers.getHandler('derived');
+      const handler = engine.world.queryHandlers.getHandler('derived');
       handler.define('canPair', () => false);
 
-      assert.equal(interp.query('canPair(alice, bob)').length, 1);
+      assert.equal(engine.query('canPair(alice, bob)').length, 1);
     });
   });
 
@@ -375,12 +375,12 @@ describe('Derived fact inference', () => {
 });
 
 describe('DerivedFactQueryHandler — getProofPath', () => {
-  let interp, handler, ctx;
+  let engine, handler, ctx;
 
   beforeEach(() => {
-    interp  = new Interpreter(dataDir);
-    handler = interp.world.queryHandlers.getHandler('derived');
-    ctx     = interp.world.createEvaluationContext();
+    engine  = new Engine(dataDir);
+    handler = engine.world.queryHandlers.getHandler('derived');
+    ctx     = engine.world.createEvaluationContext();
   });
 
   it('returns null before evaluate has been called', () => {
@@ -427,7 +427,7 @@ describe('DerivedFactQueryHandler — getProofPath', () => {
     const pred = new DerivedFactPredicate('canPair', 'alice', 'bob');
     handler.evaluate(pred, new Binding(), ctx);
     assert.ok(handler.getProofPath('canPair', ['alice', 'bob'], ctx) !== null);
-    interp.world.tickTracker.currentTick++;
+    engine.world.tickTracker.currentTick++;
     assert.equal(handler.getProofPath('canPair', ['alice', 'bob'], ctx), null);
   });
 

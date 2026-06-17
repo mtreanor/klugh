@@ -1,5 +1,5 @@
 // Core
-export { Interpreter } from './Interpreter.js';
+export { Engine } from './Engine.js';
 export { World } from './World.js';
 export { ForwardChainer } from './ForwardChainer.js';
 export { BackwardChainer } from './BackwardChainer.js';

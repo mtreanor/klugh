@@ -66,7 +66,7 @@ Evaluation is **lazy**: derived facts are not materialized into a store each tic
 2. Attempts to prove each premise, recursively through other derived predicates if needed
 3. Returns true if any definition succeeds
 
-Results are **cached per store scope and ground arguments**. Outside of forward chaining (interactive queries, `Interpreter.query()`), the cache lives for the current tick and clears when the tick advances. During forward chaining, the cache clears at the start of each pass — so a derived predicate re-evaluates against the world state at the beginning of each pass. Concretely: a boolean fact asserted by rule R in pass *i* is not visible to derived predicates until pass *i+1*.
+Results are **cached per store scope and ground arguments**. Outside of forward chaining (interactive queries, `Engine.query()`), the cache lives for the current tick and clears when the tick advances. During forward chaining, the cache clears at the start of each pass — so a derived predicate re-evaluates against the world state at the beginning of each pass. Concretely: a boolean fact asserted by rule R in pass *i* is not visible to derived predicates until pass *i+1*.
 
 Cycle detection prevents infinite recursion when definitions refer to each other circularly — a cyclic proof returns false. Circular references between definitions are also detected at load time; loading fails if a cycle is found.
 

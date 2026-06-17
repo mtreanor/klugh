@@ -37,18 +37,18 @@ It's designed to be embedded in applications that need to reason about agent bel
 ## Quick start
 
 ```javascript
-import { Interpreter } from './src/Interpreter.js';
+import { Engine } from './src/Engine.js';
 
-const interp = new Interpreter('./data/demo');
+const engine = new Engine('./data/demo');
 
 // Strict query — all bindings where alice knows someone
-const results = interp.query('knows(alice, ?Y)');
+const results = engine.query('knows(alice, ?Y)');
 
 // Partial truth scoring — how well does each binding satisfy the conjunction?
-const scored = interp.degree('knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
+const scored = engine.degree('knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
 ```
 
-`Interpreter` takes a path to a scenario directory containing `predicates.json`, `entities.json`, `state`, and optionally `definitions`.
+`Engine` takes a path to a scenario directory containing `predicates.json`, `entities.json`, `state`, and optionally `definitions`.
 
 ---
 
@@ -243,6 +243,6 @@ Under the default `lastWins` contradiction policy, asserting `-pred` automatical
 
 ## Full documentation
 
-`docs/quickstart.md` walks through setup end-to-end: entities, predicates, state, the REPL, and using the `Interpreter` and `ForwardChainer` in application code.
+`docs/quickstart.md` walks through setup end-to-end: entities, predicates, state, the REPL, and using the `Engine` and `ForwardChainer` in application code.
 
 `docs/index.md` is the language reference hub — predicate schema, state files, negation, all query forms, private stores, rules, derived predicates, sensors, actions, and the REPL command reference.

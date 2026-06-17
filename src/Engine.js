@@ -19,6 +19,8 @@ import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
 import { applyStateChange } from './stateOperations/applyStateChange.js';
 import { THIS_ACTION } from './actionVariables.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
+import { Planner } from './planner/Planner.js';
+import { PlannerSnapshot } from './planner/PlannerSnapshot.js';
 
 export class Engine {
   // Accepts either a scenario directory path (string) or an explicit config
@@ -243,11 +245,136 @@ export class Engine {
         if (!action.arePreconditionsMet(binding, ctx)) continue;
         const score = action.score(binding, this.world.entityRegistry, ctx);
         if (score < minimumScore) continue;
-        candidates.push({ action, binding, score });
+        candidates.push({ action, binding, score, label: this._actionLabel(action, binding) });
       }
     }
 
     return candidates.sort((a, b) => b.score - a.score);
+  }
+
+  // Scores an actionset and returns the single best candidate, or null when none
+  // are eligible. The candidate is { action, binding, score, label } — `label` is
+  // the rendered content (or the action name when the action has no content).
+  selectAction(name, partialBinding = {}, options = {}) {
+    return this.scoreActionset(name, partialBinding, options)[0] ?? null;
+  }
+
+  // Executes a scored candidate ({ action, binding }) against the live world.
+  // Unlike calling action.execute() directly, this threads the world and query
+  // handlers for you, so the action is recorded in the action log and every fact
+  // it touches carries action-effect provenance — recording is the default, not
+  // an opt-in. Returns the ActionRecord that was logged, or null if the action
+  // had no effects.
+  //
+  // options:
+  //   queue            — a StateChangeQueue to stage effects on (deferred execution)
+  //   recordOccurrence — also reify a queryable action occurrence (default false;
+  //                      requires the occurrence vocabulary in the schema)
+  //   occurrenceFacts  — extra facts to attach to the occurrence
+  //   utilityBreakdown — a scored utility breakdown to record alongside the action
+  execute(candidate, { queue = null, recordOccurrence = false, occurrenceFacts = [], utilityBreakdown = null } = {}) {
+    const before = this.world.actionLog.length;
+    candidate.action.execute(candidate.binding, this.world.queryHandlers, queue, {
+      privateStores: this.world.privateStores,
+      world:         this.world,
+      recordOccurrence,
+      occurrenceFacts,
+      utilityBreakdown,
+    });
+    return this.world.actionLog.length > before ? this.world.actionLog.at(-1) : null;
+  }
+
+  // Every action that has fired against this world, oldest first.
+  get actionLog() {
+    return this.world.actionLog;
+  }
+
+  // Finds a plan whose steps achieve the goal (a predicate conjunction written in
+  // the same DSL as queries). `using` names a loaded actionset to plan over.
+  // Returns the committed PlanRecord on success, or null when no plan exists — a
+  // failed attempt is still recorded in planLog either way.
+  plan(goalText, { using } = {}) {
+    const actions = this.actionsets.get(using);
+    if (!actions) throw new Error(`No actionset named "${using}"`);
+
+    const goal    = this._parseGoal(goalText);
+    const planner = new Planner(actions, this.schema);
+    const steps   = planner.findPlan(goal, PlannerSnapshot.from(this.world));
+
+    if (!steps) {
+      planner.commitFailedAttempt(goal, this.world);
+      return null;
+    }
+    return planner.commit(steps, goal, this.world);
+  }
+
+  // Executes a committed plan's steps against the live world, advancing a tick
+  // after each step and linking every action record back to the plan. Updates the
+  // plan's status by re-checking the goal, and returns the plan.
+  runPlan(plan) {
+    for (const { action, binding } of plan.plannedSteps) {
+      action.execute(binding, this.world.queryHandlers, null, {
+        privateStores: this.world.privateStores,
+        world:         this.world,
+        planRecord:    plan,
+      });
+      this.advanceTick();
+    }
+    plan.checkGoal(this.world);
+    return plan;
+  }
+
+  // Every plan that has been committed against this world, oldest first.
+  get planLog() {
+    return this.world.planLog;
+  }
+
+  // Returns why a ground fact currently holds: the assertion events (each with a
+  // `provenance` field) backing it. Works uniformly for boolean and numeric
+  // predicates, hiding the difference between the fact store and the numeric
+  // handler. Returns [] when nothing backs the fact.
+  why(factText) {
+    const { name, args } = this._groundFact(factText);
+
+    if (this.schema.getDefinition(name)?.type === 'numeric') {
+      const numeric = this.world.queryHandlers.getHandler('numeric');
+      const record  = numeric?.getRecord(name, args);
+      return record ? record.events : [];
+    }
+
+    return this.world.factStore
+      .getRecords(name, args)
+      .flatMap(record => record.currentReasons());
+  }
+
+  // The display string for an action under a binding: rendered content, or the
+  // action's name when it declares no content.
+  _actionLabel(action, binding) {
+    return action.content ? action.content.render(binding) : action.name;
+  }
+
+  // Parses a goal conjunction (DSL text) into the Predicate[] the planner expects.
+  _parseGoal(text) {
+    const predAsts = this.ruleParser.parsePredicateConjunction(text, {
+      entityNames: this.world.entityNames,
+    });
+    return predAsts.map(ast => this.ruleLoader.buildPredicate('importance' in ast ? ast.predicate : ast));
+  }
+
+  // Parses a single ground fact into { name, args } with args in fact-store form
+  // (entity names / literal values). Throws if the fact contains a variable.
+  _groundFact(text) {
+    const [ast] = this.ruleParser.parsePredicateConjunction(text, {
+      entityNames: this.world.entityNames,
+    });
+    const predicate = this.ruleLoader.buildPredicate('importance' in ast ? ast.predicate : ast);
+    const args = (predicate.args ?? []).map(arg => {
+      if (arg instanceof LogicalVariable) {
+        throw new Error(`why() needs a ground fact, but "${text}" contains the variable ?${arg.name}`);
+      }
+      return (arg !== null && typeof arg === 'object' && 'name' in arg) ? arg.name : arg;
+    });
+    return { name: predicate.name, args };
   }
 
   advanceTick(amount = 1) {

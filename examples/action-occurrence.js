@@ -15,9 +15,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Engine } from '../src/Engine.js';
-import { recordActionOccurrence } from '../src/recordActionOccurrence.js';
-import { Binding } from '../src/Binding.js';
-import { LogicalVariable } from '../src/LogicalVariable.js';
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), 'data', 'action-catalog');
 
@@ -36,20 +33,26 @@ engine.loadDefinitions(`
     => regretted(?o)
 `);
 
-const give    = engine.actionsets.get('social').find(a => a.name === 'give');
-const ent      = name => engine.findEntityByName(name) ?? name;
-const SELF     = new LogicalVariable('SELF');
-const Y        = new LogicalVariable('Y');
-const bind     = (self, y) => new Binding().extend(SELF, ent(self)).extend(Y, ent(y));
-const names    = (rows, v) => rows.map(b => b.assignments.get(v).name ?? b.assignments.get(v)).sort();
+// Everyone needs to know their recipient for the "give" action to be eligible.
+engine.assert('knows(alice, bob)');
+engine.assert('knows(bob, carol)');
+engine.assert('knows(carol, alice)');
+
+const names = (rows, v) => rows.map(b => b.assignments.get(v).name ?? b.assignments.get(v)).sort();
+
+// Executes the "give" action for a giver/recipient and records the occurrence.
+// recordOccurrence is what mints the queryable actionType/role facts below.
+const gift = (self, y, options = {}) => {
+  const candidate = engine.scoreActionset('social', { SELF: self, Y: y })
+    .find(c => c.action.name === 'give');
+  engine.execute(candidate, { recordOccurrence: true, ...options });
+};
 
 // ── Three gifts happen; one of them reluctantly ─────────────────────────────
 
-recordActionOccurrence(give, bind('alice', 'bob'),   engine.world);
-recordActionOccurrence(give, bind('bob',   'carol'), engine.world);
-recordActionOccurrence(give, bind('carol', 'alice'), engine.world, {
-  contextFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
-});
+gift('alice', 'bob');
+gift('bob',   'carol');
+gift('carol', 'alice', { occurrenceFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }] });
 
 // ── Query the history by pattern ────────────────────────────────────────────
 

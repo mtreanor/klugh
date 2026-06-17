@@ -11,7 +11,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Engine } from '../src/Engine.js';
-import { Fact } from '../src/Fact.js';
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), 'data', 'action-catalog');
 
@@ -45,8 +44,8 @@ console.log(' ', names(engine.query('tag(?a, ?t)', { a: 'give' }), 't').join(', 
 console.log('\n── reclassify: a social norm shifts, "insult" becomes acceptable ──');
 console.log('  before — aggressive actions:', names(engine.query('tag(?a, aggressive)'), 'a').join(', '));
 
-engine.world.factStore.retract(new Fact('tag', 'insult', 'aggressive'));
-engine.world.factStore.assert(new Fact('tag', 'insult', 'social'));
+engine.assert('not tag(insult, aggressive)');   // 'not' in a state op retracts the fact
+engine.assert('tag(insult, social)');
 
 console.log('  after  — aggressive actions:', names(engine.query('tag(?a, aggressive)'), 'a').join(', ') || '(none)');
 console.log('  after  — social actions:   ', names(engine.query('tag(?a, social)'), 'a').join(', '));

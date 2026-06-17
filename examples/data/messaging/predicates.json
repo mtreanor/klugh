@@ -1,0 +1,7 @@
+{
+  "predicates": {
+    "knows":            { "type": "boolean", "args": ["agent", "agent"] },
+    "hasMessage":       { "type": "boolean", "args": ["agent"] },
+    "messageDelivered": { "type": "boolean", "args": ["agent", "agent"] }
+  }
+}

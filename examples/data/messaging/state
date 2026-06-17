@@ -1,0 +1,7 @@
+# Alice has a message for Carol but doesn't know her.
+# Bob knows both, so he can make the introduction.
+world
+  hasMessage(alice)
+  knows(alice, bob)
+  knows(bob, alice)
+  knows(bob, carol)

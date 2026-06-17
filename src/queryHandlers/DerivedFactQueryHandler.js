@@ -35,6 +35,16 @@ export class DerivedFactQueryHandler extends QueryHandler {
     }
   }
 
+  // Returns a flat array of all registered derivation rules, suitable for
+  // passing back into registerRules() on another handler instance. Used by
+  // PlannerSnapshot to replicate a world's derivations against a frozen state.
+  getRegisteredRules() {
+    const all = [];
+    for (const rules of this.rulesByConclusion.values()) all.push(...rules);
+    for (const rules of this.rulesByPrivateConclusion.values()) all.push(...rules);
+    return all;
+  }
+
   evaluate(predicate, binding, evaluationContext) {
     this.ensureCacheForTick(evaluationContext.currentTick);
 

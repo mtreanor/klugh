@@ -189,6 +189,8 @@ action.execute(binding, world.queryHandlers, null, { world, planRecord: plan });
 plan.checkGoal(world);  // auto-sets status to 'succeeded' if goal is met
 ```
 
+A custom `cost` function steers the search toward the cheapest plan rather than the shortest; `validators` reject plans that fail caller-defined constraints; `findPlans` enumerates plans one at a time; and `findPlanDetailed` reports which goals remained unsatisfied when no plan exists. Because a snapshot carries the world's full evaluation stack, goals and validators can use **derived predicates** (resolved by backward chaining against `define` rules) and **numeric tiers**, evaluated against the simulated state at any point along a plan.
+
 → [Plans](plans.md)
 
 ---

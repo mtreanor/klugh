@@ -191,6 +191,60 @@ const plan = planner.findPlan(goalPredicates, snapshot, {
 
 ---
 
+## Evaluating plans with derived predicates and rules
+
+A `PlannerSnapshot` carries the world's full evaluation machinery, not just bare facts. `snapshot.createEvaluationContext()` exposes the same query handlers the live world uses — the fact store, **numeric** values and tiers, and **derived** predicates resolved by backward chaining against the world's `define` rules. The derivation rules are captured automatically by `PlannerSnapshot.from(world)`; you do not pass them in.
+
+This means anything you can express in a rule or query — derived predicates, numeric tiers, negation-as-failure, private-store lookups, counts — can be used to express and evaluate a plan, both as the **goal** and inside **validators**, against any state along the plan's trajectory.
+
+### Derived predicates as goals
+
+A goal can be a `DerivedFactPredicate` even though no single action asserts it. The planner re-derives it at every state it explores:
+
+```javascript
+import { DerivedFactPredicate } from './src/predicates/DerivedFactPredicate.js';
+
+// canPair is defined in the world as:  knows(?X,?Y) ^ friendship.strong(?X,?Y) => canPair(?X,?Y)
+const goal  = [new DerivedFactPredicate('canPair', 'alice', 'carol')];
+const steps = new Planner(actions, schema).findPlan(goal, PlannerSnapshot.from(world));
+// The planner finds a sequence whose outcome makes BOTH premises true —
+// e.g. an action that makes them acquainted plus one that raises friendship.
+```
+
+Numeric values survive the snapshot, so derivation rules with numeric-tier premises (like `friendship.strong`) resolve correctly during search.
+
+### Full klugh queries inside validators
+
+Validators receive the initial snapshot, so they can replay a candidate plan and then run any query against the simulated outcome — or against every intermediate state:
+
+```javascript
+import { DerivedFactPredicate } from './src/predicates/DerivedFactPredicate.js';
+import { NumericTierPredicate } from './src/predicates/NumericTierPredicate.js';
+import { Binding } from './src/Binding.js';
+
+const validators = [
+  (steps, initialSnapshot) => {
+    // Replay to the hypothetical end state...
+    let snap = initialSnapshot;
+    for (const { action, binding } of steps) snap = snap.apply(action, binding);
+
+    // ...then evaluate full klugh queries against it.
+    const ctx = snap.createEvaluationContext();
+    const b   = new Binding();
+    return new DerivedFactPredicate('trustedAlly', 'alice', 'carol').evaluate(b, ctx)
+        && new NumericTierPredicate('respect', ['carol', 'alice'], 'high').evaluate(b, ctx);
+  },
+];
+
+const steps = new Planner(actions, schema).findPlan(goal, PlannerSnapshot.from(world), { validators });
+```
+
+Because every `snapshot.apply(...)` returns a fully-queryable snapshot, you can also enforce trajectory constraints — e.g. "trust must never dip below `medium` at any point" — by evaluating at each step rather than only at the end.
+
+> **Backward planner note.** The `BackwardPlanner` regresses over action *effects*. Since no action directly asserts a derived predicate, a derived predicate cannot be used as a top-level goal for the backward planner. Derived predicates and numeric tiers in action *preconditions* and in *validators* work normally — they are evaluated against the initial state. Use the forward `Planner` for derived goals.
+
+---
+
 ## Committing a plan
 
 Finding a plan does not record it. To make a plan part of the world's history — so its status can be tracked and executed actions can reference it — call `commit`:

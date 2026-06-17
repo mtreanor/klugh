@@ -1,6 +1,11 @@
+// A stable min-heap: items with equal priority pop in insertion order (FIFO).
+// Stability matters because the planners push every search node at priority 0
+// when no cost function is given — without a FIFO tiebreaker the search would
+// no longer be breadth-first and would stop returning the shortest plan.
 export class PriorityQueue {
   constructor() {
     this._heap = [];
+    this._seq  = 0;  // monotonic insertion counter, used to break priority ties
   }
 
   get size() {
@@ -8,7 +13,7 @@ export class PriorityQueue {
   }
 
   push(item, priority) {
-    this._heap.push({ item, priority });
+    this._heap.push({ item, priority, seq: this._seq++ });
     this._bubbleUp(this._heap.length - 1);
   }
 
@@ -22,10 +27,17 @@ export class PriorityQueue {
     return top.item;
   }
 
+  // a is "less than" b if it has lower priority, or equal priority but was
+  // inserted earlier. The seq tiebreaker is what makes the heap stable.
+  _lessThan(a, b) {
+    if (a.priority !== b.priority) return a.priority < b.priority;
+    return a.seq < b.seq;
+  }
+
   _bubbleUp(i) {
     while (i > 0) {
       const parent = (i - 1) >> 1;
-      if (this._heap[parent].priority <= this._heap[i].priority) break;
+      if (!this._lessThan(this._heap[i], this._heap[parent])) break;
       [this._heap[parent], this._heap[i]] = [this._heap[i], this._heap[parent]];
       i = parent;
     }
@@ -37,8 +49,8 @@ export class PriorityQueue {
       let min = i;
       const l = 2 * i + 1;
       const r = 2 * i + 2;
-      if (l < n && this._heap[l].priority < this._heap[min].priority) min = l;
-      if (r < n && this._heap[r].priority < this._heap[min].priority) min = r;
+      if (l < n && this._lessThan(this._heap[l], this._heap[min])) min = l;
+      if (r < n && this._lessThan(this._heap[r], this._heap[min])) min = r;
       if (min === i) break;
       [this._heap[min], this._heap[i]] = [this._heap[i], this._heap[min]];
       i = min;

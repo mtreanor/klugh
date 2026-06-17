@@ -46,4 +46,4 @@ This is a first-class design goal, not an afterthought. The interesting things t
 
 klugh grew out of 15 years of social simulation research — [Comme il Faut, Ensemble, Game-O-Matic, and ESP](history.md) — and the recurring frustration of wanting a system expressive enough to capture social nuance yet simple enough to author at scale. This is that system.
 
-[Quickstart →](quickstart.md) · [Language overview](overview.md) · [History](history.md)
+[Quickstart →](quickstart/) · [Language overview](overview.md) · [History](history.md)

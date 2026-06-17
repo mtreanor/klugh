@@ -1,0 +1,17 @@
+# A small social world. `knows` is directional — alice knows bob, but not carol.
+world
+  knows(alice, bob)
+  knows(bob, alice)
+  knows(bob, carol)
+  knows(carol, bob)
+
+  friendship(alice, bob) = 85
+  friendship(bob, carol) = 60
+  friendship(carol, bob) = 55
+
+  trusts(alice, bob)
+  -trusts(bob, carol)        # explicit disbelief, not just absence
+
+  hasNeed(alice)
+  hasNeed(bob)
+  hasNeed(carol)

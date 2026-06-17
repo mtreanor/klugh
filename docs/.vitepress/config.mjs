@@ -16,7 +16,7 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
-      { text: 'Quickstart', link: '/quickstart' },
+      { text: 'Quickstart', link: '/quickstart/' },
       { text: 'Reference', link: '/' },
     ],
 
@@ -24,8 +24,18 @@ export default defineConfig({
       {
         items: [
           { text: 'What is klugh?', link: '/' },
-          { text: 'Quickstart', link: '/quickstart' },
           { text: 'History', link: '/history' },
+        ],
+      },
+      {
+        text: 'Quickstart',
+        items: [
+          { text: 'Overview', link: '/quickstart/' },
+          { text: '1 · Worlds & queries', link: '/quickstart/worlds-and-queries' },
+          { text: '1.5 · Provenance', link: '/quickstart/provenance' },
+          { text: '2 · Actions', link: '/quickstart/actions' },
+          { text: '2.5 · Action records', link: '/quickstart/action-records' },
+          { text: '3 · Plans', link: '/quickstart/plans' },
         ],
       },
       {

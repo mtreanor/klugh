@@ -1,0 +1,19 @@
+{
+  "predicates": {
+    "knows":    { "type": "boolean", "args": ["agent", "agent"] },
+    "trusts":   { "type": "boolean", "args": ["agent", "agent"] },
+    "hasNeed":  { "type": "boolean", "args": ["agent"] },
+    "helped":   { "type": "boolean", "args": ["agent", "agent"] },
+    "rested":   { "type": "boolean", "args": ["agent"] },
+    "friendship": {
+      "type": "numeric",
+      "args": ["agent", "agent"],
+      "minValue": 0, "maxValue": 100, "default": 50,
+      "tiers": {
+        "cold":    [0,  40],
+        "neutral": [40, 70],
+        "warm":    [70, 100]
+      }
+    }
+  }
+}

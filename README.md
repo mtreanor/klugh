@@ -243,6 +243,6 @@ Under the default `lastWins` contradiction policy, asserting `-pred` automatical
 
 ## Full documentation
 
-`docs/quickstart.md` walks through setup end-to-end: entities, predicates, state, the REPL, and using the `Engine` and `ForwardChainer` in application code.
+`docs/quickstart/` is a tiered walkthrough: worlds & queries, provenance, actions, action records, and plans — each tier self-contained and runnable against the `data/quickstart` scenario, all through the `Engine` facade.
 
 `docs/index.md` is the language reference hub — predicate schema, state files, negation, all query forms, private stores, rules, derived predicates, sensors, actions, and the REPL command reference.

@@ -1,6 +1,14 @@
 {
   "active": "demo",
   "scenarios": {
+    "quickstart": {
+      "predicates":  "data/quickstart/predicates.json",
+      "entities":    "data/quickstart/entities.json",
+      "state":       "data/quickstart/state",
+      "actionsets": {
+        "social": "data/quickstart/actions"
+      }
+    },
     "demo": {
       "predicates":  "data/demo-volition/predicates.json",
       "entities":    "data/demo-volition/entities.json",

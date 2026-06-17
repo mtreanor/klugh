@@ -56,7 +56,7 @@ export class NumericStateQueryHandler extends QueryHandler {
     if (record.events.length === 0) {
       record.addGiven(this.factStore.currentTick, current, new GivenProvenance());
     }
-    record.addAdjustment(this.factStore.currentTick, delta, clamped, provenance);
+    record.addAdjustment(this.factStore.currentTick, delta, clamped, provenance ?? new GivenProvenance());
     return clamped !== current;
   }
 

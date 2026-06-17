@@ -50,6 +50,55 @@ describe('ActionLoader', () => {
     });
   });
 
+  describe('info: block', () => {
+    it('parses info facts as { name, args }, with ?this preserved', () => {
+      const { actions } = load(`
+        action "give"
+          info:
+            tag(?this, generous)
+            tag(?this, social)
+            targets(?this, agent)
+          effects gave(?SELF, ?Y)
+      `);
+      assert.deepEqual(actions[0].info, [
+        { name: 'tag',     args: ['?this', 'generous'] },
+        { name: 'tag',     args: ['?this', 'social'] },
+        { name: 'targets', args: ['?this', 'agent'] },
+      ]);
+    });
+
+    it('defaults info to empty array when absent', () => {
+      const { actions } = load(`action "solo" effects rested(?X)`);
+      assert.deepEqual(actions[0].info, []);
+    });
+
+    it('coexists with roles and stops at the next section keyword', () => {
+      const { actions } = load(`
+        action "share a kind word"
+          roles: ?SELF, ?Y
+          info:
+            tag(?this, social)
+          preconditions
+            knows(?SELF, ?Y)
+          effects helped(?SELF, ?Y)
+      `);
+      assert.deepEqual(actions[0].roles, ['?SELF', '?Y']);
+      assert.deepEqual(actions[0].info, [{ name: 'tag', args: ['?this', 'social'] }]);
+      assert.equal(actions[0].preconditions.length, 1);
+      assert.equal(actions[0].effects.length, 1);
+    });
+
+    it('accepts string-literal info values', () => {
+      const { actions } = load(`
+        action "trade"
+          info:
+            category(?this, "economic")
+          effects traded(?X, ?Y)
+      `);
+      assert.deepEqual(actions[0].info, [{ name: 'category', args: ['?this', 'economic'] }]);
+    });
+  });
+
   describe('preconditions', () => {
     it('builds preconditions as predicate objects', () => {
       const { actions } = load(`

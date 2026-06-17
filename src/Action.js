@@ -6,6 +6,7 @@ import { ActionEffectProvenance } from './provenance/ActionEffectProvenance.js';
 export class Action {
   constructor(name, {
     roles          = [],
+    info           = [],
     preconditions  = [],
     effects        = [],
     utilitySources = [],
@@ -13,6 +14,7 @@ export class Action {
   } = {}) {
     this.name            = name;
     this.roles           = roles;
+    this.info            = info;   // facts declared about the action itself: [{ name, args }]
     this.preconditions   = preconditions;
     this.effects         = effects;
     this.stateOperations = effects;

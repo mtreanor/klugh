@@ -24,6 +24,13 @@ class ActionDSLParser extends DSLParser {
       roles = this.parseRoles();
     }
 
+    let info = [];
+    if (this.check('IDENT', 'info')) {
+      this.advance();
+      this.expect('COLON');
+      info = this.parseInfoFacts();
+    }
+
     const preconditions = [];
     if (this.check('IDENT', 'preconditions')) {
       this.advance();
@@ -61,10 +68,26 @@ class ActionDSLParser extends DSLParser {
 
     const result = { name, effects };
     if (roles.length > 0)         result.roles          = roles;
+    if (info.length > 0)          result.info           = info;
     if (preconditions.length > 0) result.preconditions  = preconditions;
     if (utilitySources.length > 0) result.utilitySources = utilitySources;
     if (content !== null)         result.content        = content;
     return result;
+  }
+
+  // Facts declared about the action itself, e.g. `tag(?this, social)`. Plain
+  // positive facts only; ?this refers to the action. Reads facts until the next
+  // section keyword (an IDENT not directly followed by '(').
+  parseInfoFacts() {
+    const facts = [];
+    while (this.check('IDENT') && this.tokens[this.pos + 1]?.type === 'LPAREN') {
+      const name = this.expect('IDENT').value;
+      this.expect('LPAREN');
+      const args = this.parseArgs();
+      this.expect('RPAREN');
+      facts.push({ name, args });
+    }
+    return facts;
   }
 
   parseRoles() {

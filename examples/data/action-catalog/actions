@@ -1,0 +1,33 @@
+# An action catalog whose entries describe themselves via info: blocks.
+# ?this refers to the action being defined, so each declaration reads exactly
+# like the query that would later find it.
+
+action "give"
+  roles: ?SELF, ?Y
+  info:
+    tag(?this, generous)
+    tag(?this, social)
+    tag(?this, reversible)
+    targets(?this, agent)
+  preconditions
+    knows(?SELF, ?Y)
+  effects
+    gave(?SELF, ?Y)
+
+action "share a kind word"
+  roles: ?SELF, ?Y
+  info:
+    tag(?this, social)
+    targets(?this, agent)
+  preconditions
+    knows(?SELF, ?Y)
+  effects
+    helped(?SELF, ?Y)
+
+action "insult"
+  roles: ?SELF, ?Y
+  info:
+    tag(?this, aggressive)
+    targets(?this, agent)
+  effects
+    helped(?SELF, ?Y)

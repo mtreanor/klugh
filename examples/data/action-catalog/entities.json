@@ -1,0 +1,5 @@
+{
+  "agent":     { "alice": {}, "bob": {} },
+  "actionTag": { "social": {}, "generous": {}, "aggressive": {}, "reversible": {} },
+  "kind":      { "agent": {}, "item": {} }
+}

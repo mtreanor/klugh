@@ -8,6 +8,7 @@ import { RuleParser } from './loader/RuleParser.js';
 import { RuleLoader } from './loader/RuleLoader.js';
 import { ActionParser } from './loader/ActionParser.js';
 import { ActionLoader } from './loader/ActionLoader.js';
+import { registerActionEntities } from './loader/registerActionEntities.js';
 import { DerivationRuleLoader } from './loader/DerivationRuleLoader.js';
 import { StateLoader } from './loader/StateLoader.js';
 import { EntityLoader } from './loader/EntityLoader.js';
@@ -65,9 +66,17 @@ export class Interpreter {
     }
 
     for (const [name, path] of Object.entries(paths.actionsets ?? {})) {
-      const { actions } = new ActionLoader(this.schema).load(new ActionParser().parse(readFileSync(path, 'utf-8')));
-      this.actionsets.set(name, actions);
+      this.loadActions(readFileSync(path, 'utf-8'), name);
     }
+  }
+
+  // Parses an actionset, registers each action as a queryable 'action' entity
+  // (asserting its info: facts), and stores it under `name`. Returns the actions.
+  loadActions(source, name) {
+    const { actions } = new ActionLoader(this.schema).load(new ActionParser().parse(source));
+    registerActionEntities(actions, this.world);
+    this.actionsets.set(name, actions);
+    return actions;
   }
 
   loadDefinitions(source) {

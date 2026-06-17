@@ -35,6 +35,49 @@ Roles are metadata for the application layer — they indicate which variables t
 
 ---
 
+## `info:`
+
+Optional. A list of facts that describe the action *itself*. Each action with an `info:` block is registered as an entity of type `action`, and its info facts are asserted into the world fact store — so the action catalog becomes queryable with ordinary klugh queries.
+
+Inside an `info:` block, the variable `?this` refers to the action being defined. Because `?this` sits in subject position like any query variable, each declaration reads exactly like the query that would later find it:
+
+```klugh
+action "give"
+  roles: ?SELF, ?Y
+  info:
+    tag(?this, generous)
+    tag(?this, social)
+    targets(?this, agent)
+  effects
+    gave(?SELF, ?Y)
+```
+
+This asserts `tag(give, generous)`, `tag(give, social)`, and `targets(give, agent)`, and registers `give` as an `action` entity.
+
+### Querying the catalog
+
+Once actions describe themselves, finding actions by spec is just querying — with partial bindings and full enumeration for free:
+
+```javascript
+interp.query('tag(?a, social)');                    // every action tagged social
+interp.query('tag(?a, social) ^ tag(?a, generous)'); // actions that are both
+interp.query('targets(?a, agent) ^ not tag(?a, aggressive)');  // NAF works too
+interp.query('tag(?a, ?t)', { a: 'give' });          // enumerate one action's tags
+```
+
+The facts are ordinary facts, so they are **mutable** — `assert`/`retract` a tag at runtime to reclassify an action (e.g. a social norm shifts and `insult` is no longer `aggressive`).
+
+### Rules
+
+- **`?this` only.** Info facts describe a single action and must be ground; the only variable allowed is `?this`. Any other variable is a load-time error.
+- **Plain positive facts.** An `info:` block holds simple `name(args)` facts — no negation, tiers, or comparisons.
+- **Predicate and entity-type names must differ.** The info predicate (`tag`) and the entity type of its values cannot share a name. Name the value type distinctly — e.g. predicate `tag` with value type `actionTag` (instances `social`, `generous`, …) — and declare both in your schema/entities. klugh provides the mechanism; the vocabulary is yours.
+- **Action names with spaces** (`"share a kind word"`) work as entity names; reference a specific action in a query with a string literal: `tag("share a kind word", social)`.
+
+A runnable example is in `examples/action-info.js`.
+
+---
+
 ## `preconditions`
 
 Optional. A conjunction of predicates joined by `^`, using the same syntax as a rule LHS (see [Query forms](query-forms.md) and [Negation](negation.md)). Checked by `action.arePreconditionsMet(binding, ctx)`. When absent, the action is always eligible.
@@ -213,6 +256,7 @@ const candidates = interp.scoreActionset('dialogue', { SELF: 'alice' }, { minimu
 | `collectVariables()` | Returns all `LogicalVariable` instances referenced in preconditions and effects |
 | `action.content` | The `ContentItem` attached to the action, or `null` |
 | `action.roles` | Array of role variable name strings (e.g. `['?SELF', '?Y']`) |
+| `action.info` | Array of declared info facts about the action: `[{ name, args }]` |
 | `action.name` | The action's string name |
 
 For details on provenance, action records, and utility breakdowns see [Action records](action-records.md) and [Provenance](provenance.md).

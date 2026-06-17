@@ -24,6 +24,7 @@ export class ActionLoader {
     const content        = data.content ? this.buildContent(data.content) : null;
     return new Action(data.name, {
       roles: data.roles ?? [],
+      info:  data.info  ?? [],
       preconditions,
       effects,
       utilitySources,

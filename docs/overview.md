@@ -156,6 +156,8 @@ action "offer help"
 
 Utility sources (constants, numeric predicates, rule-counting, aggregates) are summed to produce a score. The highest-scoring eligible action wins.
 
+An optional `info:` block describes the action itself — `tag(?this, social)`, where `?this` is the action — registering it as an `action` entity so the catalog is queryable with ordinary queries (`interp.query('tag(?a, social)')`). See [Actions](actions.md#info).
+
 Named actionsets are declared in `project.config.json` and scored by name. Free variables are enumerated automatically:
 
 ```javascript

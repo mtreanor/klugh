@@ -7,6 +7,14 @@ import { RuleUtilitySource } from '../utility/RuleUtilitySource.js';
 import { TextContentItem } from '../content/TextContentItem.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 
+// Yields every string leaf in a parsed AST fragment — used to catch
+// ?this_occurrence anywhere it is not allowed, regardless of nesting.
+function* deepStrings(node) {
+  if (typeof node === 'string') { yield node; return; }
+  if (Array.isArray(node)) { for (const item of node) yield* deepStrings(item); return; }
+  if (node && typeof node === 'object') { for (const value of Object.values(node)) yield* deepStrings(value); return; }
+}
+
 export class ActionLoader {
   constructor(predicateSchema = null) {
     this.predicateSchema = predicateSchema;
@@ -18,6 +26,19 @@ export class ActionLoader {
   }
 
   buildAction(data) {
+    // ?this_occurrence refers to the recorded occurrence, which exists only at
+    // execution time — so it is valid only in effects. Reject it anywhere else.
+    for (const section of ['info', 'preconditions', 'utilitySources']) {
+      for (const str of deepStrings(data[section])) {
+        if (str === '?this_occurrence') {
+          throw new Error(
+            `Action "${data.name}": ?this_occurrence is only valid in an effects: block — ` +
+            `it refers to the recorded occurrence, which exists only at execution time.`
+          );
+        }
+      }
+    }
+
     const preconditions  = (data.preconditions  ?? []).map(e => this.ruleLoader.buildPredicateEntry(e));
     const effects        = data.effects.map(e => this.ruleLoader.buildStateOperation(e));
     const utilitySources = (data.utilitySources ?? []).map(s => this.buildUtilitySource(s));

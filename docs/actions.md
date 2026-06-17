@@ -35,19 +35,34 @@ Roles are metadata for the application layer — they indicate which variables t
 
 ---
 
+## Implicit variables
+
+Every action definition has two implicit variables that are bound for you — you never declare them as roles, and they are never enumerated like free variables.
+
+| Variable | Refers to | Available in |
+|----------|-----------|--------------|
+| `?this_action` | The action being defined/scored, bound to its `action` entity | `info`, `preconditions`, `utility`, `effects` |
+| `?this_occurrence` | The reified [occurrence](#occurrences) of the action | `effects` only |
+
+`?this_action` resolves to the action everywhere a binding works — so a precondition `tag(?this_action, generous)` tests *this* action's tag, a utility rule can weight on it, and an effect can write facts about it (`did(?SELF, ?this_action)`). It is pre-bound, so it is never enumerated over the action catalog.
+
+`?this_occurrence` is only meaningful while effects are applied, and only when occurrence recording is active for that execution (see [Occurrences](#occurrences)). Using it in `info`, `preconditions`, or `utility` is a **load-time error**, because no occurrence exists at those phases.
+
+---
+
 ## `info:`
 
 Optional. A list of facts that describe the action *itself*. Each action with an `info:` block is registered as an entity of type `action`, and its info facts are asserted into the world fact store — so the action catalog becomes queryable with ordinary klugh queries.
 
-Inside an `info:` block, the variable `?this` refers to the action being defined. Because `?this` sits in subject position like any query variable, each declaration reads exactly like the query that would later find it:
+Inside an action, the variable `?this_action` refers to the action being defined (see [Implicit variables](#implicit-variables)). Because `?this_action` sits in subject position like any query variable, each declaration reads exactly like the query that would later find it:
 
 ```klugh
 action "give"
   roles: ?SELF, ?Y
   info:
-    tag(?this, generous)
-    tag(?this, social)
-    targets(?this, agent)
+    tag(?this_action, generous)
+    tag(?this_action, social)
+    targets(?this_action, agent)
   effects
     gave(?SELF, ?Y)
 ```
@@ -69,7 +84,7 @@ The facts are ordinary facts, so they are **mutable** — `assert`/`retract` a t
 
 ### Rules
 
-- **`?this` only.** Info facts describe a single action and must be ground; the only variable allowed is `?this`. Any other variable is a load-time error.
+- **`?this_action` only.** Info facts describe a single action and must be ground; the only variable allowed is `?this_action`. Any other variable is a load-time error.
 - **Plain positive facts.** An `info:` block holds simple `name(args)` facts — no negation, tiers, or comparisons.
 - **Predicate and entity-type names must differ.** The info predicate (`tag`) and the entity type of its values cannot share a name. Name the value type distinctly — e.g. predicate `tag` with value type `actionTag` (instances `social`, `generous`, …) — and declare both in your schema/entities. klugh provides the mechanism; the vocabulary is yours.
 - **Action names with spaces** (`"share a kind word"`) work as entity names; reference a specific action in a query with a string literal: `tag("share a kind word", social)`.
@@ -256,7 +271,21 @@ role(occ, SELF, alice)         // who/what filled each declared role…
 role(occ, Y, bob)              // …keyed by the role variable's name (?SELF → SELF)
 ```
 
-The roles come from the action's `roles:` signature, resolved through the binding. Any **context facts** supplied by the decision process are asserted too, with `?this` referring to the occurrence.
+The roles come from the action's `roles:` signature, resolved through the binding. Any **context facts** supplied by the decision process are asserted too, with `?this_occurrence` referring to the occurrence.
+
+### Annotating the occurrence from effects
+
+An action's `effects:` can write to its own occurrence using `?this_occurrence` — the DSL-native equivalent of passing context facts. Mix occurrence annotations and ordinary state changes freely:
+
+```klugh
+action "give"
+  roles: ?SELF, ?Y
+  effects
+    gave(?SELF, ?Y)                // ordinary world state
+    reluctant(?this_occurrence)    // annotates the recorded occurrence
+```
+
+`?this_occurrence` only binds when occurrence recording is active for that execution. **If occurrence generation is not active, any effect that references `?this_occurrence` is silently skipped** — its annotation has no occurrence to attach to — while every other effect still applies. The same action definition therefore works whether or not the embedder records occurrences; the occurrence annotations are simply dropped when there is nothing to record.
 
 ### Recording
 
@@ -267,19 +296,19 @@ import { recordActionOccurrence } from './src/recordActionOccurrence.js';
 
 const occId = recordActionOccurrence(give, binding, world, {
   contextFacts: [
-    { name: 'reluctant', args: ['?this'] },          // reluctant(occ)
-    { name: 'runnerUp',  args: ['?this', 'apologize'] }, // runnerUp(occ, apologize)
+    { name: 'reluctant', args: ['?this_occurrence'] },          // reluctant(occ)
+    { name: 'runnerUp',  args: ['?this_occurrence', 'apologize'] }, // runnerUp(occ, apologize)
   ],
 });
 ```
 
-…or fold it into execution with the opt-in `recordOccurrence` option (which also links the occurrence onto the resulting `ActionRecord` via `record.occurrence`):
+…or fold it into execution with the opt-in `recordOccurrence` option (which also links the occurrence onto the resulting `ActionRecord` via `record.occurrence`). With recording on, `?this_occurrence` in the action's effects resolves to the minted occurrence:
 
 ```javascript
 give.execute(binding, world.queryHandlers, null, {
   world,
   recordOccurrence: true,
-  occurrenceFacts: [{ name: 'reluctant', args: ['?this'] }],
+  occurrenceFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
 });
 ```
 

@@ -48,14 +48,14 @@ describe('recordActionOccurrence', () => {
     assert.ok(w.factStore.contains('role', 'occ1', 'Y', 'bob'));
   });
 
-  it('asserts context facts with ?this resolved to the occurrence', () => {
+  it('asserts context facts with ?this_occurrence resolved to the occurrence', () => {
     const w = world();
     const binding = bind([SELF, { name: 'alice' }], [Y, { name: 'bob' }]);
 
     const occ = recordActionOccurrence(give, binding, w, {
       contextFacts: [
-        { name: 'reluctant', args: ['?this'] },
-        { name: 'runnerUp',  args: ['?this', 'apologize'] },
+        { name: 'reluctant', args: ['?this_occurrence'] },
+        { name: 'runnerUp',  args: ['?this_occurrence', 'apologize'] },
       ],
     });
 
@@ -99,7 +99,7 @@ describe('Action.execute — recordOccurrence option', () => {
     give.execute(binding, w.queryHandlers, null, {
       world: w,
       recordOccurrence: true,
-      occurrenceFacts: [{ name: 'reluctant', args: ['?this'] }],
+      occurrenceFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
     });
 
     const record = w.actionLog.at(-1);
@@ -121,6 +121,57 @@ describe('Action.execute — recordOccurrence option', () => {
 
     assert.equal(w.entityRegistry.get('occurrence'), undefined);
     assert.equal(w.actionLog.at(-1).occurrence, undefined);
+  });
+});
+
+// ── ?this_occurrence inside effects ──────────────────────────────────────────
+
+describe('Action.execute — ?this_occurrence in effects', () => {
+  const schema = new PredicateSchema({
+    predicates: {
+      helped:    { type: 'boolean', args: ['agent', 'agent'] },
+      reluctant: { type: 'boolean', args: ['occurrence'] },
+    },
+  });
+
+  const OCC = new LogicalVariable('this_occurrence');
+
+  function makeGive() {
+    return new Action('give', {
+      roles: ['?SELF', '?Y'],
+      effects: [
+        new StateOperation('assert', 'helped', [SELF, Y]),       // ordinary state
+        new StateOperation('assert', 'reluctant', [OCC]),        // annotates the occurrence
+      ],
+    });
+  }
+
+  it('annotates the recorded occurrence when tracking is on', () => {
+    const w = new World(schema);
+    w.addEntity('agent', { name: 'alice' });
+    w.addEntity('agent', { name: 'bob' });
+    const give = makeGive();
+
+    give.execute(bind([SELF, { name: 'alice' }], [Y, { name: 'bob' }]), w.queryHandlers, null, {
+      world: w,
+      recordOccurrence: true,
+    });
+
+    assert.ok(w.factStore.contains('helped', 'alice', 'bob'));    // ordinary effect applied
+    assert.ok(w.factStore.contains('reluctant', 'occ1'));         // occurrence effect applied
+  });
+
+  it('skips the occurrence effect when tracking is off, but applies the rest', () => {
+    const w = new World(schema);
+    w.addEntity('agent', { name: 'alice' });
+    w.addEntity('agent', { name: 'bob' });
+    const give = makeGive();
+
+    give.execute(bind([SELF, { name: 'alice' }], [Y, { name: 'bob' }]), w.queryHandlers, null, { world: w });
+
+    assert.ok(w.factStore.contains('helped', 'alice', 'bob'));    // ordinary effect still applies
+    assert.equal(w.factStore.getRecords('reluctant', ['occ1']).length, 0);  // occurrence effect skipped
+    assert.equal(w.entityRegistry.get('occurrence'), undefined);
   });
 });
 
@@ -181,7 +232,7 @@ describe('action occurrences — querying by pattern', () => {
 
     recordActionOccurrence(give, bind([SELF, ent(interp, 'alice')], [Y, ent(interp, 'bob')]),  interp.world);
     recordActionOccurrence(give, bind([SELF, ent(interp, 'carol')], [Y, ent(interp, 'alice')]), interp.world, {
-      contextFacts: [{ name: 'reluctant', args: ['?this'] }],
+      contextFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
     });
 
     // All "give" occurrences
@@ -224,7 +275,7 @@ describe('action occurrences — querying by pattern', () => {
     const give   = interp.actionsets.get('social')[0];
     recordActionOccurrence(give, bind([SELF, ent(interp, 'alice')], [Y, ent(interp, 'bob')]), interp.world);
     recordActionOccurrence(give, bind([SELF, ent(interp, 'carol')], [Y, ent(interp, 'alice')]), interp.world, {
-      contextFacts: [{ name: 'reluctant', args: ['?this'] }],
+      contextFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
     });
 
     // Only the reluctant gift is regretted (derived).

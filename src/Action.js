@@ -3,6 +3,14 @@ import { applyStateChange } from './stateOperations/applyStateChange.js';
 import { ActionRecord } from './provenance/ActionRecord.js';
 import { ActionEffectProvenance } from './provenance/ActionEffectProvenance.js';
 import { recordActionOccurrence } from './recordActionOccurrence.js';
+import { THIS_ACTION, THIS_OCCURRENCE } from './actionVariables.js';
+
+// True when applying this operation needs the occurrence — i.e. it references
+// ?this_occurrence anywhere in its arguments. Such operations are skipped when
+// no occurrence was recorded for the execution.
+function operationReferencesOccurrence(operation) {
+  return (operation.args ?? []).some(arg => arg instanceof LogicalVariable && arg.name === THIS_OCCURRENCE);
+}
 
 export class Action {
   constructor(name, {
@@ -26,7 +34,11 @@ export class Action {
   collectVariables() {
     const seen      = new Set();
     const variables = [];
-    const add = v => { if (!seen.has(v.name)) { seen.add(v.name); variables.push(v); } };
+    // ?this_action / ?this_occurrence are implicit bindings, never enumerated.
+    const add = v => {
+      if (v.name === THIS_ACTION || v.name === THIS_OCCURRENCE) return;
+      if (!seen.has(v.name)) { seen.add(v.name); variables.push(v); }
+    };
     for (const { predicate } of this.preconditions) {
       for (const v of predicate.getVariables()) add(v);
     }
@@ -55,16 +67,38 @@ export class Action {
     return { score, breakdown };
   }
 
-  enqueue(stateChangeQueue, binding, queryHandlers, { privateStores = null, provenance = null } = {}) {
-    for (const operation of this.effects) {
-      stateChangeQueue.enqueue(operation, binding, queryHandlers, { flush: 'tickEnd', privateStores, provenance });
+  // The action's own `action` entity — what ?this_action binds to. Falls back to
+  // a bare { name } when no world (or no registered entity) is available, which
+  // resolves identically for fact matching (entities are keyed by name).
+  entityValue(world) {
+    const registered = world?.entityRegistry?.get('action')?.find(e => e.name === this.name);
+    return registered ?? { name: this.name };
+  }
+
+  // Extends a binding with the implicit action variables before effects run.
+  // ?this_action is always bound; ?this_occurrence only when an occurrence was
+  // recorded for this execution.
+  bindImplicitVariables(binding, world, occurrenceId) {
+    let extended = binding.extend(new LogicalVariable(THIS_ACTION), this.entityValue(world));
+    if (occurrenceId != null) {
+      extended = extended.extend(new LogicalVariable(THIS_OCCURRENCE), occurrenceId);
     }
+    return extended;
+  }
+
+  // Effects to apply. When no occurrence was recorded, effects that reference
+  // ?this_occurrence are dropped — their occurrence annotations have nothing to
+  // hang on, while every other effect still applies.
+  applicableEffects(hasOccurrence) {
+    if (hasOccurrence) return this.effects;
+    return this.effects.filter(op => !operationReferencesOccurrence(op));
   }
 
   execute(binding, queryHandlers, stateChangeQueue = null, { privateStores = null, world = null, utilityBreakdown = null, planRecord = null, recordOccurrence = false, occurrenceFacts = [] } = {}) {
     if (this.effects.length === 0) return;
 
-    let provenance = null;
+    let provenance   = null;
+    let occurrenceId = null;
     if (world) {
       const record = new ActionRecord({
         tick: world.tickTracker.currentTick,
@@ -80,15 +114,21 @@ export class Action {
       // queryable and traceable back to what motivated it.
       if (recordOccurrence) {
         record.occurrence = recordActionOccurrence(this, binding, world, { contextFacts: occurrenceFacts });
+        occurrenceId      = record.occurrence;
       }
     }
 
+    const effectBinding = this.bindImplicitVariables(binding, world, occurrenceId);
+    const operations    = this.applicableEffects(occurrenceId != null);
+
     if (stateChangeQueue) {
-      this.enqueue(stateChangeQueue, binding, queryHandlers, { privateStores, provenance });
+      for (const operation of operations) {
+        stateChangeQueue.enqueue(operation, effectBinding, queryHandlers, { flush: 'tickEnd', privateStores, provenance });
+      }
       return;
     }
-    for (const operation of this.effects) {
-      applyStateChange(operation, binding, queryHandlers, { privateStores, provenance });
+    for (const operation of operations) {
+      applyStateChange(operation, effectBinding, queryHandlers, { privateStores, provenance });
     }
   }
 

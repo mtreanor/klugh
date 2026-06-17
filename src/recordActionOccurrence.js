@@ -8,9 +8,9 @@ import { LogicalVariable } from './LogicalVariable.js';
 //   role(occ, <roleName>, <value>)   — one per bound role, keyed by the role
 //                                       variable's name (with '?' stripped)
 //
-// plus any contextFacts supplied by the decision process, where ?this resolves
-// to the occurrence (other args are taken as-is). Rules can derive further
-// facts over these afterward.
+// plus any contextFacts supplied by the decision process, where ?this_occurrence
+// resolves to the occurrence (other args are taken as-is). Rules can derive
+// further facts over these afterward.
 //
 // Returns the occurrence id (its entity name). Live-world only — occurrences are
 // a record of what actually happened, not part of hypothetical planner search.
@@ -34,7 +34,7 @@ export function recordActionOccurrence(action, binding, world, {
   }
 
   for (const fact of contextFacts) {
-    const args = fact.args.map(arg => (arg === '?this' ? occId : arg));
+    const args = fact.args.map(arg => (arg === '?this_occurrence' ? occId : arg));
     world.factStore.assert(new Fact(fact.name, ...args));
   }
 

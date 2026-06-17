@@ -14,7 +14,7 @@
 #   set-numeric (=), private-store assert (?OWNER.pred).
 #
 # Action info covered:
-#   info: blocks tag each action (?this = the action), registering it as an
+#   info: blocks tag each action (?this_action = the action), registering it as an
 #   `action` entity so the catalog is queryable, e.g. tag(?a, prosocial).
 
 # ── Needs fulfilment ─────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@
 action "shelter the homeless"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
+    tag(?this_action, prosocial)
   preconditions
     hasNeed(?Y, "shelter")
     ^ canProvide(?SELF, "shelter")
@@ -38,7 +38,7 @@ action "shelter the homeless"
 action "share a kind word"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
+    tag(?this_action, prosocial)
   preconditions
     hasNeed(?Y, "friendship")
     ^ canProvide(?SELF, "friendship")
@@ -56,7 +56,7 @@ action "share a kind word"
 action "restore dignity"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
+    tag(?this_action, prosocial)
   preconditions
     hasNeed(?Y, "respect")
     ^ canProvide(?SELF, "respect")
@@ -76,8 +76,8 @@ action "restore dignity"
 action "seek forgiveness"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
-    tag(?this, reconciliation)
+    tag(?this_action, prosocial)
+    tag(?this_action, reconciliation)
   preconditions
     betrayed(?SELF, ?Y) [history]
     ^ not apologized(?SELF, ?Y)
@@ -92,8 +92,8 @@ action "seek forgiveness"
 action "accept an apology"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
-    tag(?this, reconciliation)
+    tag(?this_action, prosocial)
+    tag(?this_action, reconciliation)
   preconditions
     betrayed(?Y, ?SELF) then apologized(?Y, ?SELF)
     ^ not forgave(?SELF, ?Y)
@@ -108,8 +108,8 @@ action "accept an apology"
 action "end a feud"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
-    tag(?this, reconciliation)
+    tag(?this_action, prosocial)
+    tag(?this_action, reconciliation)
   preconditions
     feuding(?SELF, ?Y)
   utility
@@ -128,8 +128,8 @@ action "end a feud"
 action "confront a rival"
   roles: ?SELF, ?Y, ?I
   info:
-    tag(?this, antisocial)
-    tag(?this, aggressive)
+    tag(?this_action, antisocial)
+    tag(?this_action, aggressive)
   preconditions
     covets(?SELF, ?I)
     ^ owns(?Y, ?I)
@@ -147,8 +147,8 @@ action "confront a rival"
 action "challenge an insult"
   roles: ?SELF, ?Y
   info:
-    tag(?this, antisocial)
-    tag(?this, aggressive)
+    tag(?this_action, antisocial)
+    tag(?this_action, aggressive)
   preconditions
     insulted(?Y, ?SELF) [history]
     ^ knows(?SELF, ?Y)
@@ -163,7 +163,7 @@ action "challenge an insult"
 action "spread gossip"
   roles: ?SELF, ?Y
   info:
-    tag(?this, antisocial)
+    tag(?this_action, antisocial)
   preconditions
     knows(?SELF, ?Y)
     ^ trust(?SELF, ?Y) < 50
@@ -181,8 +181,8 @@ action "spread gossip"
 action "nominate an elder"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
-    tag(?this, leadership)
+    tag(?this_action, prosocial)
+    tag(?this_action, leadership)
   preconditions
     communityPillar(?Y)
     ^ not nominatedElder(?Y)
@@ -201,7 +201,7 @@ action "nominate an elder"
 action "market hustle"
   roles: ?SELF
   info:
-    tag(?this, economic)
+    tag(?this_action, economic)
   preconditions
     worksAt(?SELF, market)
     ^ reputation(?SELF) < 75
@@ -218,8 +218,8 @@ action "market hustle"
 action "craft with a peer"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
-    tag(?this, economic)
+    tag(?this_action, prosocial)
+    tag(?this_action, economic)
   preconditions
     practices(?SELF, ?C)
     ^ practices(?Y, ?C)
@@ -238,7 +238,7 @@ action "craft with a peer"
 action "deepen lone mastery"
   roles: ?SELF, ?C
   info:
-    tag(?this, economic)
+    tag(?this_action, economic)
   preconditions
     practices(?SELF, ?C)
     ^ |practices(_, ?C)| < 2
@@ -252,7 +252,7 @@ action "deepen lone mastery"
 action "seek patronage"
   roles: ?SELF, ?Y
   info:
-    tag(?this, economic)
+    tag(?this_action, economic)
   preconditions
     prosperity.poor(?SELF)
     ^ reputation.admired(?Y)
@@ -272,8 +272,8 @@ action "seek patronage"
 action "confide in a trusted friend"
   roles: ?SELF, ?Y
   info:
-    tag(?this, prosocial)
-    tag(?this, private)
+    tag(?this_action, prosocial)
+    tag(?this_action, private)
   preconditions
     ?SELF.admires(?SELF, ?Y)
     ^ trust(?SELF, ?Y) >= 60
@@ -289,8 +289,8 @@ action "confide in a trusted friend"
 action "air a suspicion"
   roles: ?SELF, ?Y
   info:
-    tag(?this, antisocial)
-    tag(?this, private)
+    tag(?this_action, antisocial)
+    tag(?this_action, private)
   preconditions
     ?SELF.suspects(?SELF, ?Y)
     ^ knows(?SELF, ?Y)
@@ -312,7 +312,7 @@ action "air a suspicion"
 action "denounce a practice"
   roles: ?SELF, ?ACT
   info:
-    tag(?this, leadership)
+    tag(?this_action, leadership)
   preconditions
     tag(?ACT, prosocial)              # any action currently deemed prosocial
     ^ reputation.admired(?SELF)       # only the admired can shift the village's norms
@@ -326,7 +326,7 @@ action "denounce a practice"
 action "rehabilitate a practice"
   roles: ?SELF, ?ACT
   info:
-    tag(?this, reconciliation)
+    tag(?this_action, reconciliation)
   preconditions
     tag(?ACT, antisocial)             # a practice that was denounced earlier
     ^ not tag(?ACT, prosocial)        # and has not already been restored

@@ -16,9 +16,9 @@ describe('registerActionEntities', () => {
     predicates: { tag: { type: 'boolean', args: ['action', 'actionTag'] } },
   });
 
-  it('registers each action as an entity and asserts its info facts with ?this resolved', () => {
+  it('registers each action as an entity and asserts its info facts with ?this_action resolved', () => {
     const world = new World(schema);
-    const give = new Action('give', { info: [{ name: 'tag', args: ['?this', 'social'] }] });
+    const give = new Action('give', { info: [{ name: 'tag', args: ['?this_action', 'social'] }] });
 
     registerActionEntities([give], world);
 
@@ -28,7 +28,7 @@ describe('registerActionEntities', () => {
 
   it('does not create duplicate entities when the same action is registered twice', () => {
     const world = new World(schema);
-    const give = new Action('give', { info: [{ name: 'tag', args: ['?this', 'social'] }] });
+    const give = new Action('give', { info: [{ name: 'tag', args: ['?this_action', 'social'] }] });
 
     registerActionEntities([give], world);
     registerActionEntities([give], world);
@@ -36,11 +36,11 @@ describe('registerActionEntities', () => {
     assert.equal(world.entityRegistry.get('action').length, 1);
   });
 
-  it('throws if an info fact uses a variable other than ?this', () => {
+  it('throws if an info fact uses a variable other than ?this_action', () => {
     const world = new World(schema);
     const bad = new Action('bad', { info: [{ name: 'tag', args: ['?other', 'social'] }] });
 
-    assert.throws(() => registerActionEntities([bad], world), /only \?this is allowed/);
+    assert.throws(() => registerActionEntities([bad], world), /only \?this_action is allowed/);
   });
 });
 
@@ -69,20 +69,20 @@ function makeInterpreter() {
     action "give"
       roles: ?SELF, ?Y
       info:
-        tag(?this, generous)
-        tag(?this, social)
+        tag(?this_action, generous)
+        tag(?this_action, social)
       effects gave(?SELF, ?Y)
 
     action "insult"
       roles: ?SELF, ?Y
       info:
-        tag(?this, aggressive)
+        tag(?this_action, aggressive)
       effects helped(?SELF, ?Y)
 
     action "share a kind word"
       roles: ?SELF, ?Y
       info:
-        tag(?this, social)
+        tag(?this_action, social)
       effects helped(?SELF, ?Y)
   `);
 

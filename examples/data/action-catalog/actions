@@ -1,14 +1,14 @@
 # An action catalog whose entries describe themselves via info: blocks.
-# ?this refers to the action being defined, so each declaration reads exactly
+# ?this_action refers to the action being defined, so each declaration reads exactly
 # like the query that would later find it.
 
 action "give"
   roles: ?SELF, ?Y
   info:
-    tag(?this, generous)
-    tag(?this, social)
-    tag(?this, reversible)
-    targets(?this, agent)
+    tag(?this_action, generous)
+    tag(?this_action, social)
+    tag(?this_action, reversible)
+    targets(?this_action, agent)
   preconditions
     knows(?SELF, ?Y)
   effects
@@ -17,8 +17,8 @@ action "give"
 action "share a kind word"
   roles: ?SELF, ?Y
   info:
-    tag(?this, social)
-    targets(?this, agent)
+    tag(?this_action, social)
+    targets(?this_action, agent)
   preconditions
     knows(?SELF, ?Y)
   effects
@@ -27,7 +27,7 @@ action "share a kind word"
 action "insult"
   roles: ?SELF, ?Y
   info:
-    tag(?this, aggressive)
-    targets(?this, agent)
+    tag(?this_action, aggressive)
+    targets(?this_action, agent)
   effects
     helped(?SELF, ?Y)

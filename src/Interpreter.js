@@ -17,6 +17,7 @@ import { RuleEvaluator } from './RuleEvaluator.js';
 import { ForwardChainer } from './ForwardChainer.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
 import { applyStateChange } from './stateOperations/applyStateChange.js';
+import { THIS_ACTION } from './actionVariables.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
 
 export class Interpreter {
@@ -222,6 +223,11 @@ export class Interpreter {
     const candidates      = [];
 
     for (const action of actions) {
+      // ?this_action is pre-bound to the action's own entity, available to
+      // preconditions and utility exactly like a fixed role; it is never enumerated.
+      const actionBinding = startingBinding.extend(
+        new LogicalVariable(THIS_ACTION), action.entityValue(this.world)
+      );
       const freeVars = action.collectVariables().filter(v => !boundNames.has(v.name));
 
       const allBindings = freeVars.length > 0
@@ -229,9 +235,9 @@ export class Interpreter {
             freeVars,
             this.inferVariableTypes(action.preconditions.map(e => e.predicate)),
             this.world.entityRegistry,
-            startingBinding
+            actionBinding
           )
-        : [startingBinding];
+        : [actionBinding];
 
       for (const binding of allBindings) {
         if (!action.arePreconditionsMet(binding, ctx)) continue;

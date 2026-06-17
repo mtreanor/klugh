@@ -51,19 +51,19 @@ describe('ActionLoader', () => {
   });
 
   describe('info: block', () => {
-    it('parses info facts as { name, args }, with ?this preserved', () => {
+    it('parses info facts as { name, args }, with ?this_action preserved', () => {
       const { actions } = load(`
         action "give"
           info:
-            tag(?this, generous)
-            tag(?this, social)
-            targets(?this, agent)
+            tag(?this_action, generous)
+            tag(?this_action, social)
+            targets(?this_action, agent)
           effects gave(?SELF, ?Y)
       `);
       assert.deepEqual(actions[0].info, [
-        { name: 'tag',     args: ['?this', 'generous'] },
-        { name: 'tag',     args: ['?this', 'social'] },
-        { name: 'targets', args: ['?this', 'agent'] },
+        { name: 'tag',     args: ['?this_action', 'generous'] },
+        { name: 'tag',     args: ['?this_action', 'social'] },
+        { name: 'targets', args: ['?this_action', 'agent'] },
       ]);
     });
 
@@ -77,13 +77,13 @@ describe('ActionLoader', () => {
         action "share a kind word"
           roles: ?SELF, ?Y
           info:
-            tag(?this, social)
+            tag(?this_action, social)
           preconditions
             knows(?SELF, ?Y)
           effects helped(?SELF, ?Y)
       `);
       assert.deepEqual(actions[0].roles, ['?SELF', '?Y']);
-      assert.deepEqual(actions[0].info, [{ name: 'tag', args: ['?this', 'social'] }]);
+      assert.deepEqual(actions[0].info, [{ name: 'tag', args: ['?this_action', 'social'] }]);
       assert.equal(actions[0].preconditions.length, 1);
       assert.equal(actions[0].effects.length, 1);
     });
@@ -92,10 +92,10 @@ describe('ActionLoader', () => {
       const { actions } = load(`
         action "trade"
           info:
-            category(?this, "economic")
+            category(?this_action, "economic")
           effects traded(?X, ?Y)
       `);
-      assert.deepEqual(actions[0].info, [{ name: 'category', args: ['?this', 'economic'] }]);
+      assert.deepEqual(actions[0].info, [{ name: 'category', args: ['?this_action', 'economic'] }]);
     });
   });
 

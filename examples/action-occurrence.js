@@ -4,7 +4,7 @@
 // Recording an occurrence mints an `occurrence` entity and asserts:
 //   actionType(occ, <action>)         — what happened
 //   role(occ, <roleName>, <value>)    — who/what filled each declared role
-// plus any context facts the decision process supplies (?this = the occurrence).
+// plus any context facts the decision process supplies (?this_occurrence = the occurrence).
 // Rules can then derive further facts over occurrences.
 //
 // Occurrences are a live-world record of what actually happened — not part of
@@ -48,7 +48,7 @@ const names    = (rows, v) => rows.map(b => b.assignments.get(v).name ?? b.assig
 recordActionOccurrence(give, bind('alice', 'bob'),   interp.world);
 recordActionOccurrence(give, bind('bob',   'carol'), interp.world);
 recordActionOccurrence(give, bind('carol', 'alice'), interp.world, {
-  contextFacts: [{ name: 'reluctant', args: ['?this'] }],
+  contextFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
 });
 
 // ── Query the history by pattern ────────────────────────────────────────────

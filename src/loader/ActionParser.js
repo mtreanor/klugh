@@ -75,8 +75,8 @@ class ActionDSLParser extends DSLParser {
     return result;
   }
 
-  // Facts declared about the action itself, e.g. `tag(?this, social)`. Plain
-  // positive facts only; ?this refers to the action. Reads facts until the next
+  // Facts declared about the action itself, e.g. `tag(?this_action, social)`. Plain
+  // positive facts only; ?this_action refers to the action. Reads facts until the next
   // section keyword (an IDENT not directly followed by '(').
   parseInfoFacts() {
     const facts = [];

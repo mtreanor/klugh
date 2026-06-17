@@ -1,7 +1,7 @@
 // Demonstrates action info: blocks — describing actions with facts so the
 // action catalog itself becomes queryable with ordinary klugh queries.
 //
-// Each action declares facts about itself via `info:`, where ?this is the
+// Each action declares facts about itself via `info:`, where ?this_action is the
 // action. Those facts register the action as an `action` entity, so you can
 // find actions by spec, match conjunctions, enumerate an action's tags with a
 // partial binding, and even change the facts at runtime.

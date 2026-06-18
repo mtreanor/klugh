@@ -1,9 +1,10 @@
-# Stress scenario — 100 rules, 1–5 predicates each.
+# Stress scenario — 104 rules, 1–5 predicates each.
 # Groups:
 #   A — social baseline        B — negation operators     C — history
 #   D — temporal chains        E — numeric tiers/compares F — counts
 #   G — private stores         H — derived consumers      I — sensors
 #   J — importance/partial     K — boolean cascade        L — mixed/edge
+#   M — predicate-to-predicate comparisons
 #
 # The K group is deliberately listed in REVERSE dependency order (K3 before
 # K2 before K1) so a single applyOnce pass cannot complete the cascade —
@@ -507,3 +508,29 @@ rule "L9 — guests bring custom"
   invitedTo(?X, ?P)
   ^ worksAt(?Y, ?P)
   => goodwill(?Y, ?X) += 1
+
+# ── M: predicate-to-predicate comparisons ───────────────────────────────────
+# Each comparison is anchored by a cheap positive premise (knows) so the binding
+# space is narrowed before the comparison runs — see docs/query-forms.md. The M
+# rules write only to `precedence`, which no other rule reads or writes, so they
+# stay orthogonal to the hand-computed totals of the other groups.
+
+rule "M1 — the better-regarded leads"
+  knows(?X, ?Y)
+  ^ reputation(?X) > reputation(?Y)
+  => precedence(?X, ?Y) += 1
+
+rule "M2 — trust runs deeper one way"
+  knows(?X, ?Y)
+  ^ trust(?X, ?Y) > trust(?Y, ?X)
+  => precedence(?X, ?Y) += 2
+
+rule "M3 — lopsided kindness"
+  knows(?X, ?Y)
+  ^ helped(?X, ?Y) != helped(?Y, ?X)
+  => precedence(?X, ?Y) += 1
+
+rule "M4 — allies and rivals are not the same"
+  knows(?X, ?Y)
+  ^ closeAllies(?X, ?Y) != rivals(?X, ?Y)
+  => precedence(?X, ?Y) += 1

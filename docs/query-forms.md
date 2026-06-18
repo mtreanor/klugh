@@ -61,7 +61,7 @@ rule "warmth toward someone when friendship is strong"
 
 ## Numeric value comparison
 
-`predicate(args) > N`, `>= N`, `< N`, `<= N`, or `= N` compares the current numeric value directly against a threshold.
+`predicate(args) > N`, `>= N`, `< N`, `<= N`, `= N`, or `!= N` compares the current numeric value directly against a threshold.
 
 ```klugh
 rule "desperate when mood is very low"
@@ -74,6 +74,38 @@ rule "confident when mood is high"
   ^ mood(?SELF) >= 80
   => respectful(?SELF, ?Y) += 1.0
 ```
+
+---
+
+## Predicate-to-predicate comparison
+
+Either side of a comparison can be another predicate instead of a literal, so you can relate two facts directly. `==` is accepted as a synonym for `=`.
+
+**Numeric vs numeric** — both operands must be `numeric` or `sensor-numeric`. All operators (`>`, `>=`, `<`, `<=`, `=`, `!=`) apply:
+
+```klugh
+rule "the stronger party intimidates the weaker"
+  knows(?X, ?Y)
+  ^ health(?X) > health(?Y)
+  => intimidates(?X, ?Y) += 1.0
+```
+
+**Boolean vs boolean** — operands may be stored `boolean`, `derived`, or boolean `sensor` predicates; only `=` and `!=` apply. Each side resolves to a three-valued state — **true** (positive belief present), **false** (explicit disbelief present), or **unknown** (neither). Comparison is *state-equality*: `=` holds when both sides share the same state (including `unknown = unknown`), `!=` when they differ. `derived` and `sensor` operands are total — they resolve to **true**/**false** and never **unknown**.
+
+```klugh
+rule "reciprocity mismatch breeds resentment"
+  knows(?X, ?Y)
+  ^ trusts(?X, ?Y) != trusts(?Y, ?X)
+  => resents(?X, ?Y) += 1.0
+```
+
+Variables in either operand are enumerated and the comparison filters the bindings, so neither side needs to be anchored by a separate positive predicate — though boolean comparison ranges over every entity combination, so anchor it (as above) when you don't intend a full cross-product.
+
+::: warning Cost of derived/sensor operands
+A `derived` operand runs a full backward-chaining proof every time the comparison is evaluated, and the comparison is evaluated once per enumerated binding. An *unanchored* boolean comparison with a derived operand therefore proves the derivation across the entire entity cross-product — potentially expensive. Anchor the comparison with a cheap positive premise (as in the example) so the binding space is narrowed before the derivation runs.
+:::
+
+Operands must be the same kind: numeric (`numeric`, `sensor-numeric`) or boolean (`boolean`, `derived`, `sensor`). Mixing kinds is rejected at load, as are ordering operators (`>`, `>=`, `<`, `<=`) on boolean operands.
 
 ---
 

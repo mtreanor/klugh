@@ -57,6 +57,7 @@
     },
     "tension":  { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0 },
     "goodwill": { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0, "annotations": { "ephemeral": true } },
+    "precedence": { "type": "numeric", "args": ["agent", "agent"], "minValue": 0, "maxValue": 999, "default": 0 },
 
     "near": { "type": "sensor", "args": ["agent", "agent"] },
     "distanceTo": {

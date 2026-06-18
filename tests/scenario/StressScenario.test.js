@@ -1,5 +1,5 @@
 // End-to-end stress harness for the data/stress scenario: 10 agents, 30 ticks
-// of history, 30 stored/sensor predicates, 15 derived predicates, 100 rules.
+// of history, 30 stored/sensor predicates, 15 derived predicates, 104 rules.
 //
 // Hand-computed expectations: the exact numeric totals below were derived by
 // summing rule contributions for specific pairs (see data/stress/rules group
@@ -110,9 +110,9 @@ const tick = (world, rules) =>
 describe('Stress scenario', () => {
 
   describe('loading', () => {
-    it('loads the scenario and all 100 rules through the cycle detector', () => {
+    it('loads the scenario and all 104 rules through the cycle detector', () => {
       const { rules } = buildWorld();
-      assert.equal(rules.length, 100);
+      assert.equal(rules.length, 104);
     });
 
     it('passes schema annotations through opaquely', () => {
@@ -260,6 +260,32 @@ describe('Stress scenario', () => {
       assert.equal(q(engine, 'distanceTo(talia, market) >= 10'), 1);
       assert.equal(q(engine, 'distanceTo.far(talia, market)'), 1);
     });
+
+    it('compares two numeric predicates against each other', () => {
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'reputation(mara) > reputation(oren)'), 1);     // 82 > 65
+      assert.equal(q(engine, 'reputation(silas) > reputation(mara)'), 0);    // 49 > 82
+      assert.equal(q(engine, 'trust(mara, oren) > trust(oren, mara)'), 1);   // 85 > 82
+      assert.equal(q(engine, 'trust(silas, oren) >= trust(oren, silas)'), 0); // 15 >= 35
+      assert.equal(q(engine, 'reputation(una) == reputation(una)'), 1);      // == aliases =
+    });
+
+    it('compares two boolean predicates with three-valued state equality', () => {
+      const { engine } = buildWorld();
+      assert.equal(q(engine, 'helped(mara, talia) == helped(talia, mara)'), 1); // true == true
+      assert.equal(q(engine, 'helped(mara, una) != helped(una, mara)'), 1);     // true != unknown
+      assert.equal(q(engine, 'helped(mara, talia) != helped(talia, mara)'), 0);
+      // unknown == unknown is satisfied (state-equality).
+      assert.equal(q(engine, 'betrayed(mara, zeke) == betrayed(zeke, mara)'), 1);
+    });
+
+    it('compares derived predicates against each other', () => {
+      const { engine } = buildWorld();
+      // closeAllies(mara, oren) is true, rivals(mara, oren) is false → differ.
+      assert.equal(q(engine, 'closeAllies(mara, oren) != rivals(mara, oren)'), 1);
+      // both false → equal under state-equality.
+      assert.equal(q(engine, 'closeAllies(petra, mara) == rivals(petra, mara)'), 1);
+    });
   });
 
   describe('derived predicates', () => {
@@ -396,6 +422,38 @@ describe('Stress scenario', () => {
       // G8: mara's private trust toward talia rose 81 → 86; world value untouched.
       assert.equal(world.getPrivateStore('mara').getCurrentValue('trust', ['mara', 'talia']), 86);
       assert.equal(numericValue(world, 'trust', ['mara', 'talia']), 75);
+    });
+  });
+
+  describe('predicate comparisons — forward chaining', () => {
+    it('accumulates precedence from numeric, boolean, and derived comparisons', () => {
+      const { world, rules } = buildWorld();
+      const mRules = rules.filter(r => r.name.startsWith('M'));
+      world.applyOnce(mRules, { advanceTick: true, minimumSatisfactionScore: 1 });
+
+      // precedence(mara, oren) = M1 1 (rep 82>65) + M2 2 (trust 85>82)
+      //   + M4 1 (closeAllies true ≠ rivals false) = 4. M3 contributes 0
+      //   (neither helped the other).
+      assert.equal(numericValue(world, 'precedence', ['mara', 'oren']), 4);
+
+      // The comparison is directional: the reverse pair scores strictly less.
+      assert.ok(
+        numericValue(world, 'precedence', ['mara', 'oren']) >
+        numericValue(world, 'precedence', ['oren', 'mara'])
+      );
+
+      // M rules are all anchored by knows, so strangers never accrue precedence.
+      assert.equal(numericValue(world, 'precedence', ['mara', 'viggo']), 0);
+    });
+
+    it('M3 fires on lopsided kindness (helped one way only)', () => {
+      const { world, rules } = buildWorld();
+      const m3 = rules.filter(r => r.name.startsWith('M3'));
+      world.applyOnce(m3, { advanceTick: true, minimumSatisfactionScore: 1 });
+      // helped(mara, una) holds but helped(una, mara) does not → states differ.
+      assert.equal(numericValue(world, 'precedence', ['mara', 'una']), 1);
+      // helped(mara, talia) and helped(talia, mara) both hold → states match.
+      assert.equal(numericValue(world, 'precedence', ['mara', 'talia']), 0);
     });
   });
 

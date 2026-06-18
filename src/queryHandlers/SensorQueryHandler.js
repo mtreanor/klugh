@@ -44,6 +44,14 @@ export class SensorQueryHandler extends QueryHandler {
     return result;
   }
 
+  // Resolves the raw computed value of a numeric sensor, for predicate-vs-predicate
+  // comparisons (ComparisonPredicate) where the sensor is one operand.
+  getNumericValue(name, resolvedArgs, evaluationContext) {
+    const sensor = this._numericSensors.get(name);
+    if (!sensor) throw new Error(`No numeric sensor registered for "${name}"`);
+    return sensor.getValue(resolvedArgs, evaluationContext).value;
+  }
+
   // Called by SensorNumericComparisonPredicate.
   evaluateComparison(predicate, resolvedArgs, evaluationContext) {
     const sensor = this._numericSensors.get(predicate.name);
@@ -56,6 +64,7 @@ export class SensorQueryHandler extends QueryHandler {
     else if (predicate.operator === '<=') result = v <= t;
     else if (predicate.operator === '>')  result = v >  t;
     else if (predicate.operator === '<')  result = v <  t;
+    else if (predicate.operator === '!=') result = v !== t;
     else                                  result = v === t;
     predicate._cachedOutcome = { ...outcome, resolvedArgs, result };
     return result;

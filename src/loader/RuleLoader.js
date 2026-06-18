@@ -16,6 +16,7 @@ import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredi
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
 import { SensorNumericTierPredicate } from '../predicates/SensorNumericTierPredicate.js';
 import { SensorNumericComparisonPredicate } from '../predicates/SensorNumericComparisonPredicate.js';
+import { ComparisonPredicate } from '../predicates/ComparisonPredicate.js';
 import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
 
 function* walkPredicates(predicate) {
@@ -92,7 +93,7 @@ export class RuleLoader {
       return new PrivatePredicate(owner, inner, { isVariable: !!data.ownerVar });
     }
 
-    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick'].includes(data.type);
+    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison'].includes(data.type);
     if (this.predicateSchema && needsNameLookup) {
       if (!this.predicateSchema.hasDefinition(data.name)) {
         throw new Error(`Unknown predicate: "${data.name}" is not defined in the predicate schema`);
@@ -137,6 +138,22 @@ export class RuleLoader {
         const { innerData, countingVars, countingVarTypes } = this.rewriteCountArgs(data.predicate);
         const innerPredicate = this.buildPredicate(innerData);
         return new CountPredicate(innerPredicate, countingVars, countingVarTypes, data.operator, data.threshold);
+      }
+      case 'comparison': {
+        const leftKind  = this.comparisonOperandKind(data.left.name);
+        const rightKind = this.comparisonOperandKind(data.right.name);
+        if (leftKind !== rightKind) {
+          throw new Error(`Comparison operands must be the same kind: "${data.left.name}" is ${leftKind}, "${data.right.name}" is ${rightKind}`);
+        }
+        if (leftKind === 'boolean' && data.operator !== '=' && data.operator !== '!=') {
+          throw new Error(`Operator "${data.operator}" is not valid for boolean predicates "${data.left.name}"/"${data.right.name}" — use = or !=`);
+        }
+        return new ComparisonPredicate(
+          leftKind,
+          { name: data.left.name,  args: this.resolveArgs(data.left.args) },
+          data.operator,
+          { name: data.right.name, args: this.resolveArgs(data.right.args) },
+        );
       }
       case 'at-tick':
         return new AtTickPredicate(this.buildPredicate(data.predicate), data.tick);
@@ -199,6 +216,20 @@ export class RuleLoader {
       return new PrivatePredicate(owner, negPred, { isVariable: !!inner.ownerVar });
     }
     return new ExplicitNegationPredicate(inner.name, ...this.resolveArgs(inner.args));
+  }
+
+  // Classifies a comparison operand by schema type. Numeric operands ('numeric',
+  // 'sensor-numeric') support all operators; boolean operands ('boolean',
+  // 'derived', boolean 'sensor') support only = / !=. Derived and sensor operands
+  // are total — they resolve to 'true'/'false', never 'unknown'.
+  comparisonOperandKind(name) {
+    if (this.predicateSchema && !this.predicateSchema.hasDefinition(name)) {
+      throw new Error(`Unknown predicate: "${name}" is not defined in the predicate schema`);
+    }
+    const type = this.predicateSchema?.getDefinition(name)?.type;
+    if (type === 'numeric' || type === 'sensor-numeric') return 'numeric';
+    if (type === 'boolean' || type === 'derived' || type === 'sensor') return 'boolean';
+    throw new Error(`Predicate "${name}" (type ${type ?? 'unknown'}) cannot be used in a comparison`);
   }
 
   resolveArgs(args) {

@@ -38,6 +38,11 @@ export class RuleSerializer {
     if (pred.type === 'numeric-value') {
       return `${pred.name}(${this.serializeArgs(pred.args)}) ${pred.operator} ${pred.threshold}`;
     }
+    if (pred.type === 'comparison') {
+      const left  = `${pred.left.name}(${this.serializeArgs(pred.left.args)})`;
+      const right = `${pred.right.name}(${this.serializeArgs(pred.right.args)})`;
+      return `${left} ${pred.operator} ${right}`;
+    }
     if (pred.type === 'negation') {
       return `not ${this.serializePredicate(pred.predicate)}`;
     }

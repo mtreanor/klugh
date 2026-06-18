@@ -20,6 +20,8 @@ export class Lexer {
       if (ch === '_' && !this.isIdentChar(next))   { tokens.push(this.tok('WILDCARD', '_')); this.pos++; continue; }
 
       if (ch === '=' && next === '>')              { tokens.push(this.tok('FAT_ARROW', '=>')); this.pos += 2; continue; }
+      if (ch === '=' && next === '=')              { tokens.push(this.tok('EQ',        '=')); this.pos += 2; continue; }
+      if (ch === '!' && next === '=')              { tokens.push(this.tok('NEQ',       '!=')); this.pos += 2; continue; }
       if (ch === '+' && next === '=')              { tokens.push(this.tok('PLUS_EQ',  '+=')); this.pos += 2; continue; }
       if (ch === '-' && next === '=')              { tokens.push(this.tok('MINUS_EQ', '-=')); this.pos += 2; continue; }
       if (ch === '-' && /\d/.test(next))           { tokens.push(this.readNumber());          continue; }
@@ -406,9 +408,24 @@ export class DSLParser {
     else if (this.check('GT'))  { this.advance(); operator = '>';  }
     else if (this.check('LT'))  { this.advance(); operator = '<';  }
     else if (this.check('EQ'))  { this.advance(); operator = '=';  }
+    else if (this.check('NEQ')) { this.advance(); operator = '!='; }
     if (operator !== undefined) {
-      const threshold = this.expect('NUMBER').value;
-      return { type: 'numeric-value', name, args, operator, threshold };
+      // RHS is either a numeric literal (compare against a threshold) or another
+      // predicate (compare the two operands' values/states against each other).
+      if (this.check('NUMBER')) {
+        const threshold = this.advance().value;
+        return { type: 'numeric-value', name, args, operator, threshold };
+      }
+      const rhsName = this.expect('IDENT').value;
+      this.expect('LPAREN');
+      const rhsArgs = this.parseArgs();
+      this.expect('RPAREN');
+      return {
+        type: 'comparison',
+        left:  { name, args },
+        operator,
+        right: { name: rhsName, args: rhsArgs },
+      };
     }
 
     return { type: this.resolveType(name), name, args };

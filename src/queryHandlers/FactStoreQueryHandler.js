@@ -59,6 +59,23 @@ export class FactStoreQueryHandler extends QueryHandler {
       (symmetric && factStore.containsNegatedAt(tick, innerPredicate.name, ...reversed));
   }
 
+  // Three-valued state of a boolean fact: 'true' (positive belief present),
+  // 'false' (explicit disbelief present), or 'unknown' (neither). Positive belief
+  // wins if both somehow coexist (e.g. an 'allow' private store), mirroring the
+  // positive-first check in evaluateWeak.
+  resolveState(name, resolvedArgs, evaluationContext) {
+    const factStore = this.resolveFactStore(evaluationContext);
+    const tick      = evaluationContext?.currentTick ?? factStore.currentTick;
+    const symmetric = this.schema?.isSymmetric(name) && resolvedArgs.length === 2;
+    const reversed  = symmetric ? [resolvedArgs[1], resolvedArgs[0]] : null;
+
+    if (factStore.containedAt(tick, name, ...resolvedArgs) ||
+        (symmetric && factStore.containedAt(tick, name, ...reversed))) return 'true';
+    if (factStore.containsNegatedAt(tick, name, ...resolvedArgs) ||
+        (symmetric && factStore.containsNegatedAt(tick, name, ...reversed))) return 'false';
+    return 'unknown';
+  }
+
   getAssertionTicks(name, resolvedArgs, evaluationContext) {
     const ticks = this.resolveFactStore(evaluationContext).getAssertionTicks(name, resolvedArgs);
     if (evaluationContext?.evaluationTick == null) return ticks;

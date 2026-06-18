@@ -24,6 +24,7 @@ export class NumericStateQueryHandler extends QueryHandler {
     if (predicate.operator === '<=') return value <= predicate.threshold;
     if (predicate.operator === '>') return value > predicate.threshold;
     if (predicate.operator === '<') return value < predicate.threshold;
+    if (predicate.operator === '!=') return value !== predicate.threshold;
     return value === predicate.threshold;
   }
 

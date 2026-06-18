@@ -100,10 +100,10 @@ world
   friendship(alice, carol) = 30
   exploited(alice, carol) [at: -5]    // backdated to tick -5
   -trusts(alice, carol)               // explicit disbelief
-  hasNeed(alice, "companionship") @ 0.9
+  hasNeed(alice, "companionship") [strength: 0.9]
 
 private alice
-  perceivedThreat(carol, alice) @ 1.0
+  perceivedThreat(carol, alice) [strength: 1.0]
 ```
 
 Rules use the same predicate syntax on the left, state operations on the right:
@@ -197,7 +197,7 @@ Prefix with `degree` to score bindings even when not all predicates hold:
 
 > facts alice
 [alice]
-  perceivedThreat("carol", "alice") @ 1.00
+  perceivedThreat("carol", "alice") [strength: 1.00]
 
 > entities
 [agent]  alice *  bob  carol

@@ -15,8 +15,8 @@ world
   -wantsContact(alice)
 
 private alice
-  perceivedThreat(carol, alice) @ 0.85
-  -perceivedThreat(carol, alice) @ 0.3
+  perceivedThreat(carol, alice) [strength: 0.85]
+  -perceivedThreat(carol, alice) [strength: 0.3]
 
 private bob
   friendship(alice, bob) = 40
@@ -46,11 +46,11 @@ These operations appear in state files and on the RHS of rules.
 
 ## Strength
 
-Every fact carries a strength value from 0.0 to 1.0. If omitted, strength defaults to **1.0**. Specify strength with `@` after the assertion:
+Every fact carries a strength value from 0.0 to 1.0. If omitted, strength defaults to **1.0**. Specify strength with a `[strength: N]` annotation after the assertion:
 
 ```klugh
-perceivedThreat(carol, alice) @ 0.85
-friendship(bob, alice) = 85 @ 0.9
+perceivedThreat(carol, alice) [strength: 0.85]
+friendship(bob, alice) = 85 [strength: 0.9]
 knows(alice, bob)                  // strength 1.0
 ```
 
@@ -68,7 +68,7 @@ world
   hadConflict(alice, carol) [at: -1]
 ```
 
-`[at: N]` and `@ strength` can be combined, in either order: `exploited(alice, bob) [at: -30] @ 0.75` and `exploited(alice, bob) @ 0.75 [at: -30]` are equivalent.
+`[at: N]` and `[strength: N]` are independent annotations that stack in any order: `exploited(alice, bob) [at: -30] [strength: 0.75]` and `exploited(alice, bob) [strength: 0.75] [at: -30]` are equivalent.
 
 ---
 

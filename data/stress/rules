@@ -140,7 +140,7 @@ rule "C9 — betrayal within living memory"
 
 rule "C10 — weighted reckoning"
   knows(?X, ?Y) [importance: 2]
-  ^ betrayed(?X, ?Y) [history, importance: 0.5]
+  ^ betrayed(?X, ?Y) [history] [importance: 0.5]
   => goodwill(?X, ?Y) += 4
 
 # ── D: temporal chains ──────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ rule "G5 — doubt never voiced"
 
 rule "G6 — betrayal plants suspicion"
   betrayed(?X, ?Y) [history]
-  => ?Y.suspects(?Y, ?X) @ 0.6
+  => ?Y.suspects(?Y, ?X) [strength: 0.6]
 
 rule "G7 — newcomers admire the locals"
   outsider(?Y)
@@ -313,7 +313,7 @@ rule "G9 — mara's private devotion"
 
 rule "G10 — healed rift earns private regard"
   healedRift(?X, ?Y)
-  => ?Y.admires(?Y, ?X) @ 0.8
+  => ?Y.admires(?Y, ?X) [strength: 0.8]
 
 # ── H: derived consumers ────────────────────────────────────────────────────
 
@@ -483,7 +483,7 @@ rule "L3 — market hustle"
 rule "L4 — old betrayals make new gossip"
   betrayed(?X, ?Y) [history: 25]
   ^ knows(?Z, ?X)
-  => gossipedAbout(?Z, ?X) @ 0.6
+  => gossipedAbout(?Z, ?X) [strength: 0.6]
 
 rule "L5 — the office burnishes"
   electedElder(?X)

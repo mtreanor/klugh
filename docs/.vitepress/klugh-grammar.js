@@ -53,8 +53,6 @@ const klughGrammar = {
         { name: 'keyword.operator.logical.klugh',    match: '\\^' },
         // weak negation
         { name: 'keyword.operator.klugh',            match: '~' },
-        // strength — @ followed by a digit
-        { name: 'keyword.operator.klugh',            match: '@(?=\\s*\\d)' },
         // explicit negation prefix: - before a predicate name or variable
         { name: 'keyword.operator.klugh',            match: '-(?=[a-z?])' },
         // bare assignment =
@@ -62,7 +60,7 @@ const klughGrammar = {
       ],
     },
     annotation: {
-      // [history], [history: N], [at: N], [importance: N]
+      // [history], [history: N], [at: N], [importance: N], [strength: N]
       name: 'meta.annotation.klugh',
       begin: '\\[',
       end: '\\]',

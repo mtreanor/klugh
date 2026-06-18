@@ -99,7 +99,7 @@ function formatRecord(record) {
   let line = record.fact.value !== null
     ? `${prefix}${record.fact.name}(${argsStr}) = ${record.fact.value}`
     : `${prefix}${record.fact.name}(${argsStr})`;
-  if (record.strength !== 1.0) line += ` @ ${record.strength}`;
+  if (record.strength !== 1.0) line += ` [strength: ${record.strength}]`;
   return line;
 }
 

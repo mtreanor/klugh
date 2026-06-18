@@ -27,7 +27,7 @@ world
 
   # ── deep history (negative ticks = before the simulation started) ──
   betrayed(oren, silas) [at: -30]
-  betrayed(oren, mara) [at: -20] @ 0.9
+  betrayed(oren, mara) [at: -20] [strength: 0.9]
   apologized(oren, mara) [at: -15]
   forgave(mara, oren) [at: -10]
   helped(mara, talia) [at: -12]
@@ -112,7 +112,7 @@ world
   # value survives only in history (tests historical tier checks).
   trust(yara, mara) = 88
   trust(yara, mara) = 58
-  trust(yara, silas) = 70 @ 0.8
+  trust(yara, silas) = 70 [strength: 0.8]
 
   reputation(mara) = 82
   reputation(oren) = 65
@@ -141,14 +141,14 @@ world
 private mara
   admires(mara, talia)
   admires(mara, yara)
-  suspects(mara, petra) @ 0.4
+  suspects(mara, petra) [strength: 0.4]
   trust(mara, talia) = 81
 
 # petra's store allows contradictions: she both suspects oren and
 # disbelieves her own suspicion.
 private petra
-  suspects(petra, oren) @ 0.7
-  -suspects(petra, oren) @ 0.4
+  suspects(petra, oren) [strength: 0.7]
+  -suspects(petra, oren) [strength: 0.4]
   grudgeAgainst(petra, wren)
 
 # silas's store blocks contradictions: the disbelief below is silently
@@ -156,7 +156,7 @@ private petra
 private silas
   grudgeAgainst(silas, oren)
   -grudgeAgainst(silas, oren)
-  suspects(silas, oren) @ 0.9
+  suspects(silas, oren) [strength: 0.9]
 
 private viggo
   grudgeAgainst(viggo, wren)

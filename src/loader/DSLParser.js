@@ -25,7 +25,6 @@ export class Lexer {
       if (ch === '-' && /\d/.test(next))           { tokens.push(this.readNumber());          continue; }
       if (ch === '-')                              { tokens.push(this.tok('MINUS',    '-')); this.pos++;    continue; }
 
-      if (ch === '@') { tokens.push(this.tok('AT',       '@')); this.pos++; continue; }
       if (ch === '|') { tokens.push(this.tok('PIPE',     '|')); this.pos++; continue; }
       if (ch === '>' && next === '=')              { tokens.push(this.tok('GTE',      '>=')); this.pos += 2; continue; }
       if (ch === '<' && next === '=')              { tokens.push(this.tok('LTE',      '<=')); this.pos += 2; continue; }
@@ -268,14 +267,16 @@ export class DSLParser {
   }
 
   parseBracketModifiers(pred) {
-    this.advance(); // consume [
     let importance = 1.0;
     let historyFound = false;
     let window = null;
     let atTick = null;
 
-    while (!this.check('RBRACKET')) {
-      const key = this.expect('IDENT').value;
+    // Each modifier is its own bracket; brackets stack in any order, no commas.
+    while (this.check('LBRACKET')) {
+      this.advance(); // consume [
+      const keyTok = this.expect('IDENT');
+      const key = keyTok.value;
       if (key === 'history') {
         historyFound = true;
         if (this.check('COLON')) { this.advance(); window = this.expect('NUMBER').value; }
@@ -285,10 +286,11 @@ export class DSLParser {
       } else if (key === 'at') {
         this.expect('COLON');
         atTick = this.expect('NUMBER').value;
+      } else {
+        throw new Error(`Unknown modifier '${key}' at line ${keyTok.line}`);
       }
-      if (!this.check('RBRACKET')) this.expect('COMMA');
+      this.expect('RBRACKET');
     }
-    this.advance(); // consume ]
 
     let finalPred = pred.type === 'private' ? pred.predicate : pred;
     if (historyFound) {
@@ -422,6 +424,11 @@ export class DSLParser {
   }
 
   parseStateOperation() {
+    const op = this.parseStateOperationCore();
+    return this.applyStateModifiers(op, { allowTick: false });
+  }
+
+  parseStateOperationCore() {
     // 'not' means retract; 'not -' means retract the negated fact
     if (this.check('IDENT', 'not')) {
       this.advance();
@@ -437,7 +444,7 @@ export class DSLParser {
     if (this.check('MINUS')) {
       this.advance();
       const { name, args } = this.parseNameAndArgs();
-      return { type: 'assert', name, args, negated: true, ...this.ownerFields(owner), strength: this.parseOptionalStrength() };
+      return { type: 'assert', name, args, negated: true, ...this.ownerFields(owner), strength: 1.0 };
     }
 
     const { name, args } = this.parseNameAndArgs();
@@ -455,10 +462,10 @@ export class DSLParser {
     if (this.check('EQ')) {
       this.advance();
       const value = this.expect('NUMBER').value;
-      return { type: 'set-numeric', name, args, value, ...this.ownerFields(owner), strength: this.parseOptionalStrength() };
+      return { type: 'set-numeric', name, args, value, ...this.ownerFields(owner), strength: 1.0 };
     }
 
-    return { type: 'assert', name, args, ...this.ownerFields(owner), strength: this.parseOptionalStrength() };
+    return { type: 'assert', name, args, ...this.ownerFields(owner), strength: 1.0 };
   }
 
   ownerFields(owner) {
@@ -466,10 +473,26 @@ export class DSLParser {
     return owner;
   }
 
-  parseOptionalStrength() {
-    if (!this.check('AT')) return 1.0;
-    this.advance();
-    return this.expect('NUMBER').value;
+  // Trailing assertion annotations: [strength: N] always; [at: N] only in state files.
+  // Brackets stack in any order, one key each, no commas.
+  applyStateModifiers(op, { allowTick }) {
+    const result = { ...op };
+    while (this.check('LBRACKET')) {
+      this.advance(); // consume [
+      const keyTok = this.expect('IDENT');
+      const key = keyTok.value;
+      if (key === 'strength') {
+        this.expect('COLON');
+        result.strength = this.expect('NUMBER').value;
+      } else if (key === 'at' && allowTick) {
+        this.expect('COLON');
+        result.tick = this.expect('NUMBER').value;
+      } else {
+        throw new Error(`Unknown modifier '${key}' at line ${keyTok.line}`);
+      }
+      this.expect('RBRACKET');
+    }
+    return result;
   }
 
   parseRuleEffect() {
@@ -510,24 +533,8 @@ export class DSLParser {
   }
 
   parseStateAssertion() {
-    const operation = this.parseStateOperation();
-
-    if (this.check('LBRACKET')) {
-      this.advance();
-      this.expect('IDENT', 'at');
-      this.expect('COLON');
-      const tick = this.expect('NUMBER').value;
-      this.expect('RBRACKET');
-      // Strength may appear on either side of the bracket:
-      // 'pred(a) @ 0.9 [at: -5]' and 'pred(a) [at: -5] @ 0.9' are equivalent.
-      if (this.check('AT')) {
-        this.advance();
-        return { ...operation, tick, strength: this.expect('NUMBER').value };
-      }
-      return { ...operation, tick };
-    }
-
-    return operation;
+    const op = this.parseStateOperationCore();
+    return this.applyStateModifiers(op, { allowTick: true });
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

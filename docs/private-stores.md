@@ -102,7 +102,7 @@ State operations in state files or on a rule RHS can target a private store with
 ```klugh
 => ?SELF.perceivedThreat(?SELF, ?Y)
 => ?SELF.friendship(?SELF, ?Y) += 10
-=> alice.perceivedThreat(carol, alice) @ 0.8
+=> alice.perceivedThreat(carol, alice) [strength: 0.8]
 ```
 
 Facts written inside a `private <name>` block in the state file go to that entity's store directly — no owner prefix is needed in the block body.

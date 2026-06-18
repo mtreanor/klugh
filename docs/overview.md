@@ -73,8 +73,8 @@ world
   -trusts(alice, carol)              // explicit disbelief
 
 private alice
-  perceivedThreat(carol, alice) @ 0.85
-  -perceivedThreat(carol, alice) @ 0.30  // coexists under 'allow' policy
+  perceivedThreat(carol, alice) [strength: 0.85]
+  -perceivedThreat(carol, alice) [strength: 0.30]  // coexists under 'allow' policy
 ```
 
 → [State files](state.md)

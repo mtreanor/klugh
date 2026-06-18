@@ -31,7 +31,7 @@ world
 
 private alice
   friendship(bob, alice) = 85
-  perceivedThreat(carol, alice) @ 1.0
+  perceivedThreat(carol, alice) [strength: 1.0]
   perceivedThreat(alice, carol)
 
 private bob
@@ -39,5 +39,5 @@ private bob
 
 private carol
   friendship(alice, carol) = 60
-  perceivedThreat(carol, alice) @ 0.8
-  -perceivedThreat(carol, alice) @ 0.3
+  perceivedThreat(carol, alice) [strength: 0.8]
+  -perceivedThreat(carol, alice) [strength: 0.3]

@@ -85,8 +85,8 @@ The `assert` command runs a state operation against the world store. The same sy
 ```klugh
 > facts alice
 [alice]
-  perceivedThreat("carol", "alice") @ 0.85
-  -perceivedThreat("carol", "alice") @ 0.30
+  perceivedThreat("carol", "alice") [strength: 0.85]
+  -perceivedThreat("carol", "alice") [strength: 0.30]
 
 > entities
 * — private store

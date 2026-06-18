@@ -162,10 +162,10 @@ describe('RuleParser', () => {
       });
     });
 
-    it('parses [history, importance: N] setting both modifiers', () => {
+    it('parses stacked [history] [importance: N] setting both modifiers', () => {
       const { rules } = parser.parse(`
         rule "R1"
-          knows(?SELF, ?Y) [history, importance: 2]
+          knows(?SELF, ?Y) [history] [importance: 2]
           => test(?SELF, ?Y) += 1.0
       `);
 
@@ -393,14 +393,14 @@ describe('RuleParser', () => {
       });
     });
 
-    it('parses strength with @ suffix', () => {
-      const { worldState } = parser.parseState('world\n  perceivedThreat(alice, bob) @ 0.85');
+    it('parses strength with [strength: N]', () => {
+      const { worldState } = parser.parseState('world\n  perceivedThreat(alice, bob) [strength: 0.85]');
       assert.equal(worldState[0].strength, 0.85);
     });
 
-    it('parses strength on either side of a backdate bracket', () => {
-      const before = parser.parseState('world\n  hadConflict(alice, carol) @ 0.75 [at: -30]').worldState[0];
-      const after  = parser.parseState('world\n  hadConflict(alice, carol) [at: -30] @ 0.75').worldState[0];
+    it('parses strength and backdate brackets in either order', () => {
+      const before = parser.parseState('world\n  hadConflict(alice, carol) [strength: 0.75] [at: -30]').worldState[0];
+      const after  = parser.parseState('world\n  hadConflict(alice, carol) [at: -30] [strength: 0.75]').worldState[0];
       assert.equal(before.tick, -30);
       assert.equal(before.strength, 0.75);
       assert.deepEqual(after, before);

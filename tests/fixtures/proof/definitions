@@ -1,0 +1,3 @@
+define "can pair — settled allies"
+  ally(?X, ?Y)
+  => canPair(?X, ?Y)

@@ -36,6 +36,8 @@ So `why` is the same call whether a fact was authored, adjusted, reasoned into e
 - [Action records](./action-records) — follow an `action-effect` back to the action that caused it
 - [Plans](./plans) — and from there back to the plan that motivated it
 
+`why` gives you *one* level. When a fact was concluded by a rule whose premises were themselves concluded by other rules, **`engine.explain(fact)`** returns the whole recursive proof tree — down to the authored leaves, including premises that hold because something is *absent*. See the [Provenance reference](../provenance#explaining-a-fact-proof-trees).
+
 → Full detail, including every provenance type and the numeric event fields: [Provenance reference](../provenance).
 
 Next: [author and score actions →](./actions)

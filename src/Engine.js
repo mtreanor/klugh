@@ -21,6 +21,10 @@ import { THIS_ACTION } from './actionVariables.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
 import { Planner } from './planner/Planner.js';
 import { PlannerSnapshot } from './planner/PlannerSnapshot.js';
+import { RuleEffectProvenance } from './provenance/RuleEffectProvenance.js';
+import { buildPremiseJustifications } from './provenance/justifyPremise.js';
+import { proofNodeForFact, proofNodeForNumeric } from './provenance/ProofTree.js';
+import { Fact } from './Fact.js';
 
 export class Engine {
   // Accepts either a scenario directory path (string) or an explicit config
@@ -200,9 +204,14 @@ export class Engine {
 
     new ForwardChainer().run(rules, ctx, startBinding, (app) => {
       if (app.satisfactionScore < minimumSatisfactionScore) return false;
+      const provenance = new RuleEffectProvenance(
+        app.rule, app.binding,
+        buildPremiseJustifications(app.rule.predicateEntries, app.binding, ctx)
+      );
       for (const effect of app.rule.effects) {
         applyStateChange(effect, app.binding, this.world.queryHandlers, {
           privateStores: this.world.privateStores,
+          provenance,
         });
       }
       fired.push(app);
@@ -345,6 +354,20 @@ export class Engine {
     return this.world.factStore
       .getRecords(name, args)
       .flatMap(record => record.currentReasons());
+  }
+
+  // Like why(), but returns the full recursive proof tree behind a ground fact:
+  // the fact, how it came to hold, and — following the premise justifications
+  // recorded when each rule fired — the support beneath it, all the way down to
+  // given/authored leaves. Returns a ProofNode; call .render() for indented text.
+  // Works for boolean and numeric facts.
+  explain(factText) {
+    const { name, args } = this._groundFact(factText);
+    const ctx = this.world.createEvaluationContext();
+    if (this.schema.getDefinition(name)?.type === 'numeric') {
+      return proofNodeForNumeric(name, args, ctx);
+    }
+    return proofNodeForFact(name, args, ctx);
   }
 
   // The display string for an action under a binding: rendered content, or the

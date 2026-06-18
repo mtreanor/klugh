@@ -18,6 +18,10 @@ export { DerivedFactQueryHandler } from './queryHandlers/DerivedFactQueryHandler
 export { applyStateChange } from './stateOperations/applyStateChange.js';
 export { StateChangeQueue } from './stateOperations/StateChangeQueue.js';
 
+// Provenance / proof trees
+export { ProofNode } from './provenance/ProofTree.js';
+export { Justification } from './provenance/justifyPremise.js';
+
 // Loaders
 export { ActionParser } from './loader/ActionParser.js';
 export { ActionLoader } from './loader/ActionLoader.js';

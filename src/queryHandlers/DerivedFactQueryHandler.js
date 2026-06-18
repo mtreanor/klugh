@@ -4,6 +4,7 @@ import { Binding } from '../Binding.js';
 import { DerivedFactPredicate } from '../predicates/DerivedFactPredicate.js';
 import { FactPredicate } from '../predicates/FactPredicate.js';
 import { DerivedFactProvenance } from '../provenance/DerivedFactProvenance.js';
+import { buildPremiseJustifications } from '../provenance/justifyPremise.js';
 import { Fact } from '../Fact.js';
 
 export class DerivedFactQueryHandler extends QueryHandler {
@@ -119,29 +120,20 @@ export class DerivedFactQueryHandler extends QueryHandler {
   }
 
   // Builds a DerivedFactProvenance tree for a derived fact, using the cached proof
-  // path. premiseRecords is a parallel array to the define rule's predicateEntries:
-  // a FactRecord for FactPredicate premises, a nested DerivedFactProvenance for
-  // DerivedFactPredicate premises, and null for all other predicate types.
-  // Returns null if the fact was not derived by a rule this tick.
+  // path. premiseRecords is a parallel array of Justifications over the define
+  // rule's premises (the same representation used for rule effects), so derived
+  // and rule-concluded facts form one uniform proof tree. Derived premises recurse
+  // back through this handler. Returns null if the fact was not derived this tick.
   buildProvenance(name, resolvedArgs, evaluationContext, factStore) {
     if (this.cacheTick !== evaluationContext.currentTick) return null;
     const cacheKey = this.buildCacheKey(evaluationContext, name, resolvedArgs);
     const path = this.proofPathCache.get(cacheKey);
     if (!path) return null;
 
-    const premiseRecords = path.rule.predicateEntries.map(({ predicate }) => {
-      if (predicate instanceof DerivedFactPredicate) {
-        const subArgs = predicate.args.map(a => this.toFactArg(path.binding.resolve(a)));
-        if (subArgs.some(a => a == null)) return null;
-        return this.buildProvenance(predicate.name, subArgs, evaluationContext, factStore);
-      }
-      if (predicate instanceof FactPredicate) {
-        return this.lookupFactRecord(predicate, path.binding, factStore);
-      }
-      return null;
-    });
-
-    return new DerivedFactProvenance(path.rule, path.binding, premiseRecords);
+    return new DerivedFactProvenance(
+      path.rule, path.binding,
+      buildPremiseJustifications(path.rule.predicateEntries, path.binding, evaluationContext)
+    );
   }
 
   lookupFactRecord(predicate, binding, factStore) {

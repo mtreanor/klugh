@@ -1,0 +1,11 @@
+{ "predicates": {
+  "mentored":  { "type": "boolean", "args": ["agent","agent"] },
+  "respected": { "type": "boolean", "args": ["agent","agent"] },
+  "rival":     { "type": "boolean", "args": ["agent","agent"] },
+  "ally":      { "type": "boolean", "args": ["agent","agent"] },
+  "senior":    { "type": "boolean", "args": ["agent"] },
+  "helped":    { "type": "boolean", "args": ["agent","agent"] },
+  "canPair":   { "type": "derived", "args": ["agent","agent"] },
+  "friendship":{ "type": "numeric", "args": ["agent","agent"], "minValue":0,"maxValue":100,"default":0,
+                 "tiers": { "low":[0,5], "high":[5,100] } }
+} }

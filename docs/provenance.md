@@ -154,4 +154,46 @@ for (const event of record.currentReasons()) {
 }
 ```
 
+---
+
+## Explaining a fact — proof trees
+
+Provenance is one level deep: a fact knows the rule (or action) that concluded it. But when that rule's premises were *themselves* concluded by other rules, you usually want the whole chain. klugh records, at the moment each rule fires, **which records satisfied each of its premises** — a parallel array of `Justification`s stored on `RuleEffectProvenance.premiseRecords` (and `DerivedFactProvenance.premiseRecords`). Following those links yields a full proof tree.
+
+`engine.explain(fact)` walks it and returns a `ProofNode`:
+
+```javascript
+console.log(engine.explain('ally(alice, bob)').render());
+```
+
+```
+ally(alice, bob) @0  [rule: allies through mutual respect, absent rivalry]
+  respected(alice, bob) @0  [rule: respect flows from mentorship]
+    mentored(bob, alice) @0  [given]
+  respected(bob, alice) @0  [rule: respect flows from mentorship]
+    mentored(alice, bob) @0  [given]
+  ✗ not rival(alice, bob)  [absent]
+```
+
+Each `ProofNode` has:
+
+| Field | Meaning |
+|-------|---------|
+| `statement` | the fact, rendered |
+| `via` | how it holds: `given`, `rule`, `derived`, `action`, `numeric`, `count`, `temporal`, `sensor`, `absent`, `multiple`, `cycle` |
+| `tick` | when it was asserted |
+| `detail` | rule/define name, action name, numeric value… |
+| `support` | child `ProofNode`s — the premises, recursively |
+| `present` | `false` for a node that holds *because something is absent* |
+
+The tree spans every premise form, not just plain facts:
+
+- **negation-as-failure** (`not pred`) becomes an *absence* leaf (`present: false`) — a positive fact justified partly by what is missing
+- a **derived** premise (`define`) expands into its own derivation
+- a **numeric** premise/effect expands into the contributing `given`/`adjusted` events, each with its own provenance
+- a **count** (`|pred| >= N`) lists the facts it counted; a **`then` chain** lists each step
+- **explicit disbelief** (`-pred`) points at the disbelief record; **private** (`?owner.pred`) resolves against the owner's store
+
+`why` and `explain` are the pair: `why(fact)` is the shallow one-level primitive (the assertion events and their provenance); `explain(fact)` is the full recursive tree. Both work for boolean and numeric facts. Capturing the premise links is on by default — it happens as rules fire.
+
 → [Action records](action-records.md) · [Plans](plans.md) · [Rules](rules.md) · [Derived predicates](derived-predicates.md) · [Sensor predicates](sensors.md)

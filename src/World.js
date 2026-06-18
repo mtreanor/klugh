@@ -8,6 +8,7 @@ import { ForwardChainer } from './ForwardChainer.js';
 import { applyStateChange } from './stateOperations/applyStateChange.js';
 import { Binding } from './Binding.js';
 import { RuleEffectProvenance } from './provenance/RuleEffectProvenance.js';
+import { buildPremiseJustifications } from './provenance/justifyPremise.js';
 
 export class World {
   constructor(schema = null) {
@@ -101,7 +102,10 @@ export class World {
 
     new ForwardChainer().run(rules, evaluationContext, new Binding(), (app) => {
       if (app.satisfactionScore < minimumSatisfactionScore) return false;
-      const provenance = new RuleEffectProvenance(app.rule, app.binding);
+      const provenance = new RuleEffectProvenance(
+        app.rule, app.binding,
+        buildPremiseJustifications(app.rule.predicateEntries, app.binding, evaluationContext)
+      );
       const effects = Array.isArray(app.rule.effects) ? app.rule.effects : [];
       let changed = false;
       for (const effect of effects) {
@@ -123,7 +127,10 @@ export class World {
 
     new ForwardChainer().runOnce(rules, evaluationContext, new Binding(), (app) => {
       if (app.satisfactionScore < minimumSatisfactionScore) return false;
-      const provenance = new RuleEffectProvenance(app.rule, app.binding);
+      const provenance = new RuleEffectProvenance(
+        app.rule, app.binding,
+        buildPremiseJustifications(app.rule.predicateEntries, app.binding, evaluationContext)
+      );
       const effects = Array.isArray(app.rule.effects) ? app.rule.effects : [];
       let changed = false;
       for (const effect of effects) {

@@ -1,0 +1,4 @@
+world
+  mentored(alice, bob)
+  mentored(bob, alice)
+  mentored(carol, alice)

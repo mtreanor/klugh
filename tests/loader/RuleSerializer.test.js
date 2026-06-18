@@ -1,10 +1,32 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { RuleSerializer } from '../../src/loader/RuleSerializer.js';
 import { RuleParser } from '../../src/loader/RuleParser.js';
 
 const serializer = new RuleSerializer();
 const parser     = new RuleParser();
+
+const dataDir = join(dirname(fileURLToPath(import.meta.url)), '../../data');
+
+// Entity instance names, built the same way EntityLoader does (skip type-config
+// keys and non-object members), so entity-owner prefixes like `mara.trust(...)`
+// parse correctly.
+function entityNamesFrom(entitiesPath) {
+  if (!existsSync(entitiesPath)) return new Set();
+  const data = JSON.parse(readFileSync(entitiesPath, 'utf8'));
+  const names = new Set();
+  for (const [typeName, typeBlock] of Object.entries(data)) {
+    if (typeName === 'world') continue;
+    for (const [member, props] of Object.entries(typeBlock)) {
+      if (member === 'privateStore' || member === 'distinct') continue;
+      if (props !== null && typeof props === 'object') names.add(member);
+    }
+  }
+  return names;
+}
 
 function rule(name, predicates, effects) {
   return { name, predicates, effects };
@@ -88,6 +110,30 @@ describe('RuleSerializer', () => {
       assert.ok(dsl.includes('knows(?SELF, ?Y) [importance: 2]'));
     });
 
+    it('serializes a private-store predicate with a variable owner prefix', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [{ type: 'private', ownerVar: '?SELF', ownerEntity: null, predicate: pred('fact', 'perceivedThreat', ['?SELF', '?Y']) }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+
+      assert.ok(dsl.includes('?SELF.perceivedThreat(?SELF, ?Y)'));
+    });
+
+    it('serializes a private-store predicate with an entity owner prefix', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [{ type: 'private', ownerVar: null, ownerEntity: 'mara', predicate: { type: 'numeric-tier', name: 'trust', tier: 'devoted', args: ['mara', '?Y'] } }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+
+      assert.ok(dsl.includes('mara.trust.devoted(mara, ?Y)'));
+    });
+
+    it('serializes an at-tick predicate with [at: N]', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [{ type: 'at-tick', predicate: pred('fact', 'exploited', ['?X', '?Y']), tick: -5 }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+
+      assert.ok(dsl.includes('exploited(?X, ?Y) [at: -5]'));
+    });
+
     it('serializes multiple predicates with ^ between them', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [
@@ -154,6 +200,31 @@ describe('RuleSerializer', () => {
 
       assert.ok(dsl.includes('=> exploitative(?SELF, ?Y) += 3'));
     });
+
+    it('serializes a non-default strength as [strength: N]', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [pred('fact', 'knows', ['?SELF', '?Y'])], [{ type: 'assert', name: 'suspects', args: ['?SELF', '?Y'], strength: 0.6 }])],
+      });
+
+      assert.ok(dsl.includes('=> suspects(?SELF, ?Y) [strength: 0.6]'));
+    });
+
+    it('omits strength when it is the default of 1', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [pred('fact', 'knows', ['?SELF', '?Y'])], [{ type: 'assert', name: 'suspects', args: ['?SELF', '?Y'], strength: 1.0 }])],
+      });
+
+      assert.ok(dsl.includes('=> suspects(?SELF, ?Y)'));
+      assert.ok(!dsl.includes('strength'));
+    });
+
+    it('serializes a private-store owner prefix on an effect', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [pred('fact', 'knows', ['?X', '?Y'])], [{ type: 'assert', name: 'suspects', args: ['?Y', '?X'], ownerVar: '?Y', ownerEntity: null, strength: 0.6 }])],
+      });
+
+      assert.ok(dsl.includes('=> ?Y.suspects(?Y, ?X) [strength: 0.6]'));
+    });
   });
 
   describe('round-trip', () => {
@@ -169,6 +240,34 @@ rule "R1"
       const json2 = parser.parse(dsl);
 
       assert.deepEqual(json1, json2);
+    });
+
+    it('round-trips world-state strength and backdating', () => {
+      const original = `
+world
+  exploited(alice, carol) [at: -5] [strength: 0.75]
+  trust(yara, silas) = 70 [strength: 0.8]`.trim();
+
+      const json1 = parser.parseState(original);
+      const dsl   = serializer.serialize({ rules: [], worldState: json1.worldState });
+      const json2 = parser.parseState(dsl);
+
+      assert.deepEqual(json2.worldState, json1.worldState);
+    });
+
+    it('round-trips a negated world-state assert and a backdated set-numeric', () => {
+      const original = `
+world
+  -trusts(alice, carol)
+  friendship(bob, alice) = 85 [at: -3]`.trim();
+
+      const json1 = parser.parseState(original);
+      const dsl   = serializer.serialize({ rules: [], worldState: json1.worldState });
+      const json2 = parser.parseState(dsl);
+
+      assert.ok(dsl.includes('-trusts(alice, carol)'));
+      assert.ok(dsl.includes('friendship(bob, alice) = 85 [at: -3]'));
+      assert.deepEqual(json2.worldState, json1.worldState);
     });
 
     it('serializes a numeric-value predicate as name(args) op threshold', () => {
@@ -208,5 +307,30 @@ rule "R1"
 
       assert.equal(json2.rules[0].effects[0].name, 'self-serving');
     });
+  });
+
+  // Guard against parser/serializer drift: every DSL form that appears in the
+  // real scenario data must survive parse -> serialize -> parse unchanged. The
+  // stress scenario is built to exercise every form, so this is broad coverage.
+  describe('corpus round-trip (real scenario data)', () => {
+    it('round-trips data/stress/rules unchanged', () => {
+      const entityNames = entityNamesFrom(join(dataDir, 'stress/entities.json'));
+      const p = new RuleParser(null, { entityNames });
+      const json1 = p.parse(readFileSync(join(dataDir, 'stress/rules'), 'utf8'));
+      const json2 = p.parse(serializer.serialize(json1));
+      assert.deepEqual(json2, json1);
+    });
+
+    for (const scenario of ['stress', 'demo-volition', 'quickstart']) {
+      it(`round-trips the world block of data/${scenario}/state unchanged`, () => {
+        const statePath = join(dataDir, scenario, 'state');
+        if (!existsSync(statePath)) return;
+        const entityNames = entityNamesFrom(join(dataDir, scenario, 'entities.json'));
+        const p = new RuleParser(null, { entityNames });
+        const { worldState } = p.parseState(readFileSync(statePath, 'utf8'));
+        const back = p.parseState(serializer.serialize({ rules: [], worldState }));
+        assert.deepEqual(back.worldState, worldState);
+      });
+    }
   });
 });

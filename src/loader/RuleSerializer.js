@@ -26,6 +26,12 @@ export class RuleSerializer {
   }
 
   serializePredicate(pred) {
+    if (pred.type === 'private') {
+      return this.ownerPrefix(pred) + this.serializePredicate(pred.predicate);
+    }
+    if (pred.type === 'at-tick') {
+      return `${this.serializePredicate(pred.predicate)} [at: ${pred.tick}]`;
+    }
     if (pred.type === 'count') {
       return `|${this.serializePredicate(pred.predicate)}| ${pred.operator} ${pred.threshold}`;
     }
@@ -72,33 +78,52 @@ export class RuleSerializer {
   }
 
   serializeRuleEffect(effect) {
+    const owner = this.ownerPrefix(effect);
+    const call  = `${effect.name}(${this.serializeArgs(effect.args)})`;
+    // Mirror parseStateOperationCore: an assert places the owner before the '-'
+    // (?SELF.-pred), a retract places it after ('not -?SELF.pred').
     if (effect.type === 'assert') {
-      const prefix = effect.negated ? '-' : '';
-      return `${prefix}${effect.name}(${this.serializeArgs(effect.args)})`;
+      const neg = effect.negated ? '-' : '';
+      return `${owner}${neg}${call}` + this.strengthSuffix(effect);
     }
     if (effect.type === 'retract') {
-      const negPrefix = effect.negated ? '-' : '';
-      return `not ${negPrefix}${effect.name}(${this.serializeArgs(effect.args)})`;
+      const neg = effect.negated ? '-' : '';
+      return `not ${neg}${owner}${call}`;
     }
     if (effect.type === 'adjust-numeric') {
-      return `${effect.name}(${this.serializeArgs(effect.args)}) += ${effect.delta}`;
+      return `${owner}${call} += ${effect.delta}` + this.strengthSuffix(effect);
     }
     if (effect.type === 'set-numeric') {
-      return `${effect.name}(${this.serializeArgs(effect.args)}) = ${effect.value}`;
+      return `${owner}${call} = ${effect.value}` + this.strengthSuffix(effect);
     }
     throw new Error(`Cannot serialize rule effect type: "${effect.type}"`);
   }
 
+  // Private-store owner prefix: ?VAR. or entity. (ownerVar already includes '?').
+  ownerPrefix(entry) {
+    if (entry.ownerVar)    return `${entry.ownerVar}.`;
+    if (entry.ownerEntity) return `${entry.ownerEntity}.`;
+    return '';
+  }
+
   serializeWorldState(entries) {
+    // Reuse serializeRuleEffect so world-state and rule-effect serialization
+    // share one code path and cannot drift (it handles assert/retract/adjust/
+    // set-numeric, owner prefixes, negation, and strength). Backdating ([at: N])
+    // is the only state-only annotation, appended here.
     const lines = ['world'];
     for (const entry of entries) {
-      if (entry.type === 'assert') {
-        const at = entry.tick !== undefined ? ` [at: ${entry.tick}]` : '';
-        lines.push(`  ${entry.name}(${this.serializeArgs(entry.args)})${at}`);
-      } else if (entry.type === 'set-numeric') {
-        lines.push(`  ${entry.name}(${this.serializeArgs(entry.args)}) = ${entry.value}`);
-      }
+      const at = entry.tick !== undefined ? ` [at: ${entry.tick}]` : '';
+      lines.push('  ' + this.serializeRuleEffect(entry) + at);
     }
     return lines.join('\n');
+  }
+
+  // Strength is metadata on the fact record; emit it only when it differs from
+  // the default of 1.0 (retract effects carry no strength).
+  strengthSuffix(entry) {
+    return entry.strength !== undefined && entry.strength !== 1
+      ? ` [strength: ${entry.strength}]`
+      : '';
   }
 }

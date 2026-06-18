@@ -22,10 +22,11 @@ export class FactStore {
 
   assert(fact, strength = 1.0, provenance = null) {
     if (this.contradictionPolicy !== 'allow') {
-      const opposing = this.findOpposingRecords(fact);
-      if (opposing.length > 0) {
+      const conflicting = new Set(this.findOpposingRecords(fact));
+      for (const r of this.findSupersededByKey(fact)) conflicting.add(r);
+      if (conflicting.size > 0) {
         if (this.contradictionPolicy === 'block') return;
-        for (const r of opposing) {
+        for (const r of conflicting) {
           r.addEvent({ type: 'retracted', tick: this.currentTick, provenance: new GivenProvenance() });
         }
       }
@@ -48,6 +49,27 @@ export class FactStore {
       if (r.fact.args.length !== fact.args.length) return false;
       if (r.fact.args.every((a, i) => a === fact.args[i])) return true;
       return symmetric && r.fact.args[0] === fact.args[1] && r.fact.args[1] === fact.args[0];
+    });
+  }
+
+  // Single-valued predicates use "positive-only ownership": a POSITIVE assert
+  // owns the value slot for its key, so it supersedes every other active fact
+  // sharing that key (any value, any polarity). Negated asserts do not own the
+  // slot — they fall back to the exact-args behaviour in findOpposingRecords, so
+  // explicit negatives can accumulate until a positive value sweeps them.
+  findSupersededByKey(fact) {
+    if (fact.negated) return [];
+    const keyPos = this.schema?.keyPositions(fact.name);
+    if (!keyPos) return [];
+    return this.factHistory.filter(r => {
+      if (!r.isCurrentlyActive()) return false;
+      if (r.fact.name !== fact.name) return false;
+      if (r.fact.args.length !== fact.args.length) return false;
+      if (!keyPos.every(i => r.fact.args[i] === fact.args[i])) return false;
+      // A plain re-assert of the identical positive fact is not a conflict.
+      const sameArgs = r.fact.args.every((a, i) => a === fact.args[i]);
+      if (sameArgs && !r.fact.negated) return false;
+      return true;
     });
   }
 

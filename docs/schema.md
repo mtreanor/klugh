@@ -59,6 +59,23 @@ An optional object for application-layer metadata. The logic engine stores and p
 
 Setting `"symmetric": true` on a two-argument predicate means that `knows(alice, carol)` and `knows(carol, alice)` are treated as equivalent. Asserting or retracting one direction propagates to the other. Only one direction needs to be declared in the state file.
 
+### `singleValued`
+
+`"singleValued": [indices]` (boolean predicates only) marks the **value** argument positions; the remaining positions form the **key**. The predicate then behaves as a single-valued attribute rather than a free relation: for a given key, only one value is held at a time.
+
+```json
+"param":   { "type": "boolean", "args": ["component","paramName","value"], "singleValued": [2] },
+"targets": { "type": "boolean", "args": ["component","gameObject"],         "singleValued": [1] }
+```
+
+With `param` above, the key is `(component, paramName)`. Asserting `param(c0, speed, fast)` and then `param(c0, speed, slow)` leaves only `slow` active — the new value supersedes the old, governed by the store's [contradiction policy](#) (`lastWins` replaces, `block` makes the value write-once, `allow` disables superseding and lets values coexist). The superseded value remains in history.
+
+**Positive-only ownership.** Only a *positive* assert owns the slot and sweeps the key. A negated assert (`-param(c0, speed, fast)`, "not fast") does **not** supersede other values — it only contradicts its exact positive (`param(c0, speed, fast)`). So explicit negatives accumulate (`-fast`, `-slow`, …) until a positive value clears them. This lets you narrow a value by elimination; the trade-off is that a positive value and a now-redundant negative can briefly coexist at a key until the next positive write.
+
+An empty key (every argument listed in `singleValued`) makes the predicate hold a single fact globally — a one-of-a-kind fluent like `turn(n)`.
+
+`singleValued` cannot be combined with `symmetric`, and is rejected on non-`boolean` predicates (numeric predicates are already single-valued by construction).
+
 ---
 
 ## Entities

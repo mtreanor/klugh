@@ -1,6 +1,45 @@
 export class PredicateSchema {
   constructor(data) {
     this.definitions = new Map(Object.entries(data.predicates));
+    this._validateSingleValued();
+  }
+
+  // `singleValued` marks the *value* argument positions of a boolean predicate.
+  // The remaining positions form the key, and a positive assert at a key
+  // supersedes other facts sharing that key (see FactStore.assert).
+  _validateSingleValued() {
+    for (const [name, def] of this.definitions) {
+      if (def.singleValued === undefined) continue;
+      if (!Array.isArray(def.singleValued) || def.singleValued.some(i => !Number.isInteger(i))) {
+        throw new Error(`Predicate "${name}": singleValued must be an array of argument indices`);
+      }
+      const arity = def.args?.length ?? 0;
+      for (const i of def.singleValued) {
+        if (i < 0 || i >= arity) {
+          throw new Error(`Predicate "${name}": singleValued index ${i} is out of range for arity ${arity}`);
+        }
+      }
+      if (def.type !== 'boolean') {
+        throw new Error(`Predicate "${name}": singleValued is only supported on boolean predicates (got "${def.type}")`);
+      }
+      if (def.symmetric) {
+        throw new Error(`Predicate "${name}": singleValued cannot be combined with symmetric`);
+      }
+    }
+  }
+
+  isSingleValued(name) {
+    return Array.isArray(this.definitions.get(name)?.singleValued);
+  }
+
+  // The key argument positions for a single-valued predicate — every position not
+  // marked as a value position. Returns null if the predicate is not single-valued.
+  // An empty array (all positions are value positions) means the predicate holds a
+  // single fact globally.
+  keyPositions(name) {
+    const def = this.definitions.get(name);
+    if (!Array.isArray(def?.singleValued)) return null;
+    return def.args.map((_, i) => i).filter(i => !def.singleValued.includes(i));
   }
 
   hasDefinition(name) {

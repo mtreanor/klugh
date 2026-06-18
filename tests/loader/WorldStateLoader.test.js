@@ -41,6 +41,20 @@ describe('WorldStateLoader', () => {
     assert.equal(handler.getValue('friendship', ['alice', 'bob']), 85);
   });
 
+  it('preserves polarity when backdating a negated fact', () => {
+    const world = buildWorld();
+    loader.load([{ type: 'assert', name: 'knows', args: ['alice', 'bob'], negated: true, tick: -5 }], world);
+    assert.ok(world.factStore.containsNegated('knows', 'alice', 'bob'));
+    assert.ok(!world.factStore.contains('knows', 'alice', 'bob'));
+  });
+
+  it('preserves the value when backdating a set-numeric fact', () => {
+    const world = buildWorld();
+    loader.load([{ type: 'set-numeric', name: 'friendship', args: ['alice', 'bob'], value: 85, tick: -3 }], world);
+    const handler = world.queryHandlers.getHandler('numeric');
+    assert.equal(handler.getValue('friendship', ['alice', 'bob']), 85);
+  });
+
   it('processes a mixed list of assertions in order', () => {
     const world = buildWorld();
     loader.load([

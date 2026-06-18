@@ -28,12 +28,12 @@ export class StateLoader {
 
   applyEntry(entry, defaultStore, groundBinding, world) {
     if (entry.tick !== undefined) {
-      defaultStore.assertAt(
-        new Fact(entry.name, ...entry.args),
-        entry.tick,
-        null,
-        entry.strength ?? 1.0
-      );
+      // Backdating must preserve the fact's value (set-numeric) and polarity
+      // (-pred) just like the non-backdated path does.
+      const fact = entry.type === 'set-numeric'
+        ? Fact.withValue(entry.name, entry.args, entry.value)
+        : new Fact(entry.name, ...entry.args, { negated: entry.negated ?? false });
+      defaultStore.assertAt(fact, entry.tick, null, entry.strength ?? 1.0);
       return;
     }
 

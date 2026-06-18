@@ -68,7 +68,7 @@ Setting `"symmetric": true` on a two-argument predicate means that `knows(alice,
 "targets": { "type": "boolean", "args": ["component","gameObject"],         "singleValued": [1] }
 ```
 
-With `param` above, the key is `(component, paramName)`. Asserting `param(c0, speed, fast)` and then `param(c0, speed, slow)` leaves only `slow` active — the new value supersedes the old, governed by the store's [contradiction policy](#) (`lastWins` replaces, `block` makes the value write-once, `allow` disables superseding and lets values coexist). The superseded value remains in history.
+With `param` above, the key is `(component, paramName)`. Asserting `param(c0, speed, fast)` and then `param(c0, speed, slow)` leaves only `slow` active — the new value supersedes the old, governed by the store's [contradiction policy](private-stores.md#contradiction-policy) (`lastWins` replaces, `block` makes the value write-once, `allow` disables superseding and lets values coexist). The superseded value remains in history.
 
 **Positive-only ownership.** Only a *positive* assert owns the slot and sweeps the key. A negated assert (`-param(c0, speed, fast)`, "not fast") does **not** supersede other values — it only contradicts its exact positive (`param(c0, speed, fast)`). So explicit negatives accumulate (`-fast`, `-slow`, …) until a positive value clears them. This lets you narrow a value by elimination; the trade-off is that a positive value and a now-redundant negative can briefly coexist at a key until the next positive write.
 

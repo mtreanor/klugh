@@ -1,7 +1,7 @@
 # Stress scenario — a village of ten with thirty ticks of history.
 # Exercises: backdating, strength, assert-then-retract, explicit disbelief,
-# symmetric facts, numeric initialization, private stores with all three
-# contradiction policies.
+# symmetric facts, single-valued attributes, numeric initialization, private
+# stores with all three contradiction policies.
 
 world
   # ── acquaintance web (knows is symmetric — one direction declared) ──
@@ -46,6 +46,19 @@ world
   wantsVisitors(silas) [at: -8]
   not wantsVisitors(silas)
   -wantsVisitors(silas)
+
+  # ── single-valued attribute: each agent holds at most one mood ──
+  # feels is single-valued on its value arg (key = agent). zeke's mood was set
+  # anxious, then updated to hopeful: the positive supersedes any prior value at
+  # the key, so only hopeful is active — anxious survives in history.
+  feels(zeke, anxious)
+  feels(zeke, hopeful)
+  feels(mara, content)
+  # una has no settled mood — two moods ruled out by elimination. Negated
+  # asserts do not own the slot, so both disbeliefs accumulate until a positive
+  # value sweeps them.
+  -feels(una, anxious)
+  -feels(una, grieving)
 
   # ── current relations ──
   feuding(viggo, wren)

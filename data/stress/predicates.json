@@ -8,6 +8,7 @@
     "forgave":        { "type": "boolean", "args": ["agent", "agent"] },
     "insulted":       { "type": "boolean", "args": ["agent", "agent"] },
     "gossipedAbout":  { "type": "boolean", "args": ["agent", "agent"] },
+    "feels":          { "type": "boolean", "args": ["agent", "mood"], "singleValued": [1] },
     "livesAt":        { "type": "boolean", "args": ["agent", "place"] },
     "worksAt":        { "type": "boolean", "args": ["agent", "place"] },
     "practices":      { "type": "boolean", "args": ["agent", "craft"] },

@@ -61,6 +61,19 @@ The policy of a store governs what happens when asserting (p, ā, π) would crea
 
 Under `lastWins`, the Belnap value Both (defined below) is unreachable. Under `allow`, all four values are possible.
 
+### Single-valued predicates
+
+A boolean predicate may declare `"singleValued": [indices]`, marking the argument positions that hold its **value**. The remaining positions form the **key** k(ā). Single-valued predicates enlarge the set of facts an assertion conflicts with, beyond the exact-args opposing fact of the contradiction-policy table above.
+
+Let p be single-valued. Asserting (p, ā, π) conflicts with the active set:
+
+- the exact opposing fact (p, ā, ¬π) — as for any predicate; **and**
+- if **π = +** (positive-only ownership), every active fact (p, b̄, σ) with k(b̄) = k(ā) and b̄ ≠ ā, for any value and any polarity σ.
+
+The store's policy is then applied to the whole conflict set: under `lastWins` all conflicting facts are retracted before the new fact is recorded; under `block` the new fact is dropped if the set is non-empty (the value slot is write-once); under `allow` the key is not swept and values may coexist. A re-assertion of an already-active identical positive fact is not a conflict.
+
+A **negated** assertion (p, ā, −) does not own the slot: it conflicts only with its exact positive (p, ā, +), so explicit disbeliefs at distinct values of the same key accumulate until a positive assertion sweeps them. Retracted (superseded) values remain in the history of F. An empty key (every position is a value position) makes p a single global fluent. `singleValued` is rejected on non-boolean predicates and cannot be combined with `symmetric`.
+
 ---
 
 ## 4. The two-layer architecture

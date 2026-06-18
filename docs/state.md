@@ -42,6 +42,18 @@ These operations appear in state files and on the RHS of rules.
 
 `not` on the RHS means "make absent" — the same meaning it carries on the LHS. Each LHS check has a mirrored RHS effect with identical syntax.
 
+### Single-valued assertions
+
+If a predicate is declared [`singleValued`](schema.md#singlevalued), a positive assert sets the one value held at its key, superseding any prior value there (governed by the store's contradiction policy). A negated assert only rules out its exact value, so disbeliefs accumulate until a positive value sweeps them. Superseded values stay in history:
+
+```klugh
+world
+  feels(zeke, anxious)   // zeke's mood is anxious…
+  feels(zeke, hopeful)   // …now hopeful; anxious survives only in history
+  -feels(una, anxious)   // una is not anxious…
+  -feels(una, grieving)  // …and not grieving — both disbeliefs coexist
+```
+
 ---
 
 ## Strength

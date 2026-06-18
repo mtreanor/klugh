@@ -19,6 +19,13 @@
     "chapel": {},
     "mill":   {}
   },
+  "mood": {
+    "distinct": false,
+    "content":  {},
+    "anxious":  {},
+    "grieving": {},
+    "hopeful":  {}
+  },
   "craft": {
     "distinct": false,
     "farming":   {},

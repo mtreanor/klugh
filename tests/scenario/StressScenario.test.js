@@ -1,5 +1,5 @@
 // End-to-end stress harness for the data/stress scenario: 10 agents, 30 ticks
-// of history, 30 stored/sensor predicates, 15 derived predicates, 104 rules.
+// of history, 31 stored + 2 sensor predicates, 15 derived predicates, 104 rules.
 //
 // Hand-computed expectations: the exact numeric totals below were derived by
 // summing rule contributions for specific pairs (see data/stress/rules group
@@ -199,6 +199,44 @@ describe('Stress scenario', () => {
     it('enumerates a variable private-store owner in queries', () => {
       const { engine } = buildWorld();
       assert.equal(q(engine, '?W.suspects(?W, oren)'), 2); // petra, silas
+    });
+  });
+
+  describe('single-valued predicates', () => {
+    // feels(agent, mood) is singleValued on its value arg — key = agent.
+    it('keeps only the latest value at a key; superseded values survive in history', () => {
+      const { engine } = buildWorld();
+      // zeke: feels(anxious) then feels(hopeful) at load — hopeful supersedes.
+      assert.equal(q(engine, 'feels(zeke, hopeful)'), 1);
+      assert.equal(q(engine, 'feels(zeke, anxious)'), 0);
+      assert.equal(q(engine, 'feels(zeke, anxious) [history]'), 1);
+      // Exactly one mood is active for the key.
+      assert.equal(q(engine, 'feels(zeke, ?M)'), 1);
+    });
+
+    it('a positive assert supersedes a different active value at the same key', () => {
+      const { engine } = buildWorld();
+      engine.assert('feels(mara, grieving)');
+      assert.equal(q(engine, 'feels(mara, grieving)'), 1);
+      assert.equal(q(engine, 'feels(mara, content)'), 0);
+      assert.equal(q(engine, 'feels(mara, content) [history]'), 1);
+    });
+
+    it('negated asserts do not own the slot, so disbeliefs accumulate', () => {
+      const { engine } = buildWorld();
+      // una has two moods ruled out and no positive value at the key.
+      assert.equal(q(engine, '-feels(una, anxious)'), 1);
+      assert.equal(q(engine, '-feels(una, grieving)'), 1);
+      assert.equal(q(engine, 'feels(una, ?M)'), 0);
+    });
+
+    it('a positive value sweeps every other-polarity fact at the key', () => {
+      const { engine } = buildWorld();
+      engine.assert('feels(una, hopeful)');
+      assert.equal(q(engine, 'feels(una, hopeful)'), 1);
+      assert.equal(q(engine, '-feels(una, anxious)'), 0);
+      assert.equal(q(engine, '-feels(una, grieving)'), 0);
+      assert.equal(q(engine, 'feels(una, ?M)'), 1);
     });
   });
 

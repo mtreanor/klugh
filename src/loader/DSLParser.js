@@ -482,6 +482,11 @@ export class DSLParser {
       const keyTok = this.expect('IDENT');
       const key = keyTok.value;
       if (key === 'strength') {
+        // Strength is a property of a stored belief or value; a '+='/'-='
+        // adjustment is a delta, not a belief, so it carries no strength.
+        if (op.type === 'adjust-numeric') {
+          throw new Error(`[strength: N] is not allowed on a '+='/'-=' adjustment at line ${keyTok.line}`);
+        }
         this.expect('COLON');
         result.strength = this.expect('NUMBER').value;
       } else if (key === 'at' && allowTick) {

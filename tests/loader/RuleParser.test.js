@@ -406,6 +406,13 @@ describe('RuleParser', () => {
       assert.deepEqual(after, before);
     });
 
+    it('rejects [strength: N] on a += / -= adjustment', () => {
+      assert.throws(
+        () => parser.parse('rule "r"\n  knows(?X, ?Y)\n  => trust(?X, ?Y) += 5 [strength: 0.5]'),
+        /strength.*not allowed.*adjustment/,
+      );
+    });
+
     it('parses multiple assertions in order', () => {
       const { worldState } = parser.parseState(`
         world

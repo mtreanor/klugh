@@ -56,6 +56,8 @@ knows(alice, bob)                  // strength 1.0
 
 Strength is stored on the fact record and is available to application layers; it does not affect whether a boolean predicate evaluates as true.
 
+Strength applies to assertions and `=` value sets, not to `+=`/`-=` adjustments — an adjustment is a delta, not a stored belief, so `[strength: N]` on a `+=`/`-=` is a parse error.
+
 ---
 
 ## Backdating

@@ -127,6 +127,25 @@ utility
   -2.0
 ```
 
+### Random
+
+`random(min, max)`. Draws a uniform random value in `[min, max)`. Useful for breaking ties between otherwise equally-weighted candidates — mix it into a `sum` to add jitter:
+
+```klugh
+utility
+  sum
+    friendship(?SELF, ?Y)
+    random(-0.5, 0.5)
+```
+
+`min` and `max` must be numeric literals and `min <= max`; both are checked at load time. `random` is a reserved utility keyword and cannot be used as a predicate name in a utility block.
+
+The draw is pulled from an **injectable RNG** rather than `Math.random` directly, so runs are reproducible when you seed it: `engine.setRandom(fn)` installs any `() => number` in `[0, 1)` (defaulting to `Math.random`). The value is drawn once per scoring, and `scoreWithBreakdown` records the exact drawn value on its `{ type: 'random', min, max, value, score }` node — so the action record never reports a number that differs from the score the draw contributed.
+
+::: warning Non-determinism vs. provenance
+A `random` source makes scoring non-deterministic by design. Two independent scorings of the same candidate draw two different values — including a `score()` call and a later `scoreWithBreakdown()` call. Within a single call the score and the recorded value always agree, but if you need the recorded "why" to match the score that drove a decision, capture the breakdown from the same scoring pass, and seed the RNG for reproducible replays.
+:::
+
 ### Predicate
 
 `predicateName(args)`. Reads the current value of a **numeric** predicate for the resolved argument values. If the predicate has no stored value, the schema default is used. Returns 0 when no numeric handler is registered.

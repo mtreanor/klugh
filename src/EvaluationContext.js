@@ -14,6 +14,7 @@ export class EvaluationContext {
     privateStores    = null,
     activeStore      = null,
     predicateSchema  = null,
+    random           = Math.random,
   } = {}) {
     this.queryHandlers    = queryHandlers;
     this.tickTracker      = tickTracker;
@@ -23,6 +24,8 @@ export class EvaluationContext {
     this.privateStores    = privateStores;
     this.activeStore      = activeStore;
     this.predicateSchema  = predicateSchema;
+    // Injectable RNG for random utility sources; seed it for reproducible runs.
+    this.random           = random;
   }
 
   getHandler(name) {
@@ -43,6 +46,7 @@ export class EvaluationContext {
       privateStores:    this.privateStores,
       activeStore:      this.activeStore,
       predicateSchema:  this.predicateSchema,
+      random:           this.random,
     });
   }
 
@@ -95,6 +99,7 @@ export class EvaluationContext {
       privateStores:    this.privateStores,
       activeStore:      store,
       predicateSchema:  this.predicateSchema,
+      random:           this.random,
     });
   }
 }

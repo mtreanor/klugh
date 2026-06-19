@@ -1,6 +1,7 @@
 import { Lexer, DSLParser } from './DSLParser.js';
 
 const AGGREGATORS = new Set(['sum', 'avg', 'min', 'max']);
+const RESERVED_SOURCES = new Set(['random']);
 
 class ActionDSLParser extends DSLParser {
   parse() {
@@ -149,8 +150,24 @@ class ActionDSLParser extends DSLParser {
       return { type: 'rule', name, predicates, weight };
     }
 
+    if (this.check('IDENT', 'random')) {
+      const tok = this.advance();
+      this.expect('LPAREN');
+      const min = this.expect('NUMBER').value;
+      this.expect('COMMA');
+      const max = this.expect('NUMBER').value;
+      this.expect('RPAREN');
+      if (min > max) {
+        throw new Error(`random(${min}, ${max}) at line ${tok.line}: min must be <= max`);
+      }
+      return { type: 'random', min, max };
+    }
+
     // IDENT + LPAREN → predicate utility source
     const name = this.expect('IDENT').value;
+    if (RESERVED_SOURCES.has(name)) {
+      throw new Error(`"${name}" is a reserved utility source keyword and cannot be a predicate name`);
+    }
     this.expect('LPAREN');
     const args = this.parseArgs();
     this.expect('RPAREN');

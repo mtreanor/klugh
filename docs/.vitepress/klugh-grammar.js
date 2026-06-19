@@ -31,9 +31,9 @@ const klughGrammar = {
       match: '\\b(preconditions|effects|utility|roles|content)\\b',
     },
     aggregator: {
-      // utility aggregator functions
+      // utility aggregator functions and built-in utility sources
       name: 'support.function.klugh',
-      match: '\\b(sum|avg|min|max)\\b',
+      match: '\\b(sum|avg|min|max|random)\\b',
     },
     'modifier-keyword': {
       // logical and temporal operators written as words

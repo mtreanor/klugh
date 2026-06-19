@@ -21,6 +21,8 @@ export class World {
     this.contradictionPolicy = 'lastWins';
     this.queryHandlers    = new QueryHandlers();
     this.tickTracker      = { currentTick: 0 };
+    // Injectable RNG for random utility sources; reassign to seed reproducible runs.
+    this.random           = Math.random;
     this.actionLog        = [];
     this.planLog          = [];
     this.occurrenceSeq    = 0;   // monotonic id source for reified action occurrences
@@ -37,6 +39,7 @@ export class World {
       entityTypeConfig: this.entityTypeConfig,
       privateStores:    this.privateStores,
       predicateSchema:  this.schema,
+      random:           this.random,
     });
   }
 

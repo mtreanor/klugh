@@ -77,6 +77,14 @@ export class Engine {
     }
   }
 
+  // Seeds the RNG used by random() utility sources. Pass any () => number in
+  // [0, 1); defaults to Math.random. Supply a seeded generator for reproducible
+  // scoring runs (and deterministic tests).
+  setRandom(fn) {
+    this.world.random = fn;
+    return this;
+  }
+
   // Parses an actionset and attaches it under `name`. Returns the actions.
   loadActions(source, name) {
     const { actions } = new ActionLoader(this.schema).load(new ActionParser().parse(source));

@@ -4,6 +4,7 @@ import { ConstantUtilitySource } from '../utility/ConstantUtilitySource.js';
 import { PredicateUtilitySource } from '../utility/PredicateUtilitySource.js';
 import { AggregateUtilitySource } from '../utility/AggregateUtilitySource.js';
 import { RuleUtilitySource } from '../utility/RuleUtilitySource.js';
+import { RandomUtilitySource } from '../utility/RandomUtilitySource.js';
 import { TextContentItem } from '../content/TextContentItem.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 
@@ -57,6 +58,8 @@ export class ActionLoader {
     switch (data.type) {
       case 'constant':
         return new ConstantUtilitySource(data.value);
+      case 'random':
+        return new RandomUtilitySource(data.min, data.max);
       case 'predicate':
         return new PredicateUtilitySource(data.name, this.resolveArgs(data.args));
       case 'aggregate':

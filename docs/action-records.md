@@ -84,6 +84,20 @@ Produced by a bare number in `utility`.
 }
 ```
 
+### Random node
+
+Produced by `random(min, max)`. `value` is the value actually drawn for this scoring; `score` equals it. Because the draw is recorded on the node, the breakdown always agrees with the score this source contributed — even though a separate scoring pass would draw a different value (see the note in [Actions → Random](actions.md#random)).
+
+```javascript
+{
+  type:  'random',
+  min:   number,
+  max:   number,
+  value: number,  // the drawn value, in [min, max)
+  score: number,  // same as value
+}
+```
+
 ### Aggregate node
 
 Produced by `sum`, `avg`, `min`, or `max`. Contains a nested `sources` array of child nodes.

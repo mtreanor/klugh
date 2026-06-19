@@ -2,6 +2,10 @@
 
 The foundation of the engine. Pure symbolic reasoning with no knowledge of agents, decisions, or beliefs. Everything here is plumbing — sensible engineering choices are fine.
 
+## Commit conventions
+
+**Never credit Claude/AI in commit messages.** No `Co-Authored-By: Claude`, no `Claude-Session`, no "Generated with Claude" trailers, no attribution of any kind. Commits are authored by the human committer alone.
+
 ## Responsibilities
 
 - Store and query facts (`FactStore`, `Fact`, `FactRecord`)

@@ -1,0 +1,31 @@
+{
+  "predicates": {
+    "knows":          { "type": "boolean", "args": ["agent", "agent"] },
+    "trusts":         { "type": "boolean", "args": ["agent", "agent"] },
+    "hasNeed":        { "type": "boolean", "args": ["agent"] },
+    "helped":         { "type": "boolean", "args": ["agent", "agent"] },
+    "hadConflict":    { "type": "boolean", "args": ["agent", "agent"] },
+    "rested":         { "type": "boolean", "args": ["agent"] },
+    "readyToForgive": { "type": "derived", "args": ["agent", "agent"] },
+    "strainedPair":   { "type": "derived", "args": ["agent", "agent"] },
+    "perceivedChange": {
+      "type": "numeric",
+      "args": ["agent", "agent"],
+      "minValue": 0,
+      "maxValue": 100,
+      "default": 0
+    },
+    "friendship": {
+      "type": "numeric",
+      "args": ["agent", "agent"],
+      "minValue": 0,
+      "maxValue": 100,
+      "default": 50,
+      "tiers": {
+        "cold":    [0,  40],
+        "neutral": [40, 70],
+        "warm":    [70, 100]
+      }
+    }
+  }
+}

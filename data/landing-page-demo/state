@@ -1,0 +1,24 @@
+# Carol and Alice fell out; Alice has been trying to make amends.
+# Backdated history feeds the temporal chain and count premises in the rules.
+
+world
+  knows(alice, bob)
+  knows(alice, carol)
+  knows(bob, alice)
+  knows(bob, carol)
+  knows(carol, alice)
+  knows(carol, bob)
+
+  hadConflict(carol, alice) [at: -8]
+  helped(alice, bob)        [at: -4]
+  helped(alice, carol)      [at: -5]
+
+  friendship(carol, alice) = 25
+  friendship(alice, carol) = 40
+  friendship(alice, bob)   = 70
+
+  hasNeed(carol)
+  hasNeed(bob)
+
+private carol
+  perceivedChange(alice) = 18

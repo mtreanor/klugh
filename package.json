@@ -22,6 +22,7 @@
   "scripts": {
     "demo": "node src/repl.js",
     "demo:planner": "node examples/planner.js",
+    "demo:landing-page": "node examples/landing-page-demo.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

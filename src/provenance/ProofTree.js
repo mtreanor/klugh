@@ -113,10 +113,13 @@ function nodeFromJustification(j, ctx, visited) {
         : new ProofNode({ statement: j.description, via: 'absent', present: j.present });
 
     case 'numeric':
+      // Premise only — show the value at satisfaction time, not the full event
+      // history. Expanding j.record here would recurse when the same numeric fact
+      // is both a premise and the rule's effect (e.g. friendship.cold on friendship).
       return new ProofNode({
         statement: j.description, via: 'numeric',
         detail: j.value != null ? `= ${j.value}` : null,
-        support: j.record ? numericEventNodes(j.record, ctx, visited) : [],
+        support: [],
       });
 
     case 'derived': {

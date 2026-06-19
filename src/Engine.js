@@ -93,7 +93,7 @@ export class Engine {
 
   // Parses an actionset and attaches it under `name`. Returns the actions.
   loadActions(source, name) {
-    const { actions } = new ActionLoader(this.schema).load(new ActionParser().parse(source));
+    const { actions } = new ActionLoader(this.schema).load(new ActionParser(this.schema).parse(source));
     return this.addActionset(name, actions);
   }
 

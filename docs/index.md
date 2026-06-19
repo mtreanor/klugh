@@ -3,11 +3,17 @@
 A logic engine built for authorship. Describe relationships, beliefs, and history in a readable rule language; the engine evaluates them against an evolving world and tells you what follows.
 
 ```klugh
+rule "kindness warms friendship"
+  helped(?X, ?Y)
+  => friendship(?Y, ?X) += 5
+
 rule "forgiveness follows demonstrated change"
-  hostile(?SELF, ?Y) then helped(?SELF, ?Y)
+  hadConflict(?Y, ?SELF) then helped(?SELF, ?Y)
   ^ |helped(?SELF, _)| >= 2
-  => trusts(?Y, ?SELF) += 5.0
-  => ?Y.perceivedChange(?SELF) += 3.0
+  ^ not trusts(?Y, ?SELF)
+  ^ friendship.cold(?Y, ?SELF)
+  ^ readyToForgive(?Y, ?SELF)
+  => friendship(?Y, ?SELF) += 8
 ```
 
 Rules read like intent. Write hundreds of them and you get emergent behavior — social physics shaped by authored intuition, not hand-coded case logic.
@@ -41,6 +47,8 @@ A klugh world is fully auditable. Every fact records why it exists — which rul
 This is a first-class design goal, not an afterthought. The interesting things that happen in a klugh world — emergent behaviors, unexpected interactions, narrative turns — should always be explainable after the fact. Every mechanism that produces state also produces the record of how and why it produced that state.
 
 → [Provenance](provenance.md) · [Action records](action-records.md) · [Plans](plans.md)
+
+Runnable demo: `node examples/landing-page-demo.js` — simulates the scenario above and prints `why` / `explain` for `friendship(carol, alice)` through rule effects, action effects, derived premises, and private-store justifications.
 
 ---
 

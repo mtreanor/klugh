@@ -1,6 +1,18 @@
 {
   "active": "demo",
   "scenarios": {
+    "landing-page-demo": {
+      "predicates":  "data/landing-page-demo/predicates.json",
+      "entities":    "data/landing-page-demo/entities.json",
+      "state":       "data/landing-page-demo/state",
+      "definitions": "data/landing-page-demo/definitions",
+      "rulesets": {
+        "main": "data/landing-page-demo/rules"
+      },
+      "actionsets": {
+        "social": "data/landing-page-demo/actions"
+      }
+    },
     "quickstart": {
       "predicates":  "data/quickstart/predicates.json",
       "entities":    "data/quickstart/entities.json",

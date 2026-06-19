@@ -28,7 +28,9 @@ import { Fact } from './Fact.js';
 
 export class Engine {
   // Accepts either a scenario directory path (string) or an explicit config
-  // object: { predicates, entities, state } — absolute or relative file paths.
+  // object. In the object form, `predicates` and `entities` may be given as
+  // inline objects or as file paths, and `state`/`definitions` may be file paths
+  // or omitted entirely (build state by asserting facts after construction).
   constructor(dataDirOrConfig) {
     const paths = typeof dataDirOrConfig === 'string'
       ? {
@@ -39,11 +41,12 @@ export class Engine {
         }
       : dataDirOrConfig;
 
-    this.schema = new PredicateSchema(
-      JSON.parse(readFileSync(paths.predicates, 'utf-8'))
-    );
+    // predicates/entities may be inline objects or file-path strings.
+    const loadJson = (v) => (typeof v === 'string' ? JSON.parse(readFileSync(v, 'utf-8')) : v);
 
-    const entitiesData = JSON.parse(readFileSync(paths.entities, 'utf-8'));
+    this.schema = new PredicateSchema(loadJson(paths.predicates));
+
+    const entitiesData = paths.entities !== undefined ? loadJson(paths.entities) : {};
 
     this.world = new World(this.schema);
     this.world.queryHandlers.register(
@@ -57,8 +60,11 @@ export class Engine {
     this.ruleLoader = new RuleLoader(this.schema);
     this.ruleEvaluator = new RuleEvaluator();
 
-    const stateData = this.ruleParser.parseState(readFileSync(paths.state, 'utf-8'));
-    new StateLoader(this.schema).load(stateData, this.world);
+    // state is optional — omit it and assert facts after construction.
+    if (paths.state !== undefined) {
+      const stateData = this.ruleParser.parseState(readFileSync(paths.state, 'utf-8'));
+      new StateLoader(this.schema).load(stateData, this.world);
+    }
 
     if (paths.definitions && existsSync(paths.definitions)) {
       this.loadDefinitions(readFileSync(paths.definitions, 'utf-8'));

@@ -77,13 +77,16 @@ export class Engine {
     this.rulesets   = new Map();
     this.actionsets = new Map();
 
-    for (const [name, path] of Object.entries(paths.rulesets ?? {})) {
-      const { rules } = this.ruleLoader.load(this.ruleParser.parse(readFileSync(path, 'utf-8')));
-      this.rulesets.set(name, rules);
+    for (const [name, pathOrPaths] of Object.entries(paths.rulesets ?? {})) {
+      for (const path of [].concat(pathOrPaths)) {
+        this.loadRules(readFileSync(path, 'utf-8'), name, { merge: this.rulesets.has(name) });
+      }
     }
 
-    for (const [name, path] of Object.entries(paths.actionsets ?? {})) {
-      this.loadActions(readFileSync(path, 'utf-8'), name);
+    for (const [name, pathOrPaths] of Object.entries(paths.actionsets ?? {})) {
+      for (const path of [].concat(pathOrPaths)) {
+        this.loadActions(readFileSync(path, 'utf-8'), name, { merge: this.actionsets.has(name) });
+      }
     }
 
     if (paths.snapshot !== undefined) {
@@ -99,23 +102,41 @@ export class Engine {
     return this;
   }
 
-  // Parses an actionset and attaches it under `name`. Returns the actions.
-  loadActions(source, name) {
-    const { actions } = new ActionLoader(this.schema).load(new ActionParser(this.schema).parse(source));
-    return this.addActionset(name, actions);
+  // Parses source text and adds the rules to the named ruleset.
+  loadRules(source, name, { merge = false } = {}) {
+    const { rules } = this.ruleLoader.load(this.ruleParser.parse(source));
+    return this.addRuleset(name, rules, { merge });
   }
 
-  // Attaches an already-built actionset under `name`, registering each action as
-  // a queryable 'action' entity and asserting its info: facts. This is the only
-  // supported way to populate an actionset: it guarantees that tag(...) and other
-  // action predicates work, and that ?ACT-style roles can enumerate over actions.
+  // Attaches rules to a named ruleset. With merge:true the new rules are
+  // appended to any existing ones; otherwise the group is replaced.
+  addRuleset(name, rules, { merge = false } = {}) {
+    const existing = merge ? (this.rulesets.get(name) ?? []) : [];
+    this.rulesets.set(name, [...existing, ...rules]);
+    return rules;
+  }
+
+  // Parses source text and adds the actions to the named actionset.
+  loadActions(source, name, { merge = false } = {}) {
+    const { actions } = new ActionLoader(this.schema).load(new ActionParser(this.schema).parse(source));
+    return this.addActionset(name, actions, { merge });
+  }
+
+  // Attaches actions to a named actionset, registering each as a queryable
+  // 'action' entity and asserting its info: facts. This is the only supported
+  // way to populate an actionset: it guarantees that tag(...) and other action
+  // predicates work, and that ?ACT-style roles can enumerate over actions.
+  //
+  // With merge:true the new actions are appended to any existing ones;
+  // otherwise the group is replaced.
   //
   // Registration is a once-at-load seeding step — it is deliberately NOT re-run
   // when actions are used (e.g. in scoreActionset), because re-asserting info:
   // facts would resurrect traits that effects retracted at run time.
-  addActionset(name, actions) {
+  addActionset(name, actions, { merge = false } = {}) {
     registerActionEntities(actions, this.world);
-    this.actionsets.set(name, actions);
+    const existing = merge ? (this.actionsets.get(name) ?? []) : [];
+    this.actionsets.set(name, [...existing, ...actions]);
     return actions;
   }
 

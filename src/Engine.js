@@ -25,6 +25,7 @@ import { RuleEffectProvenance } from './provenance/RuleEffectProvenance.js';
 import { buildPremiseJustifications } from './provenance/justifyPremise.js';
 import { proofNodeForFact, proofNodeForNumeric } from './provenance/ProofTree.js';
 import { Fact } from './Fact.js';
+import { restoreFromFile } from './Snapshot.js';
 
 export class Engine {
   // Accepts either a scenario directory path (string) or an explicit config
@@ -61,7 +62,10 @@ export class Engine {
     this.ruleEvaluator = new RuleEvaluator();
 
     // state is optional — omit it and assert facts after construction.
-    if (paths.state !== undefined) {
+    // When a snapshot is provided it replaces the initial state; we still load
+    // definitions, rulesets, and actionsets first so action info: facts are
+    // registered before the snapshot restore overwrites the fact store.
+    if (paths.snapshot === undefined && paths.state !== undefined) {
       const stateData = this.ruleParser.parseState(readFileSync(paths.state, 'utf-8'));
       new StateLoader(this.schema).load(stateData, this.world);
     }
@@ -80,6 +84,10 @@ export class Engine {
 
     for (const [name, path] of Object.entries(paths.actionsets ?? {})) {
       this.loadActions(readFileSync(path, 'utf-8'), name);
+    }
+
+    if (paths.snapshot !== undefined) {
+      restoreFromFile(this, paths.snapshot);
     }
   }
 

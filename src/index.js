@@ -22,6 +22,9 @@ export { StateChangeQueue } from './stateOperations/StateChangeQueue.js';
 export { ProofNode } from './provenance/ProofTree.js';
 export { Justification } from './provenance/justifyPremise.js';
 
+// Snapshot (save / restore world state)
+export { save, saveToFile, restore, restoreFromFile } from './Snapshot.js';
+
 // Loaders
 export { ActionParser } from './loader/ActionParser.js';
 export { ActionLoader } from './loader/ActionLoader.js';

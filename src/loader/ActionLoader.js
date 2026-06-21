@@ -60,8 +60,14 @@ export class ActionLoader {
         return new ConstantUtilitySource(data.value);
       case 'random':
         return new RandomUtilitySource(data.min, data.max);
-      case 'predicate':
-        return new PredicateUtilitySource(data.name, this.resolveArgs(data.args));
+      case 'predicate': {
+        const owner = data.owner != null
+          ? (typeof data.owner === 'string' && data.owner.startsWith('?')
+              ? new LogicalVariable(data.owner.slice(1))
+              : data.owner)
+          : null;
+        return new PredicateUtilitySource(data.name, this.resolveArgs(data.args), owner);
+      }
       case 'aggregate':
         return new AggregateUtilitySource(data.aggregator, data.sources.map(s => this.buildUtilitySource(s)));
       case 'rule': {

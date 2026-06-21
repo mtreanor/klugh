@@ -160,6 +160,55 @@ describe('ActionParser', () => {
       });
     });
 
+    it('parses a private predicate utility source with a variable owner', () => {
+      const { actions } = parser.parse(`
+        action "bond"
+          utility
+            ?SELF.rapport(?SELF, ?Y)
+          effects
+            knows(?SELF, ?Y)
+      `);
+      assert.deepEqual(actions[0].utilitySources[0], {
+        type: 'predicate',
+        owner: '?SELF',
+        name: 'rapport',
+        args: ['?SELF', '?Y'],
+      });
+    });
+
+    it('parses a private predicate utility source with a literal entity owner', () => {
+      const { actions } = parser.parse(`
+        action "bond"
+          utility
+            alice.rapport(alice, bob)
+          effects
+            knows(alice, bob)
+      `);
+      assert.deepEqual(actions[0].utilitySources[0], {
+        type: 'predicate',
+        owner: 'alice',
+        name: 'rapport',
+        args: ['alice', 'bob'],
+      });
+    });
+
+    it('parses a private predicate utility source inside an aggregate', () => {
+      const { actions } = parser.parse(`
+        action "combine"
+          utility
+            sum
+              ?SELF.rapport(?SELF, ?Y)
+              2
+          effects
+            knows(?SELF, ?Y)
+      `);
+      const src = actions[0].utilitySources[0];
+      assert.equal(src.type, 'aggregate');
+      assert.equal(src.sources[0].type, 'predicate');
+      assert.equal(src.sources[0].owner, '?SELF');
+      assert.equal(src.sources[0].name, 'rapport');
+    });
+
     it('parses an aggregate utility source (aggregator keyword then sources)', () => {
       const { actions } = parser.parse(`
         action "combine"

@@ -107,6 +107,9 @@ class ActionDSLParser extends DSLParser {
     if (this.check('NUMBER')) return true;
     if (this.check('IDENT', 'rule')) return true;
     if (this.check('IDENT') && AGGREGATORS.has(this.peek().value)) return true;
+    // ?OWNER.pred(args) or entityName.pred(args) — private-store predicate source
+    if (this.check('VARIABLE') && this.tokens[this.pos + 1]?.type === 'DOT') return true;
+    if (this.check('IDENT') && this.tokens[this.pos + 1]?.type === 'DOT') return true;
     // IDENT followed by LPAREN is a predicate source
     if (this.check('IDENT') && this.tokens[this.pos + 1]?.type === 'LPAREN') return true;
     return false;
@@ -116,6 +119,9 @@ class ActionDSLParser extends DSLParser {
   isAtomicUtilitySourceStart() {
     if (this.check('NUMBER')) return true;
     if (this.check('IDENT', 'rule')) return true;
+    // ?OWNER.pred(args) or entityName.pred(args) — private-store predicate source
+    if (this.check('VARIABLE') && this.tokens[this.pos + 1]?.type === 'DOT') return true;
+    if (this.check('IDENT') && this.tokens[this.pos + 1]?.type === 'DOT') return true;
     if (this.check('IDENT') && !AGGREGATORS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'LPAREN') return true;
     return false;
   }
@@ -163,7 +169,29 @@ class ActionDSLParser extends DSLParser {
       return { type: 'random', min, max };
     }
 
-    // IDENT + LPAREN → predicate utility source
+    // ?OWNER.pred(args) — variable owner prefix
+    if (this.check('VARIABLE')) {
+      const owner = '?' + this.advance().value;
+      this.expect('DOT');
+      const name = this.expect('IDENT').value;
+      this.expect('LPAREN');
+      const args = this.parseArgs();
+      this.expect('RPAREN');
+      return { type: 'predicate', owner, name, args };
+    }
+
+    // entityName.pred(args) — literal entity owner prefix
+    if (this.tokens[this.pos + 1]?.type === 'DOT') {
+      const owner = this.advance().value;
+      this.expect('DOT');
+      const name = this.expect('IDENT').value;
+      this.expect('LPAREN');
+      const args = this.parseArgs();
+      this.expect('RPAREN');
+      return { type: 'predicate', owner, name, args };
+    }
+
+    // IDENT + LPAREN → bare predicate utility source
     const name = this.expect('IDENT').value;
     if (RESERVED_SOURCES.has(name)) {
       throw new Error(`"${name}" is a reserved utility source keyword and cannot be a predicate name`);

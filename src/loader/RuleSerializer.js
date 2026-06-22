@@ -35,6 +35,15 @@ export class RuleSerializer {
     if (pred.type === 'count') {
       return `|${this.serializePredicate(pred.predicate)}| ${pred.operator} ${pred.threshold}`;
     }
+    if (pred.type === 'aggregate') {
+      const inner = pred.predicates.map(p => this.serializePredicate(p)).join(' ^ ');
+      return `${pred.fn}|${inner}| ${pred.operator} ${this.serializeAggregateRhs(pred.rhs)}`;
+    }
+    if (pred.type === 'pred-aggregate-comparison') {
+      const left  = `${pred.left.name}(${this.serializeArgs(pred.left.args)})`;
+      const inner = pred.right.predicates.map(p => this.serializePredicate(p)).join(' ^ ');
+      return `${left} ${pred.operator} ${pred.right.fn}|${inner}|`;
+    }
     if (pred.type === 'numeric-value') {
       return `${pred.name}(${this.serializeArgs(pred.args)}) ${pred.operator} ${pred.threshold}`;
     }
@@ -73,6 +82,14 @@ export class RuleSerializer {
     }
     // 'fact' and 'derived' have the same surface syntax — type is recovered from schema on parse.
     return `${pred.name}(${this.serializeArgs(pred.args)})`;
+  }
+
+  serializeAggregateRhs(rhs) {
+    if (rhs.kind === 'literal')   return String(rhs.value);
+    if (rhs.kind === 'predicate') return `${rhs.name}(${this.serializeArgs(rhs.args)})`;
+    // kind === 'aggregate'
+    const inner = rhs.predicates.map(p => this.serializePredicate(p)).join(' ^ ');
+    return `${rhs.fn}|${inner}|`;
   }
 
   serializeArgs(args) {

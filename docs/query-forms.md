@@ -127,6 +127,39 @@ The type of each `_` position is inferred from the predicate schema, so non-agen
 
 ---
 
+## Aggregate
+
+`fn|pred(args)| op rhs` computes an aggregate function over a numeric predicate across enumerated entities, then compares the result. Functions: `avg`, `sum`, `max`, `min`. Operators: `>`, `>=`, `<`, `<=`, `=`, `!=`. Use `_` for positions being enumerated; the type is inferred from the schema.
+
+```klugh
+rule "well-regarded when the average warmth among coworkers is high"
+  avg|warmth(_, ?SELF) ^ coworker(_, ?SELF)| > 60
+  => wellRegarded(?SELF) += 1.0
+
+rule "someone is admired when their warmth exceeds average"
+  warmth(?X, carol) > avg|warmth(_, carol)|
+  => aboveAverageAdmirer(?X)
+
+rule "carol is admired more than bob overall"
+  avg|warmth(_, carol)| > avg|warmth(_, bob)|
+  => moreAdmiredThanBob(carol)
+```
+
+**Group filtering** — add boolean predicates to the conjunction inside the pipes with `^`. Boolean predicates (including tier checks) act as filters; the one numeric predicate provides the values.
+
+```klugh
+avg|warmth(_, carol) ^ knows(_, carol)|  // average warmth among agents who know carol
+avg|warmth(_, carol) ^ trust.high(_, carol)|  // average warmth among high-trust agents
+```
+
+**Wildcard sharing** — all `_` positions of the same entity type across the conjunction map to a single enumeration variable, so `warmth(_, carol) ^ knows(_, carol)` iterates one agent at a time through both predicates. `_` positions of different entity types each get their own variable.
+
+**Aggregate as value expression** — an aggregate can appear on either side of any comparison, or on both sides. The result is the raw computed value (avg/sum/max/min), compared to a literal, a numeric predicate, or another aggregate.
+
+**Empty match set** — if no entities contribute a value (all filtered out), the aggregate returns `null` and the comparison is `false` for all operators. Exception: `sum` is also `null` for an empty set (not 0).
+
+---
+
 ## Temporal chain
 
 `pred1 then pred2` is true when both predicates were asserted in that order (with any gap). `then[N]` tightens the window to N ticks between assertions.

@@ -1,3 +1,5 @@
+const AGGREGATE_FNS = new Set(['avg', 'sum', 'max', 'min']);
+
 export class Lexer {
   constructor(source) {
     this.source = source;
@@ -313,6 +315,11 @@ export class DSLParser {
   }
 
   parsePredicate() {
+    // Aggregate expression: avg|...|, sum|...|, max|...|, min|...|
+    if (this.check('IDENT') && AGGREGATE_FNS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'PIPE') {
+      return this.parseAggregate();
+    }
+
     if (this.check('PIPE')) {
       this.advance();
       const inner = this.parsePredicate();
@@ -410,11 +417,14 @@ export class DSLParser {
     else if (this.check('EQ'))  { this.advance(); operator = '=';  }
     else if (this.check('NEQ')) { this.advance(); operator = '!='; }
     if (operator !== undefined) {
-      // RHS is either a numeric literal (compare against a threshold) or another
-      // predicate (compare the two operands' values/states against each other).
+      // RHS is a numeric literal, an aggregate expression, or another predicate.
       if (this.check('NUMBER')) {
         const threshold = this.advance().value;
         return { type: 'numeric-value', name, args, operator, threshold };
+      }
+      if (this.check('IDENT') && AGGREGATE_FNS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'PIPE') {
+        const right = this.parseAggregateExpr();
+        return { type: 'pred-aggregate-comparison', left: { name, args }, operator, right };
       }
       const rhsName = this.expect('IDENT').value;
       this.expect('LPAREN');
@@ -588,5 +598,83 @@ export class DSLParser {
     if (this.check('IDENT'))    return this.advance().value;
     const tok = this.peek();
     throw new Error(`Unexpected token '${tok.value}' in argument list at line ${tok.line}`);
+  }
+
+  // ── Aggregate expressions ────────────────────────────────────────────────────
+
+  // Full aggregate: fn|conjunction| op rhs — used as a standalone predicate.
+  parseAggregate() {
+    const fn = this.advance().value;
+    this.expect('PIPE');
+    const predicates = this.parseAggregateConjunction();
+    this.expect('PIPE');
+    const operator = this.parseComparisonOperator(`${fn}|...|`);
+    const rhs      = this.parseAggregateRhs();
+    return { type: 'aggregate', fn, predicates, operator, rhs };
+  }
+
+  // Bare aggregate expression without operator/rhs — used as the RHS of a
+  // comparison: pred(?X) = max|warmth(_, carol)|
+  parseAggregateExpr() {
+    const fn = this.advance().value;
+    this.expect('PIPE');
+    const predicates = this.parseAggregateConjunction();
+    this.expect('PIPE');
+    return { type: 'aggregate-expr', fn, predicates };
+  }
+
+  parseAggregateConjunction() {
+    const predicates = [this.parseAggregateAtom()];
+    while (this.check('CARET')) {
+      this.advance();
+      predicates.push(this.parseAggregateAtom());
+    }
+    return predicates;
+  }
+
+  // Simple predicate inside an aggregate: pred(args) or pred.tier(args). No
+  // operators, no negation — those are not supported inside aggregate pipes.
+  parseAggregateAtom() {
+    const name = this.expect('IDENT').value;
+    if (this.check('DOT')) {
+      this.advance();
+      const tier = this.expect('IDENT').value;
+      this.expect('LPAREN');
+      const args = this.parseArgs();
+      this.expect('RPAREN');
+      return { type: 'numeric-tier', name, tier, args };
+    }
+    this.expect('LPAREN');
+    const args = this.parseArgs();
+    this.expect('RPAREN');
+    return { type: 'fact', name, args };
+  }
+
+  // RHS of an aggregate comparison: a literal, another aggregate expr, or a
+  // predicate reference (for pred-to-aggregate comparisons).
+  parseAggregateRhs() {
+    if (this.check('NUMBER')) {
+      return { kind: 'literal', value: this.advance().value };
+    }
+    if (this.check('IDENT') && AGGREGATE_FNS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'PIPE') {
+      const expr = this.parseAggregateExpr();
+      return { kind: 'aggregate', fn: expr.fn, predicates: expr.predicates };
+    }
+    const name = this.expect('IDENT').value;
+    this.expect('LPAREN');
+    const args = this.parseArgs();
+    this.expect('RPAREN');
+    return { kind: 'predicate', name, args };
+  }
+
+  parseComparisonOperator(context) {
+    if (this.check('GTE')) { this.advance(); return '>='; }
+    if (this.check('LTE')) { this.advance(); return '<='; }
+    if (this.check('GT'))  { this.advance(); return '>'; }
+    if (this.check('LT'))  { this.advance(); return '<'; }
+    if (this.check('EQ'))  { this.advance(); return '='; }
+    if (this.check('NEQ')) { this.advance(); return '!='; }
+    const tok = this.peek();
+    throw new Error(`Expected comparison operator after ${context} at line ${tok.line}`);
   }
 }

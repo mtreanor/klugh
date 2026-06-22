@@ -18,6 +18,7 @@ import { SensorNumericTierPredicate } from '../predicates/SensorNumericTierPredi
 import { SensorNumericComparisonPredicate } from '../predicates/SensorNumericComparisonPredicate.js';
 import { ComparisonPredicate } from '../predicates/ComparisonPredicate.js';
 import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
+import { AggregatePredicate } from '../predicates/AggregatePredicate.js';
 
 function* walkPredicates(predicate) {
   yield predicate;
@@ -93,7 +94,7 @@ export class RuleLoader {
       return new PrivatePredicate(owner, inner, { isVariable: !!data.ownerVar });
     }
 
-    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison'].includes(data.type);
+    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison', 'aggregate', 'pred-aggregate-comparison'].includes(data.type);
     if (this.predicateSchema && needsNameLookup) {
       if (!this.predicateSchema.hasDefinition(data.name)) {
         throw new Error(`Unknown predicate: "${data.name}" is not defined in the predicate schema`);
@@ -154,6 +155,23 @@ export class RuleLoader {
           data.operator,
           { name: data.right.name, args: this.resolveArgs(data.right.args) },
         );
+      }
+      case 'aggregate': {
+        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(data.predicates);
+        const rhs = this.buildAggregateRhs(data.rhs);
+        return new AggregatePredicate(data.fn, filterPredicates, valuePred, countingVars, countingVarTypes, data.operator, rhs);
+      }
+      case 'pred-aggregate-comparison': {
+        if (this.predicateSchema) {
+          const def = this.predicateSchema.getDefinition(data.left.name);
+          if (!def || (def.type !== 'numeric' && def.type !== 'sensor-numeric')) {
+            throw new Error(`Predicate "${data.left.name}" must be numeric to appear on the left side of an aggregate comparison`);
+          }
+        }
+        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(data.right.predicates);
+        const flippedOp = flipOperator(data.operator);
+        const rhs = { kind: 'numeric', name: data.left.name, args: this.resolveArgs(data.left.args) };
+        return new AggregatePredicate(data.right.fn, filterPredicates, valuePred, countingVars, countingVarTypes, flippedOp, rhs);
       }
       case 'at-tick':
         return new AtTickPredicate(this.buildPredicate(data.predicate), data.tick);
@@ -232,7 +250,92 @@ export class RuleLoader {
     throw new Error(`Predicate "${name}" (type ${type ?? 'unknown'}) cannot be used in a comparison`);
   }
 
+  buildAggregateInner(predicates) {
+    if (!this.predicateSchema) {
+      throw new Error('Aggregate predicates require a predicate schema');
+    }
+    const { rewrittenPredicates, countingVars, countingVarTypes } = this.rewriteAggregateArgs(predicates);
+
+    let valuePred = null;
+    const filterPredicates = [];
+
+    for (const pred of rewrittenPredicates) {
+      const schemaType = this.predicateSchema.getDefinition(pred.name)?.type;
+      if (schemaType === 'numeric' || schemaType === 'sensor-numeric') {
+        if (valuePred !== null) {
+          throw new Error(`Aggregate conjunction has more than one numeric predicate: "${valuePred.name}" and "${pred.name}"`);
+        }
+        valuePred = { name: pred.name, args: this.resolveArgs(pred.args) };
+      } else {
+        filterPredicates.push(this.buildPredicate(pred));
+      }
+    }
+
+    if (valuePred === null) {
+      throw new Error(`Aggregate conjunction has no numeric predicate — one is required to provide the value being aggregated`);
+    }
+
+    return { filterPredicates, valuePred, countingVars, countingVarTypes };
+  }
+
+  // Rewrites `_` wildcards in an aggregate conjunction to counting variables.
+  // One variable is created per unique entity type, shared across all predicates,
+  // so `_` positions of the same entity type are implicitly joined.
+  rewriteAggregateArgs(predicates) {
+    const typeToVar      = new Map();
+    const countingVarTypes = new Map();
+    let varIdx = 0;
+
+    const rewrittenPredicates = predicates.map(pred => {
+      const argTypes = (pred.name && this.predicateSchema?.hasDefinition(pred.name))
+        ? (this.predicateSchema.getDefinition(pred.name).args ?? [])
+        : [];
+
+      const rewrittenArgs = (pred.args ?? []).map((arg, i) => {
+        if (arg !== null) return arg;
+        const entityType = argTypes[i] ?? 'agent';
+        if (!typeToVar.has(entityType)) {
+          const varName = `__agg_${varIdx++}__`;
+          typeToVar.set(entityType, new LogicalVariable(varName));
+          countingVarTypes.set(varName, entityType);
+        }
+        return `?${typeToVar.get(entityType).name}`;
+      });
+
+      return { ...pred, args: rewrittenArgs };
+    });
+
+    return { rewrittenPredicates, countingVars: [...typeToVar.values()], countingVarTypes };
+  }
+
+  buildAggregateRhs(rhs) {
+    if (rhs.kind === 'literal') return { kind: 'literal', value: rhs.value };
+    if (rhs.kind === 'predicate') {
+      if (this.predicateSchema) {
+        const def = this.predicateSchema.getDefinition(rhs.name);
+        if (!def || (def.type !== 'numeric' && def.type !== 'sensor-numeric')) {
+          throw new Error(`Aggregate comparison RHS "${rhs.name}" must be a numeric predicate`);
+        }
+      }
+      return { kind: 'numeric', name: rhs.name, args: this.resolveArgs(rhs.args) };
+    }
+    // kind === 'aggregate' — a bare aggregate expression used as a value source
+    const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(rhs.predicates);
+    const innerPredicate = new AggregatePredicate(rhs.fn, filterPredicates, valuePred, countingVars, countingVarTypes, null, null);
+    return { kind: 'aggregate', predicate: innerPredicate };
+  }
+
   resolveArgs(args) {
     return this.stateOperationLoader.resolveArgs(args);
+  }
+}
+
+function flipOperator(op) {
+  switch (op) {
+    case '>':  return '<';
+    case '<':  return '>';
+    case '>=': return '<=';
+    case '<=': return '>=';
+    default:   return op; // '=' and '!=' are symmetric
   }
 }

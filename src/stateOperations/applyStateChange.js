@@ -77,12 +77,18 @@ export function applyStateChange(operation, binding, queryHandlers, {
   const strength = operation.strength ?? 1.0;
 
   switch (operation.type) {
-    case 'assert':
-      factStore.assert(new Fact(operation.name, ...resolvedArgs, { negated: operation.negated ?? false }), strength, provenance);
-      return;
-    case 'retract':
-      factStore.retract(new Fact(operation.name, ...resolvedArgs, { negated: operation.negated ?? false }), provenance);
-      return;
+    case 'assert': {
+      const negated = operation.negated ?? false;
+      const alreadyActive = factStore.query(operation.name, ...resolvedArgs).some(f => f.negated === negated);
+      factStore.assert(new Fact(operation.name, ...resolvedArgs, { negated }), strength, provenance);
+      return !alreadyActive;
+    }
+    case 'retract': {
+      const negated = operation.negated ?? false;
+      const wasActive = factStore.query(operation.name, ...resolvedArgs).some(f => f.negated === negated);
+      factStore.retract(new Fact(operation.name, ...resolvedArgs, { negated }), provenance);
+      return wasActive;
+    }
     case 'adjust-numeric': {
       const numeric = queryHandlers.getHandler('numeric');
       return numeric.adjustValue(operation.name, resolvedArgs, deltaOverride ?? operation.delta, evaluationContext, provenance);

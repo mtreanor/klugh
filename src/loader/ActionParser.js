@@ -46,7 +46,7 @@ class ActionDSLParser extends DSLParser {
     if (this.check('IDENT', 'utility')) {
       this.advance();
       while (this.isUtilitySourceStart()) {
-        utilitySources.push(this.parseUtilitySource());
+        utilitySources.push(this.parseScaledUtilitySource());
       }
     }
 
@@ -124,6 +124,16 @@ class ActionDSLParser extends DSLParser {
     if (this.check('IDENT') && this.tokens[this.pos + 1]?.type === 'DOT') return true;
     if (this.check('IDENT') && !AGGREGATORS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'LPAREN') return true;
     return false;
+  }
+
+  parseScaledUtilitySource() {
+    let source = this.parseUtilitySource();
+    while (this.check('STAR')) {
+      this.advance();
+      const right = this.parseUtilitySource();
+      source = { type: 'product', left: source, right };
+    }
+    return source;
   }
 
   parseUtilitySource() {

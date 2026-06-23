@@ -1,0 +1,26 @@
+{
+  "name": "klugh",
+  "displayName": "klugh",
+  "description": "Syntax highlighting for the klugh logic DSL",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "klugh",
+        "aliases": ["klugh"],
+        "extensions": [".klugh"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "klugh",
+        "scopeName": "source.klugh",
+        "path": "./klugh.tmLanguage.json"
+      }
+    ]
+  }
+}

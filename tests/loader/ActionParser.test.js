@@ -295,6 +295,126 @@ describe('ActionParser', () => {
       `);
       assert.equal(actions[0].utilitySources, undefined);
     });
+
+    describe('product (*)', () => {
+      it('parses predicate * constant', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              prestige(?X) * 0.5
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type, 'product');
+        assert.deepEqual(src.left,  { type: 'predicate', name: 'prestige', args: ['?X'] });
+        assert.deepEqual(src.right, { type: 'constant',  value: 0.5 });
+      });
+
+      it('parses constant * predicate (either side)', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              0.5 * prestige(?X)
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type, 'product');
+        assert.deepEqual(src.left,  { type: 'constant',  value: 0.5 });
+        assert.deepEqual(src.right, { type: 'predicate', name: 'prestige', args: ['?X'] });
+      });
+
+      it('parses predicate * predicate', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              prestige(?X) * wealth(?X)
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type, 'product');
+        assert.equal(src.left.name,  'prestige');
+        assert.equal(src.right.name, 'wealth');
+      });
+
+      it('chains left-associatively: a * b * c', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              prestige(?X) * 0.5 * 2
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type, 'product');
+        assert.equal(src.left.type,  'product');
+        assert.equal(src.right.value, 2);
+      });
+
+      it('parses predicate-aggregate * constant', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              avg|prestige(?X) ^ knows(?X, ?Y)| * 0.5
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type,        'product');
+        assert.equal(src.left.type,   'predicate-aggregate');
+        assert.equal(src.left.fn,     'avg');
+        assert.equal(src.right.value, 0.5);
+      });
+
+      it('parses constant * predicate-aggregate', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              0.5 * avg|prestige(?X) ^ knows(?X, ?Y)|
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type,         'product');
+        assert.equal(src.left.value,   0.5);
+        assert.equal(src.right.type,   'predicate-aggregate');
+        assert.equal(src.right.fn,     'avg');
+      });
+
+      it('parses sum-aggregate * constant', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              sum
+                prestige(?X)
+                1
+              * 0.5
+            effects
+              flagged(?X)
+        `);
+        const src = actions[0].utilitySources[0];
+        assert.equal(src.type,            'product');
+        assert.equal(src.left.type,       'aggregate');
+        assert.equal(src.left.aggregator, 'sum');
+        assert.equal(src.right.value,     0.5);
+      });
+
+      it('product sources do not interfere with adjacent sources', () => {
+        const { actions } = parser.parse(`
+          action "x"
+            utility
+              prestige(?X) * 0.5
+              wealth(?X)
+            effects
+              flagged(?X)
+        `);
+        assert.equal(actions[0].utilitySources.length, 2);
+        assert.equal(actions[0].utilitySources[0].type, 'product');
+        assert.equal(actions[0].utilitySources[1].type, 'predicate');
+      });
+    });
   });
 
   describe('content', () => {

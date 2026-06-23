@@ -6,6 +6,7 @@ import { AggregateUtilitySource } from '../utility/AggregateUtilitySource.js';
 import { RuleUtilitySource } from '../utility/RuleUtilitySource.js';
 import { RandomUtilitySource } from '../utility/RandomUtilitySource.js';
 import { PredicateAggregateUtilitySource } from '../utility/PredicateAggregateUtilitySource.js';
+import { ProductUtilitySource } from '../utility/ProductUtilitySource.js';
 import { TextContentItem } from '../content/TextContentItem.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 
@@ -73,6 +74,8 @@ export class ActionLoader {
         const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.ruleLoader.buildAggregateInner(data.predicates);
         return new PredicateAggregateUtilitySource(data.fn, filterPredicates, valuePred, countingVars, countingVarTypes);
       }
+      case 'product':
+        return new ProductUtilitySource(this.buildUtilitySource(data.left), this.buildUtilitySource(data.right));
       case 'aggregate':
         return new AggregateUtilitySource(data.aggregator, data.sources.map(s => this.buildUtilitySource(s)));
       case 'rule': {

@@ -34,6 +34,7 @@ export class Lexer {
       if (ch === '<' && next === '=')              { tokens.push(this.tok('LTE',      '<=')); this.pos += 2; continue; }
       if (ch === '>') { tokens.push(this.tok('GT',       '>')); this.pos++; continue; }
       if (ch === '<') { tokens.push(this.tok('LT',       '<')); this.pos++; continue; }
+      if (ch === '*') { tokens.push(this.tok('STAR',     '*')); this.pos++; continue; }
       if (ch === '^') { tokens.push(this.tok('CARET',    '^')); this.pos++; continue; }
       if (ch === '~') { tokens.push(this.tok('TILDE',    '~')); this.pos++; continue; }
       if (ch === '=') { tokens.push(this.tok('EQ',       '=')); this.pos++; continue; }

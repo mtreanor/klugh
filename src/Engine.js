@@ -296,9 +296,9 @@ export class Engine {
 
       for (const binding of allBindings) {
         if (!action.arePreconditionsMet(binding, ctx)) continue;
-        const score = action.score(binding, this.world.entityRegistry, ctx);
+        const { score, breakdown } = action.scoreWithBreakdown(binding, this.world.entityRegistry, ctx);
         if (score < minimumScore) continue;
-        candidates.push({ action, binding, score, label: this._actionLabel(action, binding) });
+        candidates.push({ action, binding, score, breakdown, label: this._actionLabel(action, binding) });
       }
     }
 
@@ -312,27 +312,31 @@ export class Engine {
     return this.scoreActionset(name, partialBinding, options)[0] ?? null;
   }
 
-  // Executes a scored candidate ({ action, binding }) against the live world.
+  // Executes a scored candidate ({ action, binding, breakdown }) against the live world.
   // Unlike calling action.execute() directly, this threads the world and query
   // handlers for you, so the action is recorded in the action log and every fact
   // it touches carries action-effect provenance — recording is the default, not
   // an opt-in. Returns the ActionRecord that was logged, or null if the action
   // had no effects.
   //
+  // The utility breakdown from scoreActionset/selectAction is automatically
+  // threaded into the ActionRecord. Pass utilityBreakdown explicitly to override.
+  //
   // options:
   //   queue            — a StateChangeQueue to stage effects on (deferred execution)
   //   recordOccurrence — also reify a queryable action occurrence (default false;
   //                      requires the occurrence vocabulary in the schema)
   //   occurrenceFacts  — extra facts to attach to the occurrence
-  //   utilityBreakdown — a scored utility breakdown to record alongside the action
+  //   utilityBreakdown — override the breakdown attached to the ActionRecord
   execute(candidate, { queue = null, recordOccurrence = false, occurrenceFacts = [], utilityBreakdown = null } = {}) {
+    const breakdown = utilityBreakdown ?? candidate.breakdown ?? null;
     const before = this.world.actionLog.length;
     candidate.action.execute(candidate.binding, this.world.queryHandlers, queue, {
       privateStores: this.world.privateStores,
       world:         this.world,
       recordOccurrence,
       occurrenceFacts,
-      utilityBreakdown,
+      utilityBreakdown: breakdown,
     });
     return this.world.actionLog.length > before ? this.world.actionLog.at(-1) : null;
   }

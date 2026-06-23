@@ -11,6 +11,9 @@ import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js'
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
 import { PrivatePredicate } from '../predicates/PrivatePredicate.js';
 import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
+import { SensorPredicate } from '../predicates/SensorPredicate.js';
+import { SensorNumericTierPredicate } from '../predicates/SensorNumericTierPredicate.js';
+import { SensorNumericComparisonPredicate } from '../predicates/SensorNumericComparisonPredicate.js';
 
 // A Justification records *what supported a single rule/define premise* at the
 // moment it was satisfied — the other half of provenance. It is attached to a
@@ -26,7 +29,8 @@ import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
 //   'count'             — |pred| satisfied                 → records (the counted facts)
 //   'temporal'          — a `then` chain                   → records (one per step)
 //   'historical'        — a [history] check                → record
-//   'sensor' / 'unknown'— computed elsewhere / unmodelled  → no record
+//   'sensor'            — sensor predicate                 → record (SensorProvenance: name, args, result, detail, value)
+//   'unknown'           — unmodelled predicate type         → no record
 export class Justification {
   constructor(predicate, kind, {
     description   = '',
@@ -140,7 +144,17 @@ function justify(predicate, binding, ctx) {
     return rewrap(predicate, description, j, predicate.tick);
   }
 
-  // Sensors and anything not modelled above: described, but no stored support.
+  if (predicate instanceof SensorPredicate ||
+      predicate instanceof SensorNumericTierPredicate ||
+      predicate instanceof SensorNumericComparisonPredicate) {
+    // Re-evaluate to ensure the cached outcome matches this binding — sensors are
+    // pure reads so calling them again is safe, and the shared predicate instance
+    // may have been overwritten by a later binding in the same evaluation pass.
+    predicate.evaluate(binding, ctx);
+    return mk('sensor', { record: predicate.explain() ?? null });
+  }
+
+  // Anything not modelled above: described, but no stored support.
   return mk('unknown');
 }
 

@@ -1,5 +1,8 @@
 function* walkPredicates(predicate) {
   yield predicate;
+  // Negation wrappers (not, ~) are guards: asserting the inner predicate makes
+  // them fail, so they do not create a dependency edge for cycle detection.
+  if (predicate.predicateIsNegation) return;
   if (predicate.predicate)      yield* walkPredicates(predicate.predicate);
   if (predicate.innerPredicate) yield* walkPredicates(predicate.innerPredicate);
 }
@@ -21,7 +24,10 @@ function lhsBooleanNames(rule) {
 function rhsBooleanNames(rule) {
   const names = new Set();
   for (const effect of rule.effects) {
-    if ((effect.type === 'assert' || effect.type === 'retract') && effect.name) {
+    // Only assert effects can keep a rule re-triggerable on the next pass.
+    // Retract effects remove predicates, which reduces the set of satisfiable
+    // rules rather than expanding it — they cannot sustain a cycle.
+    if (effect.type === 'assert' && effect.name) {
       names.add(effect.name);
     }
   }

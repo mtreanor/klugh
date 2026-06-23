@@ -4,6 +4,8 @@ import { Predicate } from '../Predicate.js';
 // Backs the '~pred(args)' LHS syntax. Under lastWins policy, equivalent to NAF; under
 // allow policy, '~pred' and 'not pred' can diverge when both P and -P coexist.
 export class WeakNegationPredicate extends Predicate {
+  predicateIsNegation = true;
+
   constructor(innerPredicate) {
     super();
     this.innerPredicate = innerPredicate;

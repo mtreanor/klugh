@@ -1,6 +1,8 @@
 import { Predicate } from '../Predicate.js';
 
 export class NegationPredicate extends Predicate {
+  predicateIsNegation = true;
+
   constructor(predicate) {
     super();
     this.predicate = predicate;

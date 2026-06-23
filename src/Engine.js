@@ -251,14 +251,15 @@ export class Engine {
         app.rule, app.binding,
         buildPremiseJustifications(app.rule.predicateEntries, app.binding, ctx)
       );
+      let changed = false;
       for (const effect of app.rule.effects) {
-        applyStateChange(effect, app.binding, this.world.queryHandlers, {
+        if (applyStateChange(effect, app.binding, this.world.queryHandlers, {
           privateStores: this.world.privateStores,
           provenance,
-        });
+        })) changed = true;
       }
-      fired.push(app);
-      return true;
+      if (changed) fired.push(app);
+      return changed;
     });
 
     return fired;

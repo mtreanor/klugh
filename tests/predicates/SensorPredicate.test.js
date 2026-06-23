@@ -11,6 +11,7 @@ import { Rule } from '../../src/Rule.js';
 import { StateOperation } from '../../src/stateOperations/StateOperation.js';
 import { Binding } from '../../src/Binding.js';
 import { LogicalVariable } from '../../src/LogicalVariable.js';
+import { justifyPremise } from '../../src/provenance/justifyPremise.js';
 
 const X = new LogicalVariable('X');
 const Y = new LogicalVariable('Y');
@@ -109,6 +110,34 @@ describe('SensorPredicate', () => {
       const pred = new SensorPredicate('near', [X, 'alice']);
       assert.equal(pred.getVariables().length, 1);
       assert.equal(pred.getVariables()[0].name, 'X');
+    });
+  });
+
+  describe('justifyPremise', () => {
+    it('returns kind "sensor" with a SensorProvenance record after evaluate', () => {
+      const ctx = buildContext({
+        near: ([a, b]) => ({ result: true, detail: `distance(${a},${b})=2` }),
+      });
+      const pred    = new SensorPredicate('near', [X, Y]);
+      const binding = new Binding().extend(X, alice).extend(Y, bob);
+      pred.evaluate(binding, ctx);
+      const j = justifyPremise(pred, binding, ctx);
+      assert.equal(j.kind, 'sensor');
+      assert.ok(j.record instanceof SensorProvenance);
+      assert.equal(j.record.sensorName, 'near');
+      assert.deepEqual(j.record.resolvedArgs, ['alice', 'bob']);
+      assert.equal(j.record.result, true);
+      assert.equal(j.record.detail, 'distance(alice,bob)=2');
+    });
+
+    it('evaluates the sensor internally so a prior evaluate() call is not required', () => {
+      const ctx  = buildContext({ near: ([a, b]) => ({ result: true, detail: `${a}-${b}` }) });
+      const pred = new SensorPredicate('near', [X, Y]);
+      // justifyPremise re-evaluates the sensor, so no prior evaluate() needed
+      const j = justifyPremise(pred, new Binding().extend(X, alice).extend(Y, bob), ctx);
+      assert.equal(j.kind, 'sensor');
+      assert.ok(j.record instanceof SensorProvenance);
+      assert.equal(j.record.detail, 'alice-bob');
     });
   });
 

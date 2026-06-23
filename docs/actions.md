@@ -199,6 +199,26 @@ utility
 
 `sum`, `avg`, `min`, and `max` are reserved as aggregator keywords and cannot be used as predicate names in a utility block.
 
+### Predicate aggregate
+
+`fn|numericPred(args) ^ filter(args)|`. Enumerates entities matching the arguments, collects a numeric predicate value for each, and reduces with the given function. Returns 0 when no entities match. `_` is a wildcard — all `_` of the same entity type share one counting variable.
+
+```klugh
+utility
+  avg|warmth(_, ?SELF)|
+```
+
+Score = average warmth that any agent feels toward `?SELF`.
+
+```klugh
+utility
+  avg|warmth(_, ?SELF) ^ knows(_, ?SELF)|
+```
+
+Filtered: only agents who know `?SELF` contribute to the average.
+
+All four functions are available: `avg`, `sum`, `min`, `max`. Unlike the [aggregate](#aggregate) form (which aggregates over other utility sources), this form aggregates over world state directly.
+
 ---
 
 ## `content`

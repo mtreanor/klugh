@@ -109,11 +109,29 @@ describe('RuleCycleDetector', () => {
     assert.strictEqual(detector.detect(rules), null);
   });
 
-  it('handles rules with negation predicates in LHS', () => {
-    // NegationPredicate wraps a FactPredicate — the inner name should be found
+  it('does not flag a NAF-guarded self-reference as a cycle', () => {
+    // `not hostile => hostile` is self-limiting: once hostile is asserted, the
+    // guard fails and the rule cannot fire again. Not a real cycle.
     const negPred = new NegationPredicate(new FactPredicate('hostile', X, Y));
     const r1 = new Rule('R1', [{ predicate: negPred, importance: 1.0 }], [booleanEffect('hostile')]);
-    const cycle = detector.detect([r1]);
-    assert.ok(cycle !== null, 'expected self-cycle via negated LHS predicate');
+    assert.strictEqual(detector.detect([r1]), null);
+  });
+
+  it('does not flag a self-retracting rule as a cycle', () => {
+    // `p => retract p` is self-limiting: once p is retracted, the premise fails.
+    const retractEffect = new StateOperation('retract', 'p', [X, Y]);
+    const r1 = new Rule('R1', [{ predicate: new FactPredicate('p', X, Y), importance: 1.0 }], [retractEffect]);
+    assert.strictEqual(detector.detect([r1]), null);
+  });
+
+  it('does not flag a two-rule retract chain as a cycle', () => {
+    // R1 asserts b; R2 reads b and retracts it. R2 retracting b cannot re-enable R1
+    // (it removes b, which R1 does not read). Not a cycle.
+    const retractB = new StateOperation('retract', 'b', [X, Y]);
+    const rules = [
+      rule('R1', ['a'], [booleanEffect('b')]),
+      new Rule('R2', [{ predicate: new FactPredicate('b', X, Y), importance: 1.0 }], [retractB]),
+    ];
+    assert.strictEqual(detector.detect(rules), null);
   });
 });

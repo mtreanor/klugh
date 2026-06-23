@@ -23,6 +23,7 @@ export class Action {
   } = {}) {
     this.name            = name;
     this.roles           = roles;
+    this.roleTypes       = new Map(roles.map(r => [r.variable.slice(1), r.type]));
     this.info            = info;   // facts declared about the action itself: [{ name, args }]
     this.preconditions   = preconditions;
     this.effects         = effects;
@@ -45,6 +46,13 @@ export class Action {
     for (const effect of this.effects) {
       for (const arg of effect.args ?? []) {
         if (arg instanceof LogicalVariable) add(arg);
+      }
+    }
+    for (const { variable } of this.roles) {
+      const name = variable.slice(1);
+      if (!seen.has(name) && name !== THIS_ACTION && name !== THIS_OCCURRENCE) {
+        seen.add(name);
+        variables.push(new LogicalVariable(name));
       }
     }
     return variables;

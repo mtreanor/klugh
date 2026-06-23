@@ -236,7 +236,9 @@ function handleActionsCommand(name) {
   if (!actions) throw new Error(`No actionset named "${name}"`);
   console.log(`[${name}]`);
   for (const action of actions) {
-    const roles = action.roles.length > 0 ? action.roles.join(', ') : '(none)';
+    const roles = action.roles.length > 0
+      ? action.roles.map(r => `${r.variable}: ${r.type}`).join(', ')
+      : '(none)';
     console.log(`  "${action.name}"   roles: ${roles}`);
   }
 }

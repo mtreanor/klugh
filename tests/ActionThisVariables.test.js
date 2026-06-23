@@ -29,7 +29,7 @@ function makeEngine() {
   const actionsPath = join(dir, 'actions');
   writeFileSync(actionsPath, `
     action "give"
-      roles: ?SELF
+      roles: ?SELF: agent
       info:
         tag(?this_action, generous)
       preconditions
@@ -39,7 +39,7 @@ function makeEngine() {
       effects did(?SELF, ?this_action)
 
     action "insult"
-      roles: ?SELF
+      roles: ?SELF: agent
       info:
         tag(?this_action, aggressive)
       preconditions
@@ -93,7 +93,7 @@ describe('?this_occurrence placement', () => {
   it('is allowed in effects', () => {
     assert.doesNotThrow(() => load(`
       action "give"
-        roles: ?SELF
+        roles: ?SELF: agent
         effects reluctant(?this_occurrence)
     `));
   });
@@ -101,7 +101,7 @@ describe('?this_occurrence placement', () => {
   it('is a load-time error in preconditions', () => {
     assert.throws(() => load(`
       action "give"
-        roles: ?SELF
+        roles: ?SELF: agent
         preconditions reluctant(?this_occurrence)
         effects helped(?SELF)
     `), /only valid in an effects: block/);
@@ -110,7 +110,7 @@ describe('?this_occurrence placement', () => {
   it('is a load-time error in utility', () => {
     assert.throws(() => load(`
       action "give"
-        roles: ?SELF
+        roles: ?SELF: agent
         utility
           rule "x" reluctant(?this_occurrence) => 1
         effects helped(?SELF)
@@ -120,7 +120,7 @@ describe('?this_occurrence placement', () => {
   it('is a load-time error in info', () => {
     assert.throws(() => load(`
       action "give"
-        roles: ?SELF
+        roles: ?SELF: agent
         info:
           reluctant(?this_occurrence)
         effects helped(?SELF)

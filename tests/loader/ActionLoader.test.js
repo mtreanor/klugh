@@ -39,9 +39,18 @@ describe('ActionLoader', () => {
       assert.equal(effect.delta, 10);
     });
 
-    it('preserves roles', () => {
-      const { actions } = load(`action "cooperate" roles: ?SELF, ?Y effects knows(?SELF, ?Y)`);
-      assert.deepEqual(actions[0].roles, ['?SELF', '?Y']);
+    it('preserves typed roles', () => {
+      const { actions } = load(`action "cooperate" roles: ?SELF: agent, ?Y: agent effects knows(?SELF, ?Y)`);
+      assert.deepEqual(actions[0].roles, [
+        { variable: '?SELF', type: 'agent' },
+        { variable: '?Y',   type: 'agent' },
+      ]);
+    });
+
+    it('builds roleTypes map from role declarations', () => {
+      const { actions } = load(`action "use" roles: ?SELF: agent, ?ITEM: item effects used(?SELF, ?ITEM)`);
+      assert.equal(actions[0].roleTypes.get('SELF'), 'agent');
+      assert.equal(actions[0].roleTypes.get('ITEM'), 'item');
     });
 
     it('defaults roles to empty array when absent', () => {
@@ -75,14 +84,17 @@ describe('ActionLoader', () => {
     it('coexists with roles and stops at the next section keyword', () => {
       const { actions } = load(`
         action "share a kind word"
-          roles: ?SELF, ?Y
+          roles: ?SELF: agent, ?Y: agent
           info:
             tag(?this_action, social)
           preconditions
             knows(?SELF, ?Y)
           effects helped(?SELF, ?Y)
       `);
-      assert.deepEqual(actions[0].roles, ['?SELF', '?Y']);
+      assert.deepEqual(actions[0].roles, [
+        { variable: '?SELF', type: 'agent' },
+        { variable: '?Y',   type: 'agent' },
+      ]);
       assert.deepEqual(actions[0].info, [{ name: 'tag', args: ['?this_action', 'social'] }]);
       assert.equal(actions[0].preconditions.length, 1);
       assert.equal(actions[0].effects.length, 1);

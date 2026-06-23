@@ -64,6 +64,55 @@ describe('Action', () => {
       const action = new Action('noop', { preconditions: [], effects: [] });
       assert.deepEqual(action.collectVariables(), []);
     });
+
+    it('collects role variables not appearing in preconditions or effects', () => {
+      const OTHER = new LogicalVariable('OTHER');
+      const action = new Action('score', {
+        roles: [
+          { variable: '?SELF',  type: 'agent' },
+          { variable: '?OTHER', type: 'agent' },
+        ],
+        preconditions: [{ predicate: new FactPredicate('knows', SELF, Y) }],
+        effects: [new StateOperation('assert', 'met', [SELF])],
+      });
+      const vars = action.collectVariables();
+      assert.ok(vars.some(v => v.name === 'SELF'));
+      assert.ok(vars.some(v => v.name === 'Y'));
+      assert.ok(vars.some(v => v.name === 'OTHER'));
+    });
+
+    it('deduplicates role variables already collected from preconditions', () => {
+      const action = new Action('greet', {
+        roles: [
+          { variable: '?SELF', type: 'agent' },
+          { variable: '?Y',   type: 'agent' },
+        ],
+        preconditions: [{ predicate: new FactPredicate('knows', SELF, Y) }],
+        effects: [],
+      });
+      const vars = action.collectVariables();
+      assert.equal(vars.filter(v => v.name === 'SELF').length, 1);
+      assert.equal(vars.filter(v => v.name === 'Y').length, 1);
+    });
+  });
+
+  describe('roleTypes', () => {
+    it('maps variable names to entity types', () => {
+      const action = new Action('use', {
+        roles: [
+          { variable: '?SELF', type: 'agent' },
+          { variable: '?ITEM', type: 'item' },
+        ],
+        effects: [],
+      });
+      assert.equal(action.roleTypes.get('SELF'), 'agent');
+      assert.equal(action.roleTypes.get('ITEM'), 'item');
+    });
+
+    it('is an empty map when no roles are declared', () => {
+      const action = new Action('noop', { effects: [] });
+      assert.equal(action.roleTypes.size, 0);
+    });
   });
 
   describe('arePreconditionsMet()', () => {

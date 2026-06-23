@@ -42,8 +42,11 @@ export function recordActionOccurrence(action, binding, world, {
 }
 
 function roleNameOf(roleRef) {
-  if (typeof roleRef === 'string') return roleRef.startsWith('?') ? roleRef.slice(1) : roleRef;
-  return roleRef.name;   // LogicalVariable
+  if (roleRef !== null && typeof roleRef === 'object' && 'variable' in roleRef) {
+    return roleRef.variable.slice(1); // { variable: '?SELF', type: 'agent' }
+  }
+  if (roleRef instanceof LogicalVariable) return roleRef.name;
+  return typeof roleRef === 'string' && roleRef.startsWith('?') ? roleRef.slice(1) : roleRef;
 }
 
 // Facts store entity arguments by name; an occurrence value is recorded as the

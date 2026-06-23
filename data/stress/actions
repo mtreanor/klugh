@@ -20,7 +20,7 @@
 # ── Needs fulfilment ─────────────────────────────────────────────────────────
 
 action "shelter the homeless"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
   preconditions
@@ -36,7 +36,7 @@ action "shelter the homeless"
     prosperity(?Y) += 5
 
 action "share a kind word"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
   preconditions
@@ -54,7 +54,7 @@ action "share a kind word"
     trust(?Y, ?SELF) += 3
 
 action "restore dignity"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
   preconditions
@@ -74,7 +74,7 @@ action "restore dignity"
 # ── Repair and reconciliation ────────────────────────────────────────────────
 
 action "seek forgiveness"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
     tag(?this_action, reconciliation)
@@ -90,7 +90,7 @@ action "seek forgiveness"
     trust(?SELF, ?Y) += 5
 
 action "accept an apology"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
     tag(?this_action, reconciliation)
@@ -106,7 +106,7 @@ action "accept an apology"
     trust(?SELF, ?Y) += 10
 
 action "end a feud"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
     tag(?this_action, reconciliation)
@@ -126,7 +126,7 @@ action "end a feud"
 # ── Conflict and rivalry ─────────────────────────────────────────────────────
 
 action "confront a rival"
-  roles: ?SELF, ?Y, ?I
+  roles: ?SELF: agent, ?Y: agent, ?I: item
   info:
     tag(?this_action, antisocial)
     tag(?this_action, aggressive)
@@ -145,7 +145,7 @@ action "confront a rival"
     ?SELF.grudgeAgainst(?SELF, ?Y)
 
 action "challenge an insult"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, antisocial)
     tag(?this_action, aggressive)
@@ -161,7 +161,7 @@ action "challenge an insult"
     insulted(?SELF, ?Y)
 
 action "spread gossip"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, antisocial)
   preconditions
@@ -179,7 +179,7 @@ action "spread gossip"
 # ── Community leadership ─────────────────────────────────────────────────────
 
 action "nominate an elder"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
     tag(?this_action, leadership)
@@ -199,7 +199,7 @@ action "nominate an elder"
 # ── Economic and craft ───────────────────────────────────────────────────────
 
 action "market hustle"
-  roles: ?SELF
+  roles: ?SELF: agent
   info:
     tag(?this_action, economic)
   preconditions
@@ -216,7 +216,7 @@ action "market hustle"
     prosperity(?SELF) += 3
 
 action "craft with a peer"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
     tag(?this_action, economic)
@@ -236,7 +236,7 @@ action "craft with a peer"
     trust(?SELF, ?Y) += 3
 
 action "deepen lone mastery"
-  roles: ?SELF, ?C
+  roles: ?SELF: agent, ?C: craft
   info:
     tag(?this_action, economic)
   preconditions
@@ -250,7 +250,7 @@ action "deepen lone mastery"
     reputation(?SELF) += 5
 
 action "seek patronage"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, economic)
   preconditions
@@ -270,7 +270,7 @@ action "seek patronage"
 # ── Private beliefs ──────────────────────────────────────────────────────────
 
 action "confide in a trusted friend"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, prosocial)
     tag(?this_action, private)
@@ -287,7 +287,7 @@ action "confide in a trusted friend"
     helped(?SELF, ?Y)
 
 action "air a suspicion"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, antisocial)
     tag(?this_action, private)
@@ -310,7 +310,7 @@ action "air a suspicion"
 # fact, so an influential agent can flip it at run time.
 
 action "denounce a practice"
-  roles: ?SELF, ?ACT
+  roles: ?SELF: agent, ?ACT: action
   info:
     tag(?this_action, leadership)
   preconditions
@@ -324,7 +324,7 @@ action "denounce a practice"
     tag(?ACT, antisocial)             # and re-cast the practice as antisocial
 
 action "rehabilitate a practice"
-  roles: ?SELF, ?ACT
+  roles: ?SELF: agent, ?ACT: action
   info:
     tag(?this_action, reconciliation)
   preconditions

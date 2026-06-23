@@ -147,7 +147,7 @@ describe('PredicateAggregateUtilitySource — parser + loader integration', () =
   it('parses avg|pred| as a predicate-aggregate utility source', () => {
     const { actions } = parseAndLoad(`
       action "seek warmth"
-        roles: ?SELF
+        roles: ?SELF: agent
         utility
           avg|warmth(_, ?SELF)|
         effects
@@ -162,7 +162,7 @@ describe('PredicateAggregateUtilitySource — parser + loader integration', () =
     // predicate-aggregate: avg|...|
     const { actions } = parseAndLoad(`
       action "combined"
-        roles: ?SELF
+        roles: ?SELF: agent
         utility
           avg|warmth(_, ?SELF)|
           5.0
@@ -176,7 +176,7 @@ describe('PredicateAggregateUtilitySource — parser + loader integration', () =
   it('evaluates correctly end-to-end via action.score()', () => {
     const { actions } = parseAndLoad(`
       action "be liked"
-        roles: ?SELF
+        roles: ?SELF: agent
         utility
           avg|warmth(_, ?SELF)|
         effects
@@ -200,7 +200,7 @@ describe('PredicateAggregateUtilitySource — parser + loader integration', () =
   it('parses a filtered aggregate with ^', () => {
     const { actions } = parseAndLoad(`
       action "know warmth"
-        roles: ?SELF
+        roles: ?SELF: agent
         utility
           avg|warmth(_, ?SELF) ^ knows(_, ?SELF)|
         effects
@@ -213,7 +213,7 @@ describe('PredicateAggregateUtilitySource — parser + loader integration', () =
     for (const fn of ['avg', 'sum', 'max', 'min']) {
       const { actions } = parseAndLoad(`
         action "${fn} action"
-          roles: ?SELF
+          roles: ?SELF: agent
           utility
             ${fn}|warmth(_, ?SELF)|
           effects

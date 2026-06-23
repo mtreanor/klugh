@@ -285,10 +285,13 @@ export class Engine {
       );
       const freeVars = action.collectVariables().filter(v => !boundNames.has(v.name));
 
+      const preconditionTypes = this.inferVariableTypes(action.preconditions.map(e => e.predicate));
+      const variableTypes     = new Map([...action.roleTypes, ...preconditionTypes]);
+
       const allBindings = freeVars.length > 0
         ? this.ruleEvaluator.generateAllBindings(
             freeVars,
-            this.inferVariableTypes(action.preconditions.map(e => e.predicate)),
+            variableTypes,
             this.world.entityRegistry,
             actionBinding
           )

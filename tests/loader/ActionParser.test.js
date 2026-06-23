@@ -55,24 +55,51 @@ describe('ActionParser', () => {
   });
 
   describe('roles', () => {
-    it('parses a single role', () => {
+    it('parses a single typed role', () => {
       const { actions } = parser.parse(`
         action "solo"
-          roles: ?SELF
+          roles: ?SELF: agent
           effects
             rested(?SELF)
       `);
-      assert.deepEqual(actions[0].roles, ['?SELF']);
+      assert.deepEqual(actions[0].roles, [{ variable: '?SELF', type: 'agent' }]);
     });
 
-    it('parses multiple roles', () => {
+    it('parses multiple typed roles', () => {
       const { actions } = parser.parse(`
         action "cooperate"
-          roles: ?SELF, ?Y
+          roles: ?SELF: agent, ?Y: agent
           effects
             knows(?SELF, ?Y)
       `);
-      assert.deepEqual(actions[0].roles, ['?SELF', '?Y']);
+      assert.deepEqual(actions[0].roles, [
+        { variable: '?SELF', type: 'agent' },
+        { variable: '?Y',   type: 'agent' },
+      ]);
+    });
+
+    it('parses roles with distinct entity types', () => {
+      const { actions } = parser.parse(`
+        action "use"
+          roles: ?SELF: agent, ?ITEM: item
+          effects
+            used(?SELF, ?ITEM)
+      `);
+      assert.deepEqual(actions[0].roles, [
+        { variable: '?SELF', type: 'agent' },
+        { variable: '?ITEM', type: 'item' },
+      ]);
+    });
+
+    it('throws when a role has no type declaration', () => {
+      assert.throws(
+        () => parser.parse(`
+          action "bad"
+            roles: ?SELF
+            effects rested(?SELF)
+        `),
+        /requires a type declaration/
+      );
     });
 
     it('omits the roles key when not present', () => {

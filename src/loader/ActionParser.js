@@ -94,13 +94,27 @@ class ActionDSLParser extends DSLParser {
   parseRoles() {
     const roles = [];
     if (this.check('VARIABLE')) {
-      roles.push('?' + this.advance().value);
+      roles.push(this.parseTypedRole());
       while (this.check('COMMA')) {
         this.advance();
-        roles.push('?' + this.expect('VARIABLE').value);
+        roles.push(this.parseTypedRole());
       }
     }
     return roles;
+  }
+
+  parseTypedRole() {
+    const tok     = this.peek();
+    const varName = this.advance().value;
+    const variable = '?' + varName;
+    if (!this.check('COLON')) {
+      throw new Error(
+        `Role ${variable} at line ${tok.line} requires a type declaration — use "${variable}: <entityType>"`
+      );
+    }
+    this.expect('COLON');
+    const type = this.expect('IDENT').value;
+    return { variable, type };
   }
 
   isUtilitySourceStart() {

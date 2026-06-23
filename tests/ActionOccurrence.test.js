@@ -33,7 +33,7 @@ describe('recordActionOccurrence', () => {
     return w;
   }
 
-  const give = new Action('give', { roles: ['?SELF', '?Y'], effects: [] });
+  const give = new Action('give', { roles: [{ variable: '?SELF', type: 'agent' }, { variable: '?Y', type: 'agent' }], effects: [] });
 
   it('mints an occurrence entity and asserts actionType + role facts', () => {
     const w = world();
@@ -91,7 +91,7 @@ describe('Action.execute — recordOccurrence option', () => {
     w.addEntity('agent', { name: 'alice' });
     w.addEntity('agent', { name: 'bob' });
     const give = new Action('give', {
-      roles: ['?SELF', '?Y'],
+      roles: [{ variable: '?SELF', type: 'agent' }, { variable: '?Y', type: 'agent' }],
       effects: [new StateOperation('assert', 'helped', [SELF, Y])],
     });
     const binding = bind([SELF, { name: 'alice' }], [Y, { name: 'bob' }]);
@@ -114,7 +114,7 @@ describe('Action.execute — recordOccurrence option', () => {
     w.addEntity('agent', { name: 'alice' });
     w.addEntity('agent', { name: 'bob' });
     const give = new Action('give', {
-      roles: ['?SELF', '?Y'],
+      roles: [{ variable: '?SELF', type: 'agent' }, { variable: '?Y', type: 'agent' }],
       effects: [new StateOperation('assert', 'helped', [SELF, Y])],
     });
     give.execute(bind([SELF, { name: 'alice' }], [Y, { name: 'bob' }]), w.queryHandlers, null, { world: w });
@@ -138,7 +138,7 @@ describe('Action.execute — ?this_occurrence in effects', () => {
 
   function makeGive() {
     return new Action('give', {
-      roles: ['?SELF', '?Y'],
+      roles: [{ variable: '?SELF', type: 'agent' }, { variable: '?Y', type: 'agent' }],
       effects: [
         new StateOperation('assert', 'helped', [SELF, Y]),       // ordinary state
         new StateOperation('assert', 'reluctant', [OCC]),        // annotates the occurrence
@@ -199,7 +199,7 @@ function makeEngine() {
   const actionsPath = join(dir, 'actions');
   writeFileSync(actionsPath, `
     action "give"
-      roles: ?SELF, ?Y
+      roles: ?SELF: agent, ?Y: agent
       effects helped(?SELF, ?Y)
   `);
 

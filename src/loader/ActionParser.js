@@ -127,6 +127,14 @@ class ActionDSLParser extends DSLParser {
   }
 
   parseUtilitySource() {
+    // Predicate aggregate: avg|...|, sum|...|, max|...|, min|...|
+    // Must be checked before the utility-aggregate branch because both start
+    // with an aggregator keyword; the PIPE token distinguishes them.
+    if (this.check('IDENT') && AGGREGATORS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'PIPE') {
+      const expr = this.parseAggregateExpr();
+      return { type: 'predicate-aggregate', fn: expr.fn, predicates: expr.predicates };
+    }
+
     if (this.check('IDENT') && AGGREGATORS.has(this.peek().value)) {
       const aggregator = this.advance().value;
       const sources = [];

@@ -11,9 +11,10 @@ import { TextContentItem } from '../content/TextContentItem.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 
 export class ActionLoader {
-  constructor(predicateSchema = null) {
-    this.predicateSchema = predicateSchema;
-    this.ruleLoader      = new RuleLoader(predicateSchema);
+  constructor(predicateSchema = null, entityTypeConfig = null) {
+    this.predicateSchema  = predicateSchema;
+    this.entityTypeConfig = entityTypeConfig;
+    this.ruleLoader       = new RuleLoader(predicateSchema);
   }
 
   load(data) {
@@ -25,6 +26,7 @@ export class ActionLoader {
     const effects        = (data.effects ?? []).map(e => this.ruleLoader.buildStateOperation(e));
     const utilitySources = (data.utilitySources ?? []).map(s => this.buildUtilitySource(s));
     const content        = data.content ? this.buildContent(data.content) : null;
+    this._applyNamingPolicies(effects);
     return new Action(data.name, {
       roles: data.roles ?? [],
       info:  data.info  ?? [],
@@ -33,6 +35,45 @@ export class ActionLoader {
       utilitySources,
       content,
     });
+  }
+
+  _applyNamingPolicies(effects) {
+    if (!this.entityTypeConfig) return;
+    for (const effect of effects) {
+      if (effect.type !== 'new-entity') continue;
+      if (effect.explicitName != null) continue;
+      const config = this.entityTypeConfig.get(effect.entityType);
+      if (!config?.naming) continue;
+      effect.explicitName = this._synthesizeName(effect, effects, config.naming);
+    }
+  }
+
+  _synthesizeName(newEntityEffect, allEffects, template) {
+    const entityVar = newEntityEffect.nameArg;
+    return template.replace(/\{([^}]+)\}/g, (match, slot) => {
+      const dot = slot.lastIndexOf('.');
+      if (dot === -1) return match;
+      const predName = slot.slice(0, dot);
+      const argIdx = parseInt(slot.slice(dot + 1), 10);
+      if (isNaN(argIdx)) return match;
+
+      const matches = [];
+      for (const eff of allEffects) {
+        if (eff.type === 'new-entity' || eff.type === 'remove-entity' || eff.type === 'record') continue;
+        if (eff.name !== predName) continue;
+        const args = eff.args ?? [];
+        const entityPos = args.findIndex(a =>
+          (a instanceof LogicalVariable && entityVar instanceof LogicalVariable && a.name === entityVar.name)
+        );
+        if (entityPos === -1 || entityPos === argIdx) continue;
+        if (argIdx >= args.length) continue;
+        const val = args[argIdx];
+        if (val instanceof LogicalVariable) matches.push(`{?${val.name}}`);
+        else if (val != null) matches.push(String(val));
+      }
+      if (matches.length === 0) return '';
+      return matches.join('_');
+    }).replace(/_+/g, '_').replace(/^_|_$/g, '');
   }
 
   buildUtilitySource(data) {

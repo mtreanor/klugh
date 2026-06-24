@@ -118,7 +118,7 @@ export class Engine {
 
   // Parses source text and adds the actions to the named actionset.
   loadActions(source, name, { merge = false } = {}) {
-    const { actions } = new ActionLoader(this.schema).load(new ActionParser(this.schema).parse(source));
+    const { actions } = new ActionLoader(this.schema, this.world.entityTypeConfig).load(new ActionParser(this.schema).parse(source));
     return this.addActionset(name, actions, { merge });
   }
 

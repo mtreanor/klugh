@@ -166,3 +166,95 @@ describe('Engine.runRuleset — sensor premise provenance', () => {
     assert.equal(prov.premiseRecords[0].record.detail, 'distance=1');
   });
 });
+
+describe('Engine.runRuleset — new entity / remove entity', () => {
+  it('new entity with explicit name creates an entity and converges', () => {
+    const engine = new Engine({
+      predicates: { predicates: {
+        ready: { type: 'boolean', args: ['agent'] },
+        has:   { type: 'boolean', args: ['agent', 'item'] },
+      }},
+      entities: { agent: { alice: {} }, item: {} },
+    });
+    engine.assert('ready(alice)');
+    engine.loadRules(`
+      rule "equip"
+        ready(?X)
+        => new entity(item, "sword")
+    `, 'setup');
+
+    engine.runRuleset('setup');
+
+    const items = engine.world.entityRegistry.get('item');
+    assert.equal(items.length, 1);
+    assert.equal(items[0].name, 'sword');
+  });
+
+  it('new entity with find-or-create converges (does not loop)', () => {
+    const engine = new Engine({
+      predicates: { predicates: {
+        a: { type: 'boolean', args: ['agent'] },
+        b: { type: 'boolean', args: ['agent'] },
+      }},
+      entities: { agent: { alice: {} }, item: {} },
+    });
+    engine.assert('a(alice)');
+    engine.assert('b(alice)');
+    engine.loadRules(`
+      rule "step1"
+        a(?X)
+        => new entity(item, "thing")
+      rule "step2"
+        b(?X)
+        => new entity(item, "thing")
+    `, 'setup');
+
+    engine.runRuleset('setup');
+
+    const items = engine.world.entityRegistry.get('item');
+    assert.equal(items.length, 1, 'find-or-create should not duplicate');
+  });
+
+  it('a rule with multiple effects applies all of them', () => {
+    const engine = new Engine({
+      predicates: { predicates: {
+        ready:   { type: 'boolean', args: ['agent'] },
+        armed:   { type: 'boolean', args: ['agent'] },
+        prepped: { type: 'boolean', args: ['agent'] },
+      }},
+      entities: { agent: { alice: {} } },
+    });
+    engine.assert('ready(alice)');
+    engine.loadRules(`
+      rule "prepare"
+        ready(?X)
+        => armed(?X)
+        => prepped(?X)
+    `, 'setup');
+
+    engine.runRuleset('setup');
+
+    assert.ok(engine.query('armed(alice)').length > 0);
+    assert.ok(engine.query('prepped(alice)').length > 0);
+  });
+
+  it('remove entity in a ruleset removes the entity and converges', () => {
+    const engine = new Engine({
+      predicates: { predicates: {
+        expired: { type: 'boolean', args: ['item'] },
+      }},
+      entities: { agent: {}, item: { sword: {} } },
+    });
+    engine.assert('expired(sword)');
+    engine.loadRules(`
+      rule "cleanup"
+        expired(?X)
+        => remove entity(item, ?X)
+    `, 'gc');
+
+    engine.runRuleset('gc');
+
+    const items = engine.world.entityRegistry.get('item');
+    assert.equal(items.length, 0, 'sword should be removed');
+  });
+});

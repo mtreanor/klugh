@@ -119,7 +119,7 @@ The fact was asserted or adjusted by an action's effects. See [Action records](a
 }
 ```
 
-`actionRecord.action` is the `Action` object. `actionRecord.planRecord` is the `PlanRecord` the action was executing, or `null` if it fired outside a plan. See [Plans](plans.md).
+`actionRecord.action` is the `Action` object.
 
 ---
 
@@ -196,4 +196,4 @@ The tree spans every premise form, not just plain facts:
 
 `why` and `explain` are the pair: `why(fact)` is the shallow one-level primitive (the assertion events and their provenance); `explain(fact)` is the full recursive tree. Both work for boolean and numeric facts. Capturing the premise links is on by default — it happens as rules fire.
 
-→ [Action records](action-records.md) · [Plans](plans.md) · [Rules](rules.md) · [Derived predicates](derived-predicates.md) · [Sensor predicates](sensors.md)
+→ [Action records](action-records.md) · [Rules](rules.md) · [Derived predicates](derived-predicates.md) · [Sensor predicates](sensors.md)

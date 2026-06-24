@@ -2,7 +2,7 @@ import { LogicalVariable } from '../LogicalVariable.js';
 import { Predicate } from '../Predicate.js';
 
 export class StateOperation {
-  constructor(type, name, args, { delta, value, numericOperation = null, owner = null, ownerIsVariable = false, strength = 1.0, negated = false } = {}) {
+  constructor(type, name, args, { delta, value, numericOperation = null, owner = null, ownerIsVariable = false, strength = 1.0, negated = false, entityType = null, nameArg = null, bindVar = null } = {}) {
     this.type              = type;
     this.name              = name;
     this.args              = args;
@@ -13,6 +13,9 @@ export class StateOperation {
     this.ownerIsVariable   = ownerIsVariable;
     this.strength          = strength;
     this.negated           = negated;
+    this.entityType        = entityType;
+    this.nameArg           = nameArg;
+    this.bindVar           = bindVar;
   }
 
   resolveArgs(binding) {
@@ -42,6 +45,12 @@ export class StateOperation {
         return this.negated ? `!${this.name}(${argsStr})` : `actuate:${this.name}(${argsStr})`;
       case 'actuate-numeric':
         return `actuate:${this.name}(${argsStr}) ${this.numericOperation} ${this.delta ?? this.value}`;
+      case 'new-entity': {
+        const nameStr = this.nameArg ? `, ${Predicate.renderArg(this.nameArg, binding)}` : '';
+        return `new entity(${this.entityType}${nameStr})`;
+      }
+      case 'record':
+        return `record(${Predicate.renderArg(this.bindVar, binding)})`;
       default:
         return `${this.type} ${this.name}(${argsStr})`;
     }

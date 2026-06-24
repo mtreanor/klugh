@@ -7,6 +7,21 @@ export class StateOperationLoader {
   }
 
   buildStateOperation(data) {
+    if (data.type === 'new-entity') {
+      const nameArg = data.nameArg && typeof data.nameArg === 'string' && data.nameArg.startsWith('?')
+        ? new LogicalVariable(data.nameArg.slice(1))
+        : data.nameArg;
+      return new StateOperation('new-entity', null, [], { entityType: data.entityType, nameArg });
+    }
+
+    if (data.type === 'record') {
+      const bindVar = data.bindVar && typeof data.bindVar === 'string' && data.bindVar.startsWith('?')
+        ? new LogicalVariable(data.bindVar.slice(1))
+        : null;
+      if (!bindVar) throw new Error('record() requires a variable argument, e.g. record(?occ)');
+      return new StateOperation('record', null, [], { bindVar });
+    }
+
     if (this.predicateSchema && !this.predicateSchema.hasDefinition(data.name)) {
       throw new Error(`Unknown predicate "${data.name}" in state operation — not defined in the predicate schema`);
     }

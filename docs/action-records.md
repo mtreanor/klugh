@@ -28,8 +28,7 @@ Records are appended in the order effects fire. Only actions that have at least 
 | `tick` | `number` | The world tick at the moment of execution |
 | `binding` | `Binding` | The full variable binding the action fired with |
 | `utilityBreakdown` | `BreakdownNode[] \| null` | Per-source contribution tree; `null` if not provided |
-| `planRecord` | `PlanRecord \| null` | The plan this action was executing, if any |
-| `occurrence` | `string \| undefined` | The id of the reified [occurrence](actions.md#occurrences), when `execute` was called with `recordOccurrence: true` |
+| `occurrence` | `string \| undefined` | The id of the reified [occurrence](actions.md#occurrences), when the action's effects include `record(?var)` |
 
 `action.name` gives the action's string name. `binding.resolve(variable)` returns the entity assigned to a `LogicalVariable`. Entity objects carry a `name` string.
 
@@ -111,6 +110,31 @@ Produced by `sum`, `avg`, `min`, or `max`. Contains a nested `sources` array of 
 }
 ```
 
+### Predicate aggregate node
+
+Produced by `fn|pred(args)|` (e.g. `avg|warmth(_, ?SELF)|`). Aggregates a numeric predicate over enumerated entities.
+
+```javascript
+{
+  type:  'predicate-aggregate',
+  fn:    'avg' | 'sum' | 'min' | 'max',
+  score: number,
+}
+```
+
+### Product node
+
+Produced by `source * source`. Contains left and right child nodes.
+
+```javascript
+{
+  type:  'product',
+  left:  BreakdownNode,
+  right: BreakdownNode,
+  score: number,
+}
+```
+
 ---
 
 ## Scoring with a breakdown
@@ -129,11 +153,21 @@ Use this when you need the breakdown and don't want to score the action twice.
 
 ## Execution
 
-To produce an `ActionRecord`, pass `world` in the options to `action.execute()`:
+The simplest way to execute is through `engine.execute()`, which threads the world, query handlers, provenance, and utility breakdown for you:
 
 ```javascript
-const { score, breakdown } = action.scoreWithBreakdown(binding, engine.entityRegistry, evaluationContext);
+const best = engine.selectAction('social', { SELF: agentName });
+if (best) {
+  const record = engine.execute(best);
+  console.log(`${record.action.name} at tick ${record.tick}, score ${best.score}`);
+}
+```
 
+`engine.execute()` returns the `ActionRecord`, or `null` if the action had no effects.
+
+For lower-level control, call `action.execute()` directly and pass `world` to produce an `ActionRecord`:
+
+```javascript
 action.execute(binding, world.queryHandlers, null, {
   privateStores:    world.privateStores,
   world,
@@ -142,36 +176,6 @@ action.execute(binding, world.queryHandlers, null, {
 ```
 
 If `world` is omitted, no record is created and `world.actionLog` is not updated — effects still apply, they just leave no audit trail.
-
-Pass `planRecord` to link the action to a committed plan:
-
-```javascript
-action.execute(binding, world.queryHandlers, null, {
-  world,
-  utilityBreakdown: breakdown,
-  planRecord: plan,          // PlanRecord from planner.commit(...)
-});
-```
-
-A typical selection loop:
-
-```javascript
-const candidates = engine.scoreActionset('social', { SELF: agentName });
-if (candidates.length === 0) return;
-
-const { action, binding } = candidates[0];
-const evaluationContext   = world.createEvaluationContext();
-const { score, breakdown } = action.scoreWithBreakdown(binding, world.entityRegistry, evaluationContext);
-
-action.execute(binding, world.queryHandlers, null, {
-  privateStores:    world.privateStores,
-  world,
-  utilityBreakdown: breakdown,
-});
-
-const record = world.actionLog.at(-1);
-console.log(`${record.action.name} at tick ${record.tick}, score ${score}`);
-```
 
 ---
 
@@ -203,4 +207,4 @@ if (reason) {
 }
 ```
 
-→ [Provenance](provenance.md) · [Actions](actions.md) · [Plans](plans.md)
+→ [Provenance](provenance.md) · [Actions](actions.md)

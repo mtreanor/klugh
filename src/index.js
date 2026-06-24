@@ -15,7 +15,7 @@ export { SensorQueryHandler } from './queryHandlers/SensorQueryHandler.js';
 export { DerivedFactQueryHandler } from './queryHandlers/DerivedFactQueryHandler.js';
 
 // State operations
-export { applyStateChange } from './stateOperations/applyStateChange.js';
+export { applyStateChange, applyEffects } from './stateOperations/applyStateChange.js';
 export { StateChangeQueue } from './stateOperations/StateChangeQueue.js';
 
 // Provenance / proof trees

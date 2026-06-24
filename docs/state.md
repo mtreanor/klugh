@@ -39,6 +39,8 @@ These operations appear in state files and on the RHS of rules.
 | `pred(args) = N` | Set a numeric value |
 | `pred(args) += N` | Adjust a numeric value by +N |
 | `pred(args) -= N` | Adjust a numeric value by −N |
+| `new entity(type[, name\|?var])` | Create an entity at runtime (see [Actions → new entity](actions.md#new-entity)) |
+| `record(?var)` | Mint an action occurrence (action effects only; see [Actions → Occurrences](actions.md#occurrences)) |
 
 `not` on the RHS means "make absent" — the same meaning it carries on the LHS. Each LHS check has a mirrored RHS effect with identical syntax.
 

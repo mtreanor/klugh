@@ -1,3 +1,5 @@
+<!-- Plans quickstart is shelved while the API stabilizes. Uncomment when ready.
+
 # 3 · Plans
 
 An action is a single step. A **plan** is a sequence of steps that reaches a *goal* you declare — the engine searches the actionset for a path from the current world to a state where the goal holds.
@@ -66,3 +68,4 @@ You now have the whole arc: author a world, query it, score and run actions, and
 - [Language overview](../overview) — the complete DSL
 
 ← Back to the [Quickstart overview](./)
+-->

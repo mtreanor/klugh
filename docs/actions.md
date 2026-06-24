@@ -6,7 +6,7 @@ An action file contains only `action` blocks:
 
 ```klugh
 action "offer help"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   preconditions
     knows(?SELF, ?Y)
     ^ not hostile(?SELF, ?Y)
@@ -25,28 +25,27 @@ action "offer help"
 
 ## `roles:`
 
-Optional. A comma-separated list of variable names for the action's participants.
+Optional. A comma-separated list of typed variable declarations for the action's participants.
 
 ```klugh
-roles: ?SELF, ?Y
+roles: ?SELF: agent, ?Y: agent
 ```
 
-Roles are metadata for the application layer — they indicate which variables the caller should pre-bind before scoring. The engine does not enforce or validate them.
+Each role must include a type declaration — `?VARIABLE: type`. The type maps to an entity type in `entities.json` and is used for binding enumeration. Untyped roles are a load-time error.
+
+Roles are metadata for the application layer — they indicate which variables the caller should pre-bind before scoring. The engine uses the declared types to enumerate free variables.
 
 ---
 
 ## Implicit variables
 
-Every action definition has two implicit variables that are bound for you — you never declare them as roles, and they are never enumerated like free variables.
+Every action definition has one implicit variable that is bound for you — you never declare it as a role, and it is never enumerated like free variables.
 
 | Variable | Refers to | Available in |
 |----------|-----------|--------------|
 | `?this_action` | The action being defined/scored, bound to its `action` entity | `info`, `preconditions`, `utility`, `effects` |
-| `?this_occurrence` | The reified [occurrence](#occurrences) of the action | `effects` only |
 
 `?this_action` resolves to the action everywhere a binding works — so a precondition `tag(?this_action, generous)` tests *this* action's tag, a utility rule can weight on it, and an effect can write facts about it (`did(?SELF, ?this_action)`). It is pre-bound, so it is never enumerated over the action catalog.
-
-`?this_occurrence` is only meaningful while effects are applied, and only when occurrence recording is active for that execution (see [Occurrences](#occurrences)). Using it in `info`, `preconditions`, or `utility` is a **load-time error**, because no occurrence exists at those phases.
 
 ---
 
@@ -58,7 +57,7 @@ Inside an action, the variable `?this_action` refers to the action being defined
 
 ```klugh
 action "give"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   info:
     tag(?this_action, generous)
     tag(?this_action, social)
@@ -109,7 +108,7 @@ The engine does not enforce preconditions automatically. The caller is responsib
 
 ## `utility`
 
-Optional. One or more utility sources listed beneath the `utility` keyword. `action.score(binding, entityRegistry, ctx)` evaluates every source and returns their sum. Four source types are available and can be freely mixed in one action.
+Optional. One or more utility sources listed beneath the `utility` keyword. `action.score(binding, entityRegistry, ctx)` evaluates every source and returns their sum. Five source types are available and can be freely mixed in one action.
 
 ### Constant
 
@@ -153,6 +152,14 @@ A `random` source makes scoring non-deterministic by design. Two independent sco
 ```klugh
 utility
   friendship(?SELF, ?Y)
+```
+
+A predicate source can read from a private store with an owner prefix:
+
+```klugh
+utility
+  ?SELF.mood(?SELF)
+  alice.mood(alice)
 ```
 
 ### Rule
@@ -219,6 +226,22 @@ Filtered: only agents who know `?SELF` contribute to the average.
 
 All four functions are available: `avg`, `sum`, `min`, `max`. Unlike the [aggregate](#aggregate) form (which aggregates over other utility sources), this form aggregates over world state directly.
 
+### Product
+
+`source * source`. Multiplies two utility sources. Products can chain (`a * b * c`), and each operand can be any atomic source — constants, predicates, rule sources, or predicate aggregates.
+
+```klugh
+utility
+  friendship(?SELF, ?Y) * trust(?SELF, ?Y)
+```
+
+Products are evaluated left to right. A product of an aggregate and a predicate:
+
+```klugh
+utility
+  avg|warmth(_, ?SELF)| * reputation(?SELF)
+```
+
 ---
 
 ## `content`
@@ -246,110 +269,58 @@ effects
   not hostile(?SELF, ?Y)
 ```
 
-All effect types are valid: assert, retract (`not pred`), explicit disbelief (`-pred`), set-numeric (`= N`), adjust-numeric (`+= N` / `-= N`), and private-store prefixed variants (`?OWNER.pred(args)`).
+All effect types are valid: assert, retract (`not pred`), explicit disbelief (`-pred`), set-numeric (`= N`), adjust-numeric (`+= N` / `-= N`), private-store prefixed variants (`?OWNER.pred(args)`), [`new entity()`](#new-entity), and [`record()`](#occurrences).
 
 ---
 
-## Loading actionsets
+## `new entity()`
 
-Declare named actionsets in `project.config.json` under your scenario:
+Creates an entity at runtime from an effect. Available in both action effects and rule effects.
 
-```json
-{
-  "active": "my-scenario",
-  "scenarios": {
-    "my-scenario": {
-      "predicates": "data/predicates.json",
-      "entities":   "data/entities.json",
-      "state":      "data/state",
-      "actionsets": {
-        "dialogue": "data/actions/dialogue",
-        "combat":   "data/actions/combat"
-      }
-    }
-  }
-}
+```klugh
+effects
+  new entity(building, tavern)         # named — idempotent if "tavern" exists
+  new entity(bond, ?b)                 # auto-named, bound to ?b
+  bondMembers(?b, ?SELF, ?Y)           # subsequent effects can reference ?b
+  new entity(event)                    # auto-named, no handle
 ```
 
-All actionsets are loaded at `Engine` construction time. Score one by name:
+| Form | Behaviour |
+|------|-----------|
+| `new entity(type, name)` | Creates a named entity. Idempotent — if an entity with that name already exists in the type, it's a no-op. |
+| `new entity(type, ?var)` | Creates an auto-named entity (e.g. `bond_1`, `bond_2`, …) and binds its name to `?var` for use in subsequent effects within the same block. |
+| `new entity(type)` | Creates an auto-named entity with no handle. |
 
-```javascript
-const candidates = engine.scoreActionset('dialogue', { SELF: 'alice' });
-// candidates: [{ action, binding, score }, ...] sorted by score descending
-```
-
-`scoreActionset` enumerates all free variables in each action against the entity registry, checks preconditions, sums utility sources, and returns sorted results. The first entry is the highest-scoring eligible candidate.
-
-```javascript
-const [best] = engine.scoreActionset('dialogue', { SELF: 'alice' });
-if (best) {
-  console.log(best.action.content?.render(best.binding) ?? best.action.name);
-  best.action.execute(best.binding, engine.world.queryHandlers, null, {
-    privateStores: engine.world.privateStores,
-  });
-}
-```
-
-Pass `minimumScore` to filter out low-scoring candidates:
-
-```javascript
-const candidates = engine.scoreActionset('dialogue', { SELF: 'alice' }, { minimumScore: 0 });
-```
+Variables introduced by `new entity` are **not enumerated** during scoring — they exist only at execution time.
 
 ---
 
 ## Occurrences
 
-Where an `info:` block makes the action *type* queryable, an **occurrence** records that an action actually *happened* — a reified event you can query by pattern. Occurrences are a live-world record; they are not produced during hypothetical planner search.
+Where an `info:` block makes the action *type* queryable, an **occurrence** records that an action actually *happened* — a reified event you can query by pattern. Occurrences are a live-world record.
 
-Recording an occurrence mints an entity of type `occurrence` and asserts the built-in vocabulary:
+### `record(?var)`
+
+Add `record(?var)` to an action's effects to opt in to occurrence recording. It mints an entity of type `occurrence` and asserts the built-in vocabulary automatically:
 
 ```
-actionType(occ, "give")        // what happened
-role(occ, SELF, alice)         // who/what filled each declared role…
-role(occ, Y, bob)              // …keyed by the role variable's name (?SELF → SELF)
+actionType(occ1, "give")       // what happened
+role(occ1, SELF, alice)        // who/what filled each declared role…
+role(occ1, Y, bob)             // …keyed by the role variable's name (?SELF → SELF)
 ```
 
-The roles come from the action's `roles:` signature, resolved through the binding. Any **context facts** supplied by the decision process are asserted too, with `?this_occurrence` referring to the occurrence.
-
-### Annotating the occurrence from effects
-
-An action's `effects:` can write to its own occurrence using `?this_occurrence` — the DSL-native equivalent of passing context facts. Mix occurrence annotations and ordinary state changes freely:
+The variable `?var` is bound to the occurrence id, so subsequent effects can annotate it:
 
 ```klugh
 action "give"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   effects
-    gave(?SELF, ?Y)                // ordinary world state
-    reluctant(?this_occurrence)    // annotates the recorded occurrence
+    record(?occ)
+    gave(?SELF, ?Y)              // ordinary world state
+    reluctant(?occ)              // annotates the occurrence
 ```
 
-`?this_occurrence` only binds when occurrence recording is active for that execution. **If occurrence generation is not active, any effect that references `?this_occurrence` is silently skipped** — its annotation has no occurrence to attach to — while every other effect still applies. The same action definition therefore works whether or not the embedder records occurrences; the occurrence annotations are simply dropped when there is nothing to record.
-
-### Recording
-
-Either record explicitly with `recordActionOccurrence`:
-
-```javascript
-import { recordActionOccurrence } from './src/recordActionOccurrence.js';
-
-const occId = recordActionOccurrence(give, binding, world, {
-  contextFacts: [
-    { name: 'reluctant', args: ['?this_occurrence'] },          // reluctant(occ)
-    { name: 'runnerUp',  args: ['?this_occurrence', 'apologize'] }, // runnerUp(occ, apologize)
-  ],
-});
-```
-
-…or fold it into execution with the opt-in `recordOccurrence` option (which also links the occurrence onto the resulting `ActionRecord` via `record.occurrence`). With recording on, `?this_occurrence` in the action's effects resolves to the minted occurrence:
-
-```javascript
-give.execute(binding, world.queryHandlers, null, {
-  world,
-  recordOccurrence: true,
-  occurrenceFacts: [{ name: 'reluctant', args: ['?this_occurrence'] }],
-});
-```
+Actions without `record()` produce no occurrence — it's opt-in per action definition.
 
 ### Schema setup
 
@@ -389,6 +360,52 @@ A runnable example is in `examples/action-occurrence.js`.
 
 ---
 
+## Loading actionsets
+
+Declare named actionsets in `project.config.json` under your scenario:
+
+```json
+{
+  "active": "my-scenario",
+  "scenarios": {
+    "my-scenario": {
+      "predicates": "data/predicates.json",
+      "entities":   "data/entities.json",
+      "state":      "data/state",
+      "actionsets": {
+        "dialogue": "data/actions/dialogue",
+        "combat":   "data/actions/combat"
+      }
+    }
+  }
+}
+```
+
+All actionsets are loaded at `Engine` construction time. Score one by name:
+
+```javascript
+const candidates = engine.scoreActionset('dialogue', { SELF: 'alice' });
+// candidates: [{ action, binding, score, breakdown }, ...] sorted by score descending
+```
+
+`scoreActionset` enumerates all free variables in each action against the entity registry, checks preconditions, sums utility sources, and returns sorted results. The first entry is the highest-scoring eligible candidate.
+
+```javascript
+const best = engine.selectAction('dialogue', { SELF: 'alice' });
+if (best) {
+  console.log(best.action.content?.render(best.binding) ?? best.action.name);
+  engine.execute(best);
+}
+```
+
+Pass `minimumScore` to filter out low-scoring candidates:
+
+```javascript
+const candidates = engine.scoreActionset('dialogue', { SELF: 'alice' }, { minimumScore: 0 });
+```
+
+---
+
 ## Action API
 
 | Method / property | Description |
@@ -396,11 +413,10 @@ A runnable example is in `examples/action-occurrence.js`.
 | `arePreconditionsMet(binding, ctx)` | Returns `true` if every precondition holds for the given binding |
 | `score(binding, entityRegistry, ctx)` | Sums all utility sources and returns a number |
 | `scoreWithBreakdown(binding, entityRegistry, ctx)` | Returns `{ score, breakdown }` — the total and a per-source node tree; see [Action records](action-records.md) |
-| `execute(binding, queryHandlers, queue?, opts?)` | Applies effects immediately; enqueues them at `tickEnd` when a `StateChangeQueue` is supplied. `opts` accepts `{ privateStores, world, utilityBreakdown, recordOccurrence, occurrenceFacts }` — pass `world` to record provenance; set `recordOccurrence: true` to reify an [occurrence](#occurrences) |
-| `enqueue(queue, binding, queryHandlers, opts?)` | Stages all effects at `tickEnd` without applying them |
-| `collectVariables()` | Returns all `LogicalVariable` instances referenced in preconditions and effects |
+| `execute(binding, queryHandlers, queue?, opts?)` | Applies effects immediately; enqueues them at `tickEnd` when a `StateChangeQueue` is supplied. `opts` accepts `{ privateStores, world, utilityBreakdown }` — pass `world` to record provenance |
+| `collectVariables()` | Returns all `LogicalVariable` instances referenced in preconditions and effects (excluding variables introduced by `new entity` and `record`) |
 | `action.content` | The `ContentItem` attached to the action, or `null` |
-| `action.roles` | Array of role variable name strings (e.g. `['?SELF', '?Y']`) |
+| `action.roles` | Array of role declarations: `[{ variable: '?SELF', type: 'agent' }, ...]` |
 | `action.info` | Array of declared info facts about the action: `[{ name, args }]` |
 | `action.name` | The action's string name |
 

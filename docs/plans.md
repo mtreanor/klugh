@@ -1,3 +1,5 @@
+<!-- Plans documentation is shelved while the API stabilizes. Uncomment when ready.
+
 # Plans
 
 A **plan** is a sequence of actions that achieves a goal from a given starting state. klugh ships two planners — a forward planner and a backward (regression) planner — that search over hypothetical world states to find such sequences.
@@ -352,3 +354,4 @@ if (reason) {
 A runnable end-to-end example is in `examples/planner.js`.
 
 → [Actions](actions.md) · [Action records](action-records.md) · [Provenance](provenance.md)
+-->

@@ -1,4 +1,5 @@
 import { Fact } from '../Fact.js';
+import { LogicalVariable } from '../LogicalVariable.js';
 
 function buildStubEvaluationContext(factStore, queryHandlers) {
   return {
@@ -55,7 +56,16 @@ export function applyStateChange(operation, binding, queryHandlers, {
   privateStores   = null,
   targetFactStore = null,
   provenance      = null,
+  world           = null,
+  action          = null,
 } = {}) {
+  if (operation.type === 'new-entity') {
+    return applyNewEntity(operation, binding, world);
+  }
+  if (operation.type === 'record') {
+    return applyRecord(operation, binding, world, action, provenance);
+  }
+
   const resolvedArgs = operation.resolveArgs(binding);
 
   // Actuator operations route to the actuator handler, not the fact store.
@@ -110,4 +120,86 @@ export function applyStateChange(operation, binding, queryHandlers, {
     default:
       throw new Error(`Unknown state operation type: "${operation.type}"`);
   }
+}
+
+function applyNewEntity(operation, binding, world) {
+  if (!world) throw new Error('new entity requires a world');
+
+  let entityName;
+  if (operation.nameArg instanceof LogicalVariable) {
+    const seq = (world.entitySeq ?? 0) + 1;
+    world.entitySeq = seq;
+    entityName = `${operation.entityType}_${seq}`;
+  } else if (operation.nameArg != null) {
+    entityName = operation.nameArg;
+    const existing = world.entityRegistry.get(operation.entityType);
+    if (existing?.some(e => e.name === entityName)) return false;
+  } else {
+    const seq = (world.entitySeq ?? 0) + 1;
+    world.entitySeq = seq;
+    entityName = `${operation.entityType}_${seq}`;
+  }
+
+  world.addEntity(operation.entityType, { name: entityName });
+  return entityName;
+}
+
+function applyRecord(operation, binding, world, action, provenance) {
+  if (!world) throw new Error('record() requires a world');
+  if (!action) throw new Error('record() is only valid in action effects');
+
+  world.occurrenceSeq = (world.occurrenceSeq ?? 0) + 1;
+  const occId = `occ${world.occurrenceSeq}`;
+  world.addEntity('occurrence', { name: occId });
+
+  world.factStore.assert(new Fact('actionType', occId, action.name), 1.0, provenance);
+
+  for (const roleRef of action.roles ?? []) {
+    const roleName = roleNameOf(roleRef);
+    const resolved = binding.resolve(new LogicalVariable(roleName));
+    if (resolved === undefined) continue;
+    const value = (resolved !== null && typeof resolved === 'object' && 'name' in resolved)
+      ? resolved.name : resolved;
+    world.factStore.assert(new Fact('role', occId, roleName, value), 1.0, provenance);
+  }
+
+  return occId;
+}
+
+function roleNameOf(roleRef) {
+  if (roleRef !== null && typeof roleRef === 'object' && 'variable' in roleRef) {
+    return roleRef.variable.slice(1);
+  }
+  if (typeof roleRef === 'string' && roleRef.startsWith('?')) return roleRef.slice(1);
+  return roleRef;
+}
+
+export function applyEffects(effects, binding, queryHandlers, {
+  privateStores = null,
+  provenance    = null,
+  world         = null,
+  action        = null,
+} = {}) {
+  let currentBinding = binding;
+  let changed = false;
+
+  for (const effect of effects) {
+    const result = applyStateChange(effect, currentBinding, queryHandlers, {
+      privateStores, provenance, world, action,
+    });
+
+    if (effect.type === 'new-entity' && typeof result === 'string') {
+      changed = true;
+      if (effect.nameArg instanceof LogicalVariable) {
+        currentBinding = currentBinding.extend(effect.nameArg, { name: result });
+      }
+    } else if (effect.type === 'record' && typeof result === 'string') {
+      changed = true;
+      currentBinding = currentBinding.extend(effect.bindVar, { name: result });
+    } else if (result) {
+      changed = true;
+    }
+  }
+
+  return changed;
 }

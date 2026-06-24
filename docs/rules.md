@@ -6,7 +6,7 @@ Rule files contain only `rule` blocks. World and private state belong in the `st
 
 ## Syntax
 
-A rule has a name, a left-hand side (LHS) of predicates joined by `^`, and a right-hand side (RHS) of state operations after `=>`.
+A rule has a name, a left-hand side (LHS) of predicates joined by `^`, and a right-hand side (RHS) of a state operation after `=>`.
 
 ```klugh
 rule "R1 — exploit when a need can be met"
@@ -15,7 +15,7 @@ rule "R1 — exploit when a need can be met"
   => exploitative(?SELF, ?Y) += 3.0
 ```
 
-The LHS uses the forms documented in [Query forms](query-forms.md) and [Negation](negation.md). The RHS uses the state operations documented in [State files](state.md#state-operations). Private-store prefixes work on both sides — see [Private stores](private-stores.md).
+The LHS uses the forms documented in [Query forms](query-forms.md) and [Negation](negation.md). The RHS uses the state operations documented in [State files](state.md#state-operations), including [`new entity()`](actions.md#new-entity) for creating entities at runtime. Private-store prefixes work on both sides — see [Private stores](private-stores.md).
 
 ---
 

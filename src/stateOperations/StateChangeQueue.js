@@ -6,8 +6,8 @@ export class StateChangeQueue {
     this.tickEnd      = [];
   }
 
-  enqueue(operation, binding, queryHandlers, { flush = 'deliberation', deltaOverride = null, privateStores = null, provenance = null } = {}) {
-    this.queueFor(flush).push({ operation, binding, queryHandlers, deltaOverride, privateStores, provenance });
+  enqueue(operation, binding, queryHandlers, { flush = 'deliberation', deltaOverride = null, privateStores = null, provenance = null, world = null, action = null } = {}) {
+    this.queueFor(flush).push({ operation, binding, queryHandlers, deltaOverride, privateStores, provenance, world, action });
   }
 
   apply(operation, binding, queryHandlers, { deltaOverride = null, privateStores = null } = {}) {
@@ -39,7 +39,7 @@ export class StateChangeQueue {
 
   flushDeliberation(queryHandlers, privateStores = null) {
     for (const entry of this.deliberation) {
-      const { operation, binding, deltaOverride, provenance } = entry;
+      const { operation, binding, deltaOverride, provenance, world, action } = entry;
       const stores = entry.privateStores ?? privateStores;
 
       if (operation.type === 'adjust-numeric' && !operation.owner) {
@@ -49,18 +49,20 @@ export class StateChangeQueue {
         continue;
       }
 
-      applyStateChange(operation, binding, queryHandlers, { deltaOverride, privateStores: stores });
+      applyStateChange(operation, binding, queryHandlers, { deltaOverride, privateStores: stores, world, action });
     }
 
     this.deliberation = [];
   }
 
   flushTickEnd(queryHandlers, privateStores = null) {
-    for (const { operation, binding, deltaOverride, privateStores: entryStores, provenance } of this.tickEnd) {
+    for (const { operation, binding, deltaOverride, privateStores: entryStores, provenance, world, action } of this.tickEnd) {
       applyStateChange(operation, binding, queryHandlers, {
         deltaOverride,
         privateStores: entryStores ?? privateStores,
         provenance,
+        world,
+        action,
       });
     }
     this.tickEnd = [];

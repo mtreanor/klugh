@@ -125,14 +125,24 @@ export function applyStateChange(operation, binding, queryHandlers, {
   }
 }
 
+function resolveNameTemplate(template, binding) {
+  return template.replace(/\{\?([A-Z][A-Z0-9_]*)\}/g, (_, varName) => {
+    const resolved = binding.resolve(new LogicalVariable(varName));
+    if (resolved == null) return `_${varName}_`;
+    return (typeof resolved === 'object' && 'name' in resolved) ? resolved.name : String(resolved);
+  });
+}
+
 function applyNewEntity(operation, binding, world) {
   if (!world) throw new Error('new entity requires a world');
 
   let entityName;
   if (operation.explicitName != null) {
-    entityName = operation.explicitName;
+    entityName = typeof operation.explicitName === 'string' && operation.explicitName.includes('{?')
+      ? resolveNameTemplate(operation.explicitName, binding)
+      : operation.explicitName;
     const existing = world.entityRegistry.get(operation.entityType);
-    if (existing?.some(e => e.name === entityName)) return false;
+    if (existing?.some(e => e.name === entityName)) return { name: entityName, created: false };
   } else if (operation.nameArg instanceof LogicalVariable) {
     const seq = (world.entitySeq ?? 0) + 1;
     world.entitySeq = seq;
@@ -140,7 +150,7 @@ function applyNewEntity(operation, binding, world) {
   } else if (operation.nameArg != null) {
     entityName = operation.nameArg;
     const existing = world.entityRegistry.get(operation.entityType);
-    if (existing?.some(e => e.name === entityName)) return false;
+    if (existing?.some(e => e.name === entityName)) return { name: entityName, created: false };
   } else {
     const seq = (world.entitySeq ?? 0) + 1;
     world.entitySeq = seq;
@@ -148,7 +158,7 @@ function applyNewEntity(operation, binding, world) {
   }
 
   world.addEntity(operation.entityType, { name: entityName });
-  return entityName;
+  return { name: entityName, created: true };
 }
 
 function applyRemoveEntity(operation, binding, world) {
@@ -210,10 +220,10 @@ export function applyEffects(effects, binding, queryHandlers, {
       privateStores, provenance, world, action,
     });
 
-    if (effect.type === 'new-entity' && typeof result === 'string') {
-      changed = true;
+    if (effect.type === 'new-entity' && result && typeof result === 'object' && 'name' in result) {
+      if (result.created) changed = true;
       if (effect.nameArg instanceof LogicalVariable) {
-        currentBinding = currentBinding.extend(effect.nameArg, { name: result });
+        currentBinding = currentBinding.extend(effect.nameArg, { name: result.name });
       }
     } else if (effect.type === 'record' && typeof result === 'string') {
       changed = true;

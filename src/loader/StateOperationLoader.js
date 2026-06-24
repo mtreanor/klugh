@@ -11,7 +11,7 @@ export class StateOperationLoader {
       const nameArg = data.nameArg && typeof data.nameArg === 'string' && data.nameArg.startsWith('?')
         ? new LogicalVariable(data.nameArg.slice(1))
         : data.nameArg;
-      return new StateOperation('new-entity', null, [], { entityType: data.entityType, nameArg });
+      return new StateOperation('new-entity', null, [], { entityType: data.entityType, nameArg, explicitName: data.explicitName ?? null });
     }
 
     if (data.type === 'remove-entity') {

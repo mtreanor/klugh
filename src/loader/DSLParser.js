@@ -556,6 +556,9 @@ export class DSLParser {
       } else if (key === 'at' && allowTick) {
         this.expect('COLON');
         result.tick = this.expect('NUMBER').value;
+      } else if (key === 'name' && op.type === 'new-entity') {
+        this.expect('COLON');
+        result.explicitName = this.parseArg();
       } else {
         throw new Error(`Unknown modifier '${key}' at line ${keyTok.line}`);
       }

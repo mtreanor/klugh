@@ -284,6 +284,39 @@ describe('new entity() in effects', () => {
     assert.ok(engine.world.factStore.contains('bondMembers', 'bond_1', 'alice', 'bob'));
   });
 
+  it('creates a named entity with variable binding via [name:] annotation', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-new-entity-named-var-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { bondMembers: { type: 'boolean', args: ['bond', 'agent', 'agent'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent: { alice: {}, bob: {} },
+      bond:  {},
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'actions'), `
+      action "form bond"
+        roles: ?SELF: agent, ?Y: agent
+        effects
+          new entity(bond, ?b) [name: myBond]
+          bondMembers(?b, ?SELF, ?Y)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities:   join(dir, 'entities.json'),
+      state:      join(dir, 'state'),
+      actionsets: { test: join(dir, 'actions') },
+    });
+
+    const [candidate] = engine.scoreActionset('test', { SELF: 'alice', Y: 'bob' });
+    engine.execute(candidate);
+
+    const bonds = engine.world.entityRegistry.get('bond');
+    assert.equal(bonds.length, 1);
+    assert.equal(bonds[0].name, 'myBond');
+    assert.ok(engine.world.factStore.contains('bondMembers', 'myBond', 'alice', 'bob'));
+  });
+
   it('works in rule effects (named entity)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'klugh-new-entity-rule-'));
     writeFileSync(join(dir, 'predicates.json'), JSON.stringify({

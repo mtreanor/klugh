@@ -139,7 +139,7 @@ Actions are named, scoreable, executable choices. The application layer enumerat
 
 ```klugh
 action "offer help"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   preconditions
     knows(?SELF, ?Y)
     ^ not hostile(?SELF, ?Y)
@@ -176,24 +176,6 @@ Every fact carries a record of why it exists. When a rule fires, the asserted or
 Boolean provenance is accessible through `FactRecord.currentReasons()`. Numeric adjustment history lives on `NumericRecord.events`. All fired-action records accumulate in `world.actionLog`.
 
 → [Provenance](provenance.md) · [Action records](action-records.md)
-
----
-
-## Plans
-
-The planner finds sequences of actions that achieve a goal from a given starting state, searching over hypothetical world states without mutating the live world. A found plan can be committed to `world.planLog` as a `PlanRecord`, which tracks its status (`active`, `succeeded`, `failed`, `abandoned`) and links to every `ActionRecord` created when its steps execute.
-
-```javascript
-const steps = new Planner(actions, schema).findPlan(goalPredicates, PlannerSnapshot.from(world));
-const plan  = planner.commit(steps, goalPredicates, world);
-// later, when executing:
-action.execute(binding, world.queryHandlers, null, { world, planRecord: plan });
-plan.checkGoal(world);  // auto-sets status to 'succeeded' if goal is met
-```
-
-A custom `cost` function steers the search toward the cheapest plan rather than the shortest; `validators` reject plans that fail caller-defined constraints; `findPlans` enumerates plans one at a time; and `findPlanDetailed` reports which goals remained unsatisfied when no plan exists. Because a snapshot carries the world's full evaluation stack, goals and validators can use **derived predicates** (resolved by backward chaining against `define` rules) and **numeric tiers**, evaluated against the simulated state at any point along a plan.
-
-→ [Plans](plans.md)
 
 ---
 

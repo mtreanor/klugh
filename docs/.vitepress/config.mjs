@@ -35,7 +35,6 @@ export default defineConfig({
           { text: '1.5 · Provenance', link: '/quickstart/provenance' },
           { text: '2 · Actions', link: '/quickstart/actions' },
           { text: '2.5 · Action records', link: '/quickstart/action-records' },
-          { text: '3 · Plans', link: '/quickstart/plans' },
         ],
       },
       {
@@ -52,7 +51,6 @@ export default defineConfig({
           { text: 'Sensor predicates', link: '/sensors' },
           { text: 'Actions', link: '/actions' },
           { text: 'Action records', link: '/action-records' },
-          { text: 'Plans', link: '/plans' },
           { text: 'Provenance', link: '/provenance' },
           { text: 'REPL', link: '/repl' },
         ],

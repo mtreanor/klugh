@@ -42,11 +42,11 @@ Rules read like intent. Write hundreds of them and you get emergent behavior —
 
 ## Designed for explanation
 
-A klugh world is fully auditable. Every fact records why it exists — which rule asserted it, which action caused it, what utility motivated the choice. Every action record carries a utility breakdown tracing the score back to the predicates and rules that drove it. When an action fires as part of a plan, the plan record is carried on the action record, so the chain from intent to effect is always traversable.
+A klugh world is fully auditable. Every fact records why it exists — which rule asserted it, which action caused it, what utility motivated the choice. Every action record carries a utility breakdown tracing the score back to the predicates and rules that drove it.
 
 This is a first-class design goal, not an afterthought. The interesting things that happen in a klugh world — emergent behaviors, unexpected interactions, narrative turns — should always be explainable after the fact. Every mechanism that produces state also produces the record of how and why it produced that state.
 
-→ [Provenance](provenance.md) · [Action records](action-records.md) · [Plans](plans.md)
+→ [Provenance](provenance.md) · [Action records](action-records.md)
 
 Runnable demo: `node examples/landing-page-demo.js` — simulates the scenario above and prints `why` / `explain` for `friendship(carol, alice)` through rule effects, action effects, derived premises, and private-store justifications.
 

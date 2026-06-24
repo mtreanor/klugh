@@ -457,6 +457,30 @@ export class DSLParser {
   }
 
   parseStateOperationCore() {
+    // 'new entity(type)' or 'new entity(type, nameOrVar)'
+    if (this.check('IDENT', 'new')) {
+      this.advance();
+      this.expect('IDENT', 'entity');
+      this.expect('LPAREN');
+      const entityType = this.parseArg();
+      let nameArg = null;
+      if (this.check('COMMA')) {
+        this.advance();
+        nameArg = this.parseArg();
+      }
+      this.expect('RPAREN');
+      return { type: 'new-entity', entityType, nameArg };
+    }
+
+    // 'record(?var)' — mint occurrence with auto-asserted action vocabulary
+    if (this.check('IDENT', 'record')) {
+      this.advance();
+      this.expect('LPAREN');
+      const bindVar = this.parseArg();
+      this.expect('RPAREN');
+      return { type: 'record', bindVar };
+    }
+
     // 'not' means retract; 'not -' means retract the negated fact
     if (this.check('IDENT', 'not')) {
       this.advance();

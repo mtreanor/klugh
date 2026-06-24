@@ -4,8 +4,6 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../src/Engine.js';
-import { ActionParser } from '../src/loader/ActionParser.js';
-import { ActionLoader } from '../src/loader/ActionLoader.js';
 
 // ── ?this_action available everywhere a binding works ────────────────────────
 
@@ -82,48 +80,3 @@ describe('?this_action', () => {
   });
 });
 
-// ── ?this_occurrence is effects-only ─────────────────────────────────────────
-
-function load(src) {
-  const ast = new ActionParser(null).parse(src);
-  return new ActionLoader(null).load(ast);
-}
-
-describe('?this_occurrence placement', () => {
-  it('is allowed in effects', () => {
-    assert.doesNotThrow(() => load(`
-      action "give"
-        roles: ?SELF: agent
-        effects reluctant(?this_occurrence)
-    `));
-  });
-
-  it('is a load-time error in preconditions', () => {
-    assert.throws(() => load(`
-      action "give"
-        roles: ?SELF: agent
-        preconditions reluctant(?this_occurrence)
-        effects helped(?SELF)
-    `), /only valid in an effects: block/);
-  });
-
-  it('is a load-time error in utility', () => {
-    assert.throws(() => load(`
-      action "give"
-        roles: ?SELF: agent
-        utility
-          rule "x" reluctant(?this_occurrence) => 1
-        effects helped(?SELF)
-    `), /only valid in an effects: block/);
-  });
-
-  it('is a load-time error in info', () => {
-    assert.throws(() => load(`
-      action "give"
-        roles: ?SELF: agent
-        info:
-          reluctant(?this_occurrence)
-        effects helped(?SELF)
-    `), /only valid in an effects: block/);
-  });
-});

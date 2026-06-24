@@ -16,7 +16,7 @@ import { Rule } from './Rule.js';
 import { RuleEvaluator } from './RuleEvaluator.js';
 import { ForwardChainer } from './ForwardChainer.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
-import { applyStateChange } from './stateOperations/applyStateChange.js';
+import { applyStateChange, applyEffects } from './stateOperations/applyStateChange.js';
 import { THIS_ACTION } from './actionVariables.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
 import { Planner } from './planner/Planner.js';
@@ -251,13 +251,11 @@ export class Engine {
         app.rule, app.binding,
         buildPremiseJustifications(app.rule.predicateEntries, app.binding, ctx)
       );
-      let changed = false;
-      for (const effect of app.rule.effects) {
-        if (applyStateChange(effect, app.binding, this.world.queryHandlers, {
-          privateStores: this.world.privateStores,
-          provenance,
-        })) changed = true;
-      }
+      const changed = applyEffects(app.rule.effects, app.binding, this.world.queryHandlers, {
+        privateStores: this.world.privateStores,
+        provenance,
+        world: this.world,
+      });
       if (changed) fired.push(app);
       return changed;
     });
@@ -327,18 +325,13 @@ export class Engine {
   //
   // options:
   //   queue            — a StateChangeQueue to stage effects on (deferred execution)
-  //   recordOccurrence — also reify a queryable action occurrence (default false;
-  //                      requires the occurrence vocabulary in the schema)
-  //   occurrenceFacts  — extra facts to attach to the occurrence
   //   utilityBreakdown — override the breakdown attached to the ActionRecord
-  execute(candidate, { queue = null, recordOccurrence = false, occurrenceFacts = [], utilityBreakdown = null } = {}) {
+  execute(candidate, { queue = null, utilityBreakdown = null } = {}) {
     const breakdown = utilityBreakdown ?? candidate.breakdown ?? null;
     const before = this.world.actionLog.length;
     candidate.action.execute(candidate.binding, this.world.queryHandlers, queue, {
       privateStores: this.world.privateStores,
       world:         this.world,
-      recordOccurrence,
-      occurrenceFacts,
       utilityBreakdown: breakdown,
     });
     return this.world.actionLog.length > before ? this.world.actionLog.at(-1) : null;

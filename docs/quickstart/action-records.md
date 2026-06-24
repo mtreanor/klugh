@@ -10,13 +10,12 @@ This page continues from [Actions](./actions) — assume `bob` has just offered 
 
 ```javascript
 for (const record of engine.actionLog) {
-  const ref = record.planRecord ? `plan #${record.planRecord.id}` : 'unplanned';
-  console.log(`tick ${record.tick}  ${record.action.name}  (${ref})`);
+  console.log(`tick ${record.tick}  ${record.action.name}`);
 }
-// tick 0  offer help  (unplanned)
+// tick 0  offer help
 ```
 
-A record carries the `action`, the `binding` it ran under, the `tick`, and — when the action was part of a plan — the `planRecord` (see [Plans](./plans)). Read the binding with `record.binding.resolve('Y')`.
+A record carries the `action`, the `binding` it ran under, and the `tick`. Read the binding with `record.binding.resolve('Y')`.
 
 ## From a fact back to its cause
 
@@ -43,8 +42,8 @@ The same holds for the numeric effect: `engine.why('friendship(bob, carol)')` sh
 
 ## There's more on the record
 
-An `ActionRecord` can also carry a **utility breakdown** (the scored reasons it was chosen) and a reified **occurrence** (a queryable event, minted with `execute(candidate, { recordOccurrence: true })`). Those are beyond the quickstart:
+An `ActionRecord` can also carry a **utility breakdown** (the scored reasons it was chosen) and a reified **occurrence** (a queryable event, created when an action's effects include `record(?var)`). Those are beyond the quickstart:
 
 → [Action records reference](../action-records) · [Provenance reference](../provenance)
 
-Next: [reach a goal with a plan →](./plans)
+← Back to the [Quickstart overview](./)

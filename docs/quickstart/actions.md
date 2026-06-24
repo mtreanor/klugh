@@ -8,7 +8,7 @@ Actions live in their own file, named in `project.config.json` under `actionsets
 
 ```klugh
 action "offer help"
-  roles: ?SELF, ?Y
+  roles: ?SELF: agent, ?Y: agent
   preconditions
     knows(?SELF, ?Y)
     ^ hasNeed(?Y)
@@ -20,7 +20,7 @@ action "offer help"
     friendship(?SELF, ?Y) += 5
 
 action "rest"
-  roles: ?SELF
+  roles: ?SELF: agent
   utility
     -2.0
   content text: "?SELF rests"
@@ -30,7 +30,7 @@ action "rest"
 
 The pieces:
 
-- **`roles`** — the variables an action binds. Free roles are enumerated when scoring.
+- **`roles`** — typed variable declarations (`?VAR: type`). Free roles are enumerated when scoring.
 - **`preconditions`** — a conjunction (same DSL as queries) deciding *eligibility*. `offer help` only applies to someone you know who has a need; `rest` has none, so it's always available.
 - **`utility`** — how *appealing* an eligible candidate is. This is the key idea below.
 - **`content`** — a human-readable template; `?ROLE` is filled from the binding.
@@ -54,7 +54,7 @@ engine.scoreActionset('social', { SELF: 'bob' });
    -2  bob rests
 ```
 
-Bob can help either acquaintance, but helping `carol` ranks higher because their friendship is stronger. `rest` sits at `-2`, so it only wins when nothing better is eligible. (`introduce` declares no utility, so it scores `0` — more on it in [Plans](./plans).)
+Bob can help either acquaintance, but helping `carol` ranks higher because their friendship is stronger. `rest` sits at `-2`, so it only wins when nothing better is eligible.
 
 Each candidate is `{ action, binding, score, label }` — `label` is the rendered `content`, ready to display.
 

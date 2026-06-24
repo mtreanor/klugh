@@ -289,8 +289,18 @@ effects
 |------|-----------|
 | `new entity(type, name)` | Creates a named entity. Idempotent — if an entity with that name already exists in the type, it's a no-op. |
 | `new entity(type, ?var)` | Creates an auto-named entity (e.g. `bond_1`, `bond_2`, …) and binds its name to `?var` for use in subsequent effects within the same block. |
-| `new entity(type, ?var) [name: X]` | Creates an entity named `X` and binds it to `?var`. Gives you both a human-readable name and a variable handle. Idempotent on the name. |
+| `new entity(type, ?var) [name: X]` | Creates an entity named `X` and binds it to `?var`. Gives you both a human-readable name and a variable handle. Idempotent — if the name already exists, `?var` binds to the existing entity. |
 | `new entity(type)` | Creates an auto-named entity with no handle. |
+
+The `[name:]` annotation supports **`{?VAR}` template interpolation** — role variables are resolved into the name string:
+
+```klugh
+effects
+  new entity(bond, ?b) [name: "{?SELF}_{?Y}_bond"]
+  bondMembers(?b, ?SELF, ?Y)
+```
+
+With `?SELF = alice` and `?Y = bob`, this creates an entity named `alice_bob_bond`. Because creation is idempotent, this acts as **find-or-create**: if the rule fires again for the same binding, `?b` binds to the existing entity.
 
 Variables introduced by `new entity` are **not enumerated** during scoring — they exist only at execution time.
 

@@ -214,6 +214,10 @@ export class DSLParser {
 
     this.expect('FAT_ARROW');
     const effects = [this.parseStateOperation()];
+    while (this.check('FAT_ARROW')) {
+      this.advance();
+      effects.push(this.parseStateOperation());
+    }
 
     return { name, predicates, effects };
   }

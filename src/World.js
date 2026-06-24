@@ -155,6 +155,15 @@ export class World {
   }
 
   _commitEffect(operation, binding, satisfactionScore, provenance = null, scaleDelta = (d, s) => d * s) {
+    if (operation.type === 'new-entity') {
+      const result = applyStateChange(operation, binding, this.queryHandlers, { world: this });
+      return result?.created === true;
+    }
+
+    if (operation.type === 'remove-entity') {
+      return applyStateChange(operation, binding, this.queryHandlers, { world: this }) === true;
+    }
+
     if (operation.type === 'actuate' || operation.type === 'actuate-numeric') {
       applyStateChange(operation, binding, this.queryHandlers, { privateStores: this.privateStores });
       return true;

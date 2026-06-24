@@ -77,6 +77,15 @@ export class World {
     return this;
   }
 
+  removeEntity(type, entityName) {
+    const entities = this.entityRegistry.get(type);
+    if (!entities) return false;
+    const idx = entities.findIndex(e => e.name === entityName);
+    if (idx < 0) return false;
+    entities.splice(idx, 1);
+    return true;
+  }
+
   assert(fact) {
     this.factStore.assert(fact);
     return this;

@@ -62,6 +62,9 @@ export function applyStateChange(operation, binding, queryHandlers, {
   if (operation.type === 'new-entity') {
     return applyNewEntity(operation, binding, world);
   }
+  if (operation.type === 'remove-entity') {
+    return applyRemoveEntity(operation, binding, world);
+  }
   if (operation.type === 'record') {
     return applyRecord(operation, binding, world, action, provenance);
   }
@@ -142,6 +145,21 @@ function applyNewEntity(operation, binding, world) {
 
   world.addEntity(operation.entityType, { name: entityName });
   return entityName;
+}
+
+function applyRemoveEntity(operation, binding, world) {
+  if (!world) throw new Error('remove entity requires a world');
+
+  let entityName;
+  if (operation.nameArg instanceof LogicalVariable) {
+    const resolved = binding.resolve(operation.nameArg);
+    if (resolved == null) throw new Error('remove entity: variable is unbound');
+    entityName = (typeof resolved === 'object' && 'name' in resolved) ? resolved.name : resolved;
+  } else {
+    entityName = operation.nameArg;
+  }
+
+  return world.removeEntity(operation.entityType, entityName);
 }
 
 function applyRecord(operation, binding, world, action, provenance) {

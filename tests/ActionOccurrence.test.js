@@ -315,3 +315,147 @@ describe('new entity() in effects', () => {
     assert.equal(buildings[0].name, 'tavern');
   });
 });
+
+// ── remove entity() in effects ──────────────────────────────────────────────
+
+describe('remove entity() in effects', () => {
+  it('removes a named entity from the registry', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-remove-entity-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { demolished: { type: 'boolean', args: ['agent'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent:    { alice: {} },
+      building: { tavern: {} },
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'actions'), `
+      action "demolish tavern"
+        roles: ?SELF: agent
+        effects
+          remove entity(building, tavern)
+          demolished(?SELF)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities:   join(dir, 'entities.json'),
+      state:      join(dir, 'state'),
+      actionsets: { test: join(dir, 'actions') },
+    });
+
+    assert.equal(engine.world.entityRegistry.get('building').length, 1);
+
+    const [candidate] = engine.scoreActionset('test', { SELF: 'alice' });
+    engine.execute(candidate);
+
+    assert.equal(engine.world.entityRegistry.get('building').length, 0);
+    assert.ok(engine.world.factStore.contains('demolished', 'alice'));
+  });
+
+  it('removes a variable-bound entity', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-remove-entity-var-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { bondMembers: { type: 'boolean', args: ['bond', 'agent', 'agent'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent: { alice: {}, bob: {} },
+      bond:  {},
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'create-actions'), `
+      action "form bond"
+        roles: ?SELF: agent, ?Y: agent
+        effects
+          new entity(bond, ?b)
+          bondMembers(?b, ?SELF, ?Y)
+    `);
+    writeFileSync(join(dir, 'destroy-actions'), `
+      action "break bond"
+        roles: ?SELF: agent, ?Y: agent
+        effects
+          remove entity(bond, bond_1)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities:   join(dir, 'entities.json'),
+      state:      join(dir, 'state'),
+      actionsets: {
+        create:  join(dir, 'create-actions'),
+        destroy: join(dir, 'destroy-actions'),
+      },
+    });
+
+    // Create a bond
+    const [c1] = engine.scoreActionset('create', { SELF: 'alice', Y: 'bob' });
+    engine.execute(c1);
+    assert.equal(engine.world.entityRegistry.get('bond').length, 1);
+
+    // Destroy it
+    const [c2] = engine.scoreActionset('destroy', { SELF: 'alice', Y: 'bob' });
+    engine.execute(c2);
+    assert.equal(engine.world.entityRegistry.get('bond').length, 0);
+
+    // Facts about the bond are orphaned — still present
+    assert.ok(engine.world.factStore.contains('bondMembers', 'bond_1', 'alice', 'bob'));
+  });
+
+  it('is idempotent — removing a nonexistent entity is a no-op', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-remove-entity-noop-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { done: { type: 'boolean', args: ['agent'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent:    { alice: {} },
+      building: {},
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'actions'), `
+      action "demolish ghost"
+        roles: ?SELF: agent
+        effects
+          remove entity(building, nonexistent)
+          done(?SELF)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities:   join(dir, 'entities.json'),
+      state:      join(dir, 'state'),
+      actionsets: { test: join(dir, 'actions') },
+    });
+
+    const [candidate] = engine.scoreActionset('test', { SELF: 'alice' });
+    engine.execute(candidate);
+
+    assert.ok(engine.world.factStore.contains('done', 'alice'));
+  });
+
+  it('works in rule effects', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-remove-entity-rule-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: {
+        condemned: { type: 'boolean', args: ['building'] },
+      },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      building: { tavern: {} },
+    }));
+    writeFileSync(join(dir, 'state'), 'world\ncondemned(tavern)\n');
+    writeFileSync(join(dir, 'rules'), `
+      rule "condemned buildings are removed"
+        condemned(?B)
+        => remove entity(building, ?B)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities:   join(dir, 'entities.json'),
+      state:      join(dir, 'state'),
+      rulesets:   { test: join(dir, 'rules') },
+    });
+
+    assert.equal(engine.world.entityRegistry.get('building').length, 1);
+
+    engine.runRuleset('test');
+
+    assert.equal(engine.world.entityRegistry.get('building').length, 0);
+  });
+});

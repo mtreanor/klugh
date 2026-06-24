@@ -349,6 +349,109 @@ describe('new entity() in effects', () => {
   });
 });
 
+// ── [name: "template_{?VAR}"] interpolation ─────────────────────────────────
+
+describe('[name: "template_{?VAR}"] interpolation', () => {
+  it('resolves role variables in the name template', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-name-template-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { has: { type: 'boolean', args: ['agent', 'item'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent: { alice: {} }, item: {},
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'actions'), `
+      action "equip"
+        roles: ?SELF: agent
+        effects
+          new entity(item, ?W) [name: "sword_{?SELF}"]
+          has(?SELF, ?W)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities: join(dir, 'entities.json'),
+      state: join(dir, 'state'),
+      actionsets: { test: join(dir, 'actions') },
+    });
+
+    const [c] = engine.scoreActionset('test', { SELF: 'alice' });
+    engine.execute(c);
+
+    const items = engine.world.entityRegistry.get('item');
+    assert.equal(items.length, 1);
+    assert.equal(items[0].name, 'sword_alice');
+    assert.ok(engine.world.factStore.contains('has', 'alice', 'sword_alice'));
+  });
+
+  it('is idempotent — re-executing binds to the existing entity', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-name-template-idem-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { has: { type: 'boolean', args: ['agent', 'item'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent: { alice: {} }, item: {},
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'actions'), `
+      action "equip"
+        roles: ?SELF: agent
+        effects
+          new entity(item, ?W) [name: "sword_{?SELF}"]
+          has(?SELF, ?W)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities: join(dir, 'entities.json'),
+      state: join(dir, 'state'),
+      actionsets: { test: join(dir, 'actions') },
+    });
+
+    const [c1] = engine.scoreActionset('test', { SELF: 'alice' });
+    engine.execute(c1);
+    const [c2] = engine.scoreActionset('test', { SELF: 'alice' });
+    engine.execute(c2);
+
+    assert.equal(engine.world.entityRegistry.get('item').length, 1);
+    assert.ok(engine.world.factStore.contains('has', 'alice', 'sword_alice'));
+  });
+
+  it('creates distinct entities for different bindings', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klugh-name-template-multi-'));
+    writeFileSync(join(dir, 'predicates.json'), JSON.stringify({
+      predicates: { has: { type: 'boolean', args: ['agent', 'item'] } },
+    }));
+    writeFileSync(join(dir, 'entities.json'), JSON.stringify({
+      agent: { alice: {}, bob: {} }, item: {},
+    }));
+    writeFileSync(join(dir, 'state'), '# empty\n');
+    writeFileSync(join(dir, 'actions'), `
+      action "equip"
+        roles: ?SELF: agent
+        effects
+          new entity(item, ?W) [name: "sword_{?SELF}"]
+          has(?SELF, ?W)
+    `);
+    const engine = new Engine({
+      predicates: join(dir, 'predicates.json'),
+      entities: join(dir, 'entities.json'),
+      state: join(dir, 'state'),
+      actionsets: { test: join(dir, 'actions') },
+    });
+
+    const [c1] = engine.scoreActionset('test', { SELF: 'alice' });
+    engine.execute(c1);
+    const [c2] = engine.scoreActionset('test', { SELF: 'bob' });
+    engine.execute(c2);
+
+    const items = engine.world.entityRegistry.get('item');
+    assert.equal(items.length, 2);
+    assert.deepEqual(items.map(e => e.name).sort(), ['sword_alice', 'sword_bob']);
+    assert.ok(engine.world.factStore.contains('has', 'alice', 'sword_alice'));
+    assert.ok(engine.world.factStore.contains('has', 'bob', 'sword_bob'));
+  });
+});
+
 // ── remove entity() in effects ──────────────────────────────────────────────
 
 describe('remove entity() in effects', () => {

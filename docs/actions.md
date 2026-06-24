@@ -302,6 +302,25 @@ effects
 
 With `?SELF = alice` and `?Y = bob`, this creates an entity named `alice_bob_bond`. Because creation is idempotent, this acts as **find-or-create**: if the rule fires again for the same binding, `?b` binds to the existing entity.
 
+### Naming policies
+
+Entity types can declare a `naming` template in `entities.json` that auto-generates meaningful names from sibling effects. The template uses `{predicate.argIndex}` slots — the loader inspects the other effects in the block to fill them in.
+
+```json
+{
+  "part": { "naming": "{instanceOf.1}_{has.0}" }
+}
+```
+
+```klugh
+effects
+  new entity(part, ?P)
+  has(?SELF, ?P)
+  instanceOf(?P, "sword")
+```
+
+With `?SELF = alice`, the entity is named `sword_alice` instead of `part_1`. Slots that don't match any sibling effect are omitted. This is a convenience for authors who want readable entity names without writing `[name:]` on every `new entity`.
+
 Variables introduced by `new entity` are **not enumerated** during scoring — they exist only at execution time.
 
 ---

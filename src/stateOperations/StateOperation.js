@@ -2,7 +2,7 @@ import { LogicalVariable } from '../LogicalVariable.js';
 import { Predicate } from '../Predicate.js';
 
 export class StateOperation {
-  constructor(type, name, args, { delta, value, numericOperation = null, owner = null, ownerIsVariable = false, strength = 1.0, negated = false, entityType = null, nameArg = null, bindVar = null } = {}) {
+  constructor(type, name, args, { delta, value, numericOperation = null, owner = null, ownerIsVariable = false, strength = 1.0, negated = false, entityType = null, nameArg = null, bindVar = null, explicitName = null } = {}) {
     this.type              = type;
     this.name              = name;
     this.args              = args;
@@ -16,6 +16,7 @@ export class StateOperation {
     this.entityType        = entityType;
     this.nameArg           = nameArg;
     this.bindVar           = bindVar;
+    this.explicitName      = explicitName;
   }
 
   resolveArgs(binding) {

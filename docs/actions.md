@@ -289,6 +289,7 @@ effects
 |------|-----------|
 | `new entity(type, name)` | Creates a named entity. Idempotent — if an entity with that name already exists in the type, it's a no-op. |
 | `new entity(type, ?var)` | Creates an auto-named entity (e.g. `bond_1`, `bond_2`, …) and binds its name to `?var` for use in subsequent effects within the same block. |
+| `new entity(type, ?var) [name: X]` | Creates an entity named `X` and binds it to `?var`. Gives you both a human-readable name and a variable handle. Idempotent on the name. |
 | `new entity(type)` | Creates an auto-named entity with no handle. |
 
 Variables introduced by `new entity` are **not enumerated** during scoring — they exist only at execution time.

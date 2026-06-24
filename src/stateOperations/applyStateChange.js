@@ -129,7 +129,11 @@ function applyNewEntity(operation, binding, world) {
   if (!world) throw new Error('new entity requires a world');
 
   let entityName;
-  if (operation.nameArg instanceof LogicalVariable) {
+  if (operation.explicitName != null) {
+    entityName = operation.explicitName;
+    const existing = world.entityRegistry.get(operation.entityType);
+    if (existing?.some(e => e.name === entityName)) return false;
+  } else if (operation.nameArg instanceof LogicalVariable) {
     const seq = (world.entitySeq ?? 0) + 1;
     world.entitySeq = seq;
     entityName = `${operation.entityType}_${seq}`;

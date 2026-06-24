@@ -11,7 +11,7 @@ export class EntityNameValidator {
     for (const [typeName, block] of Object.entries(entitiesData)) {
       if (TOP_LEVEL_RESERVED.has(typeName)) continue;
       for (const [key, value] of Object.entries(block)) {
-        if (key === 'privateStore') continue;
+        if (key === 'privateStore' || key === 'distinct' || key === 'naming') continue;
         if (value !== null && typeof value === 'object') entityNames.add(key);
       }
     }

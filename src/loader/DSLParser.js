@@ -472,6 +472,18 @@ export class DSLParser {
       return { type: 'new-entity', entityType, nameArg };
     }
 
+    // 'remove entity(type, name|?var)'
+    if (this.check('IDENT', 'remove')) {
+      this.advance();
+      this.expect('IDENT', 'entity');
+      this.expect('LPAREN');
+      const entityType = this.parseArg();
+      this.expect('COMMA');
+      const nameArg = this.parseArg();
+      this.expect('RPAREN');
+      return { type: 'remove-entity', entityType, nameArg };
+    }
+
     // 'record(?var)' — mint occurrence with auto-asserted action vocabulary
     if (this.check('IDENT', 'record')) {
       this.advance();

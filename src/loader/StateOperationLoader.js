@@ -14,6 +14,13 @@ export class StateOperationLoader {
       return new StateOperation('new-entity', null, [], { entityType: data.entityType, nameArg });
     }
 
+    if (data.type === 'remove-entity') {
+      const nameArg = data.nameArg && typeof data.nameArg === 'string' && data.nameArg.startsWith('?')
+        ? new LogicalVariable(data.nameArg.slice(1))
+        : data.nameArg;
+      return new StateOperation('remove-entity', null, [], { entityType: data.entityType, nameArg });
+    }
+
     if (data.type === 'record') {
       const bindVar = data.bindVar && typeof data.bindVar === 'string' && data.bindVar.startsWith('?')
         ? new LogicalVariable(data.bindVar.slice(1))

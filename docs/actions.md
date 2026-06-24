@@ -269,7 +269,7 @@ effects
   not hostile(?SELF, ?Y)
 ```
 
-All effect types are valid: assert, retract (`not pred`), explicit disbelief (`-pred`), set-numeric (`= N`), adjust-numeric (`+= N` / `-= N`), private-store prefixed variants (`?OWNER.pred(args)`), [`new entity()`](#new-entity), and [`record()`](#occurrences).
+All effect types are valid: assert, retract (`not pred`), explicit disbelief (`-pred`), set-numeric (`= N`), adjust-numeric (`+= N` / `-= N`), private-store prefixed variants (`?OWNER.pred(args)`), [`new entity()`](#new-entity), [`remove entity()`](#remove-entity), and [`record()`](#occurrences).
 
 ---
 
@@ -292,6 +292,31 @@ effects
 | `new entity(type)` | Creates an auto-named entity with no handle. |
 
 Variables introduced by `new entity` are **not enumerated** during scoring — they exist only at execution time.
+
+---
+
+## `remove entity()`
+
+Removes an entity from the registry. Available in both action effects and rule effects. Idempotent — removing a nonexistent entity is a no-op.
+
+```klugh
+effects
+  remove entity(building, tavern)      # remove by literal name
+  remove entity(bond, ?b)              # remove by variable
+```
+
+| Form | Behaviour |
+|------|-----------|
+| `remove entity(type, name)` | Removes the named entity from the type's registry. |
+| `remove entity(type, ?var)` | Resolves `?var` and removes that entity. |
+
+`remove entity` only removes the entity from the registry — it does **not** retract facts that reference the entity. Orphaned fact references become inert string values, just like any literal that doesn't match a registered entity. Retract facts explicitly before removing if you want a clean slate:
+
+```klugh
+effects
+  not bondMembers(?b, ?SELF, ?Y)
+  remove entity(bond, ?b)
+```
 
 ---
 

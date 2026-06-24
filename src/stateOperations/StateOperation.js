@@ -49,6 +49,8 @@ export class StateOperation {
         const nameStr = this.nameArg ? `, ${Predicate.renderArg(this.nameArg, binding)}` : '';
         return `new entity(${this.entityType}${nameStr})`;
       }
+      case 'remove-entity':
+        return `remove entity(${this.entityType}, ${Predicate.renderArg(this.nameArg, binding)})`;
       case 'record':
         return `record(${Predicate.renderArg(this.bindVar, binding)})`;
       default:

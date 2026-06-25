@@ -1,5 +1,5 @@
-import { LogicalVariable } from '../LogicalVariable.js';
 import { Predicate } from '../Predicate.js';
+import { toFactArg } from '../entityValue.js';
 
 export class StateOperation {
   constructor(type, name, args, { delta, value, numericOperation = null, owner = null, ownerIsVariable = false, strength = 1.0, negated = false, entityType = null, nameArg = null, bindVar = null, explicitName = null } = {}) {
@@ -20,13 +20,7 @@ export class StateOperation {
   }
 
   resolveArgs(binding) {
-    return this.args.map(arg => {
-      const value = binding.resolve(arg);
-      if (value !== null && typeof value === 'object' && 'name' in value) {
-        return value.name;
-      }
-      return value;
-    });
+    return this.args.map(arg => toFactArg(binding.resolve(arg)));
   }
 
   describe(binding) {
@@ -58,17 +52,4 @@ export class StateOperation {
         return `${this.type} ${this.name}(${argsStr})`;
     }
   }
-}
-
-export function resolveOperationArgs(args, binding) {
-  return args.map(arg => {
-    if (arg instanceof LogicalVariable) {
-      const value = binding.resolve(arg);
-      if (value !== null && typeof value === 'object' && 'name' in value) {
-        return value.name;
-      }
-      return value;
-    }
-    return arg;
-  });
 }

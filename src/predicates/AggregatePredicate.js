@@ -1,5 +1,6 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 // Computes an aggregate function (avg, sum, max, min) over a numeric predicate,
 // filtered by a conjunction of boolean predicates, and compares the result to a
@@ -128,8 +129,7 @@ export class AggregatePredicate extends Predicate {
 function resolveArgs(args, binding) {
   return args.map(arg => {
     if (!(arg instanceof LogicalVariable)) return arg;
-    const value = binding.resolve(arg);
-    return (value !== null && typeof value === 'object' && 'name' in value) ? value.name : value;
+    return toFactArg(binding.resolve(arg));
   });
 }
 

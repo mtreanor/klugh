@@ -2,6 +2,7 @@ import { QueryHandler } from '../QueryHandler.js';
 import { Fact } from '../Fact.js';
 import { NumericRecord } from '../NumericRecord.js';
 import { GivenProvenance } from '../provenance/GivenProvenance.js';
+import { toFactArg } from '../entityValue.js';
 
 export class NumericStateQueryHandler extends QueryHandler {
   constructor(factStore, schema) {
@@ -12,13 +13,13 @@ export class NumericStateQueryHandler extends QueryHandler {
   }
 
   evaluate(predicate, binding, evaluationContext) {
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
     const value = this.getValue(predicate.name, resolvedArgs, evaluationContext);
     return this.schema.matchesTier(predicate.name, value, predicate.tier);
   }
 
   evaluateComparison(predicate, binding, evaluationContext) {
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
     const value = this.getValue(predicate.name, resolvedArgs, evaluationContext);
     if (predicate.operator === '>=') return value >= predicate.threshold;
     if (predicate.operator === '<=') return value <= predicate.threshold;
@@ -96,10 +97,4 @@ export class NumericStateQueryHandler extends QueryHandler {
     );
   }
 
-  toFactArg(value) {
-    if (value !== null && typeof value === 'object' && 'name' in value) {
-      return value.name;
-    }
-    return value;
-  }
 }

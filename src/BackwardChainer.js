@@ -1,6 +1,7 @@
 import { LogicalVariable } from './LogicalVariable.js';
 import { Binding } from './Binding.js';
 import { RuleEvaluator } from './RuleEvaluator.js';
+import { toFactArg } from './entityValue.js';
 
 const MAX_DEPTH = 8;
 
@@ -68,19 +69,15 @@ export class BackwardChainer {
       if (ruleArg instanceof LogicalVariable) {
         const existing = binding.resolve(ruleArg);
         if (existing !== undefined) {
-          if (this.toFactArg(existing) !== goalArg) return null;
+          if (toFactArg(existing) !== goalArg) return null;
         } else {
           binding = binding.extend(ruleArg, goalArg);
         }
-      } else if (this.toFactArg(ruleArg) !== goalArg) {
+      } else if (toFactArg(ruleArg) !== goalArg) {
         return null;
       }
     }
     return binding;
   }
 
-  toFactArg(value) {
-    if (value !== null && typeof value === 'object' && 'name' in value) return value.name;
-    return value;
-  }
 }

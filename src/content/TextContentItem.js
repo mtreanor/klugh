@@ -1,4 +1,5 @@
 import { ContentItem } from './ContentItem.js';
+import { toFactArg } from '../entityValue.js';
 
 export class TextContentItem extends ContentItem {
   constructor(template) {
@@ -12,8 +13,7 @@ export class TextContentItem extends ContentItem {
     return this.template.replace(/\?([A-Z][A-Z0-9_]*)/g, (match, name) => {
       const value = binding.assignments.get(name);
       if (value === undefined) return match;
-      if (value !== null && typeof value === 'object' && 'name' in value) return value.name;
-      return String(value);
+      return String(toFactArg(value));
     });
   }
 }

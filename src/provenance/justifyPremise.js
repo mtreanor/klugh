@@ -1,5 +1,6 @@
 import { Fact } from '../Fact.js';
 import { FactPredicate } from '../predicates/FactPredicate.js';
+import { toFactArg } from '../entityValue.js';
 import { DerivedFactPredicate } from '../predicates/DerivedFactPredicate.js';
 import { NumericTierPredicate } from '../predicates/NumericTierPredicate.js';
 import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredicate.js';
@@ -210,10 +211,6 @@ function lookupRecord(ctx, name, args, negated) {
 
 function resolveArgs(args, binding) {
   return args.map(a => toFactArg(binding.resolve(a)));
-}
-
-function toFactArg(value) {
-  return (value !== null && typeof value === 'object' && 'name' in value) ? value.name : value;
 }
 
 function safeDescribe(predicate, binding) {

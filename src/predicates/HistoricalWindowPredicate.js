@@ -1,5 +1,6 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 // True if the named fact was asserted within the given tick window.
 // window = null means ever (no time constraint); window = N means within the last N ticks.
@@ -19,7 +20,7 @@ export class HistoricalWindowPredicate extends Predicate {
 
     if (this.tier !== null) {
       const handler = evaluationContext.getHandler('numeric');
-      const resolvedArgs = this.args.map(arg => handler.toFactArg(binding.resolve(arg)));
+      const resolvedArgs = this.args.map(arg => toFactArg(binding.resolve(arg)));
       if (this.window === null) {
         return handler.wasEverInTier(this.name, resolvedArgs, this.tier, evaluationContext);
       }

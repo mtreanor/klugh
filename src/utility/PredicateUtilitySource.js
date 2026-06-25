@@ -1,4 +1,5 @@
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 export class PredicateUtilitySource {
   constructor(name, args, owner = null) {
@@ -13,7 +14,7 @@ export class PredicateUtilitySource {
       ? binding.resolve(this.owner)
       : this.owner;
     if (resolved == null) return evaluationContext;
-    const ownerName = (typeof resolved === 'object' && 'name' in resolved) ? resolved.name : resolved;
+    const ownerName = toFactArg(resolved);
     const store = evaluationContext.privateStores?.get(ownerName);
     if (!store) return evaluationContext;
     return evaluationContext.scopedToStore(store);
@@ -24,7 +25,7 @@ export class PredicateUtilitySource {
     if (!numericHandler) return 0;
     const resolvedArgs = this.args.map(arg => {
       const resolved = arg instanceof LogicalVariable ? binding.resolve(arg) : arg;
-      return numericHandler.toFactArg(resolved);
+      return toFactArg(resolved);
     });
     const ctx = this._resolveContext(binding, evaluationContext);
     return numericHandler.getValue(this.name, resolvedArgs, ctx);
@@ -35,7 +36,7 @@ export class PredicateUtilitySource {
     if (!numericHandler) return { type: 'predicate', name: this.name, args: [], value: 0, numericRecord: null, score: 0 };
     const resolvedArgs = this.args.map(arg => {
       const resolved = arg instanceof LogicalVariable ? binding.resolve(arg) : arg;
-      return numericHandler.toFactArg(resolved);
+      return toFactArg(resolved);
     });
     const ctx = this._resolveContext(binding, evaluationContext);
     const value       = numericHandler.getValue(this.name, resolvedArgs, ctx);

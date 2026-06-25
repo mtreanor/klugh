@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { Fact } from './Fact.js';
 import { NumericRecord } from './NumericRecord.js';
+import { toFactArg } from './entityValue.js';
 
 const SNAPSHOT_VERSION = 1;
 
@@ -233,7 +234,7 @@ function serializeBinding(binding) {
   if (!binding?.assignments) return {};
   const out = {};
   for (const [name, value] of binding.assignments.entries()) {
-    out[name] = (value !== null && typeof value === 'object' && 'name' in value) ? value.name : value;
+    out[name] = toFactArg(value);
   }
   return out;
 }

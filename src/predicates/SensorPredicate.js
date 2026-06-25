@@ -1,6 +1,7 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 import { SensorProvenance } from '../provenance/SensorProvenance.js';
+import { toFactArg } from '../entityValue.js';
 
 export class SensorPredicate extends Predicate {
   constructor(name, args) {
@@ -39,8 +40,7 @@ export class SensorPredicate extends Predicate {
   _resolveArgs(binding) {
     return this.args.map(arg => {
       if (!(arg instanceof LogicalVariable)) return arg;
-      const v = binding.resolve(arg);
-      return (v !== null && typeof v === 'object' && 'name' in v) ? v.name : v;
+      return toFactArg(binding.resolve(arg));
     });
   }
 }

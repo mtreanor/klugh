@@ -3,6 +3,7 @@ import { BackwardChainer } from '../BackwardChainer.js';
 import { Binding } from '../Binding.js';
 import { DerivedFactPredicate } from '../predicates/DerivedFactPredicate.js';
 import { FactPredicate } from '../predicates/FactPredicate.js';
+import { toFactArg } from '../entityValue.js';
 import { DerivedFactProvenance } from '../provenance/DerivedFactProvenance.js';
 import { buildPremiseJustifications } from '../provenance/justifyPremise.js';
 import { Fact } from '../Fact.js';
@@ -55,7 +56,7 @@ export class DerivedFactQueryHandler extends QueryHandler {
       ? evaluationContext.scopedToStore(null)
       : evaluationContext;
 
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
     if (resolvedArgs.some(arg => arg == null)) return false;
 
     // Cache key includes the caller's store scope so private and world queries
@@ -137,7 +138,7 @@ export class DerivedFactQueryHandler extends QueryHandler {
   }
 
   lookupFactRecord(predicate, binding, factStore) {
-    const resolvedArgs = predicate.args.map(a => this.toFactArg(binding.resolve(a)));
+    const resolvedArgs = predicate.args.map(a => toFactArg(binding.resolve(a)));
     if (resolvedArgs.some(a => a == null)) return null;
     return factStore._getCanonicalRecord(new Fact(predicate.name, ...resolvedArgs));
   }
@@ -184,8 +185,4 @@ export class DerivedFactQueryHandler extends QueryHandler {
     return 'scoped';
   }
 
-  toFactArg(value) {
-    if (value !== null && typeof value === 'object' && 'name' in value) return value.name;
-    return value;
-  }
 }

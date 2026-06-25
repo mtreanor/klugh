@@ -26,6 +26,7 @@ import { buildPremiseJustifications } from './provenance/justifyPremise.js';
 import { proofNodeForFact, proofNodeForNumeric } from './provenance/ProofTree.js';
 import { Fact } from './Fact.js';
 import { restoreFromFile } from './Snapshot.js';
+import { toFactArg } from './entityValue.js';
 
 export class Engine {
   // Accepts either a scenario directory path (string) or an explicit config
@@ -439,7 +440,7 @@ export class Engine {
       if (arg instanceof LogicalVariable) {
         throw new Error(`why() needs a ground fact, but "${text}" contains the variable ?${arg.name}`);
       }
-      return (arg !== null && typeof arg === 'object' && 'name' in arg) ? arg.name : arg;
+      return toFactArg(arg);
     });
     return { name: predicate.name, args };
   }

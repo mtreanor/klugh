@@ -1,5 +1,6 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 // True when there exists a sequence of ticks t0 < t1 < ... < tN such that each step's
 // fact was asserted at the corresponding tick, and each gap is within the specified window.
@@ -18,7 +19,7 @@ export class TemporalChainPredicate extends Predicate {
     const resolved = this.steps.map(step => ({
       name:   step.name,
       within: step.within ?? null,
-      args:   step.args.map(a => handler.toFactArg(binding.resolve(a))),
+      args:   step.args.map(a => toFactArg(binding.resolve(a))),
     }));
     return this.chainSatisfied(resolved, 0, -Infinity, handler, evaluationContext);
   }

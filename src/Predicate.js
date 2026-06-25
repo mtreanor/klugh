@@ -1,4 +1,5 @@
 import { LogicalVariable } from './LogicalVariable.js';
+import { toFactArg } from './entityValue.js';
 
 export class Predicate {
   evaluate(binding, evaluationContext) {
@@ -38,8 +39,7 @@ export class Predicate {
     if (arg instanceof LogicalVariable) {
       const value = binding.resolve(arg);
       if (value === null || value === undefined) return '_';
-      if (typeof value === 'object' && 'name' in value) return value.name;
-      return String(value);
+      return String(toFactArg(value));
     }
     return String(arg);
   }

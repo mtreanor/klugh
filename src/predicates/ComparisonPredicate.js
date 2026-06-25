@@ -1,5 +1,6 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 // Compares two predicate operands rather than a predicate against a literal.
 //
@@ -46,8 +47,7 @@ export class ComparisonPredicate extends Predicate {
   _resolve(args, binding) {
     return args.map(arg => {
       if (!(arg instanceof LogicalVariable)) return arg;
-      const value = binding.resolve(arg);
-      return (value !== null && typeof value === 'object' && 'name' in value) ? value.name : value;
+      return toFactArg(binding.resolve(arg));
     });
   }
 

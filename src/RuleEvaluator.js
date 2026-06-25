@@ -3,6 +3,7 @@ import { RuleApplication } from './RuleApplication.js';
 import { LogicalVariable } from './LogicalVariable.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
 import { inferVariableTypes } from './inferVariableTypes.js';
+import { toFactArg } from './entityValue.js';
 
 export class RuleEvaluator {
   constructor({ minimumSatisfactionScore = 0 } = {}) {
@@ -113,7 +114,7 @@ export class RuleEvaluator {
             const bound = startingBinding.resolve(ruleArg);
             if (bound !== undefined) {
               const factVal = record.fact.args[i];
-              const resolved = (bound !== null && typeof bound === 'object' && 'name' in bound) ? bound.name : bound;
+              const resolved = toFactArg(bound);
               if (resolved !== factVal) { matches = false; break; }
             }
           }
@@ -121,7 +122,7 @@ export class RuleEvaluator {
         if (!matches) continue;
 
         const value = record.fact.args[argIndex];
-        const key   = (value !== null && typeof value === 'object' && 'name' in value) ? value.name : value;
+        const key   = toFactArg(value);
         if (!seen.has(key)) { seen.add(key); values.push(value); }
       }
     }

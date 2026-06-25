@@ -1,5 +1,6 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 // A predicate evaluated against a specific entity's private store.
 // owner is either a LogicalVariable or a concrete entity name string.
@@ -26,8 +27,7 @@ export class PrivatePredicate extends Predicate {
 
     const resolved = binding.resolve(this.owner);
     if (resolved == null) return null;
-    if (typeof resolved === 'object' && 'name' in resolved) return resolved.name;
-    return resolved;
+    return toFactArg(resolved);
   }
 
   getVariables() {

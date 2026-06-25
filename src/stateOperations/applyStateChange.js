@@ -1,5 +1,6 @@
 import { Fact } from '../Fact.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { toFactArg } from '../entityValue.js';
 
 function buildStubEvaluationContext(factStore, queryHandlers) {
   return {
@@ -15,8 +16,7 @@ function resolveOwnerName(operation, binding) {
 
   const resolved = binding.resolve(operation.owner);
   if (resolved == null) return null;
-  if (typeof resolved === 'object' && 'name' in resolved) return resolved.name;
-  return resolved;
+  return toFactArg(resolved);
 }
 
 function getTargetStores(operation, binding, queryHandlers, privateStores, targetFactStore = null) {
@@ -174,7 +174,7 @@ function applyRemoveEntity(operation, binding, world) {
   if (operation.nameArg instanceof LogicalVariable) {
     const resolved = binding.resolve(operation.nameArg);
     if (resolved == null) throw new Error('remove entity: variable is unbound');
-    entityName = (typeof resolved === 'object' && 'name' in resolved) ? resolved.name : resolved;
+    entityName = toFactArg(resolved);
   } else {
     entityName = operation.nameArg;
   }
@@ -196,8 +196,7 @@ function applyRecord(operation, binding, world, action, provenance) {
     const roleName = roleNameOf(roleRef);
     const resolved = binding.resolve(new LogicalVariable(roleName));
     if (resolved === undefined) continue;
-    const value = (resolved !== null && typeof resolved === 'object' && 'name' in resolved)
-      ? resolved.name : resolved;
+    const value = toFactArg(resolved);
     world.factStore.assert(new Fact('role', occId, roleName, value), 1.0, provenance);
   }
 

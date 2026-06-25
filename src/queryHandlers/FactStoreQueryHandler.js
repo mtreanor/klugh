@@ -1,4 +1,5 @@
 import { QueryHandler } from '../QueryHandler.js';
+import { toFactArg } from '../entityValue.js';
 
 export class FactStoreQueryHandler extends QueryHandler {
   constructor(factStore, schema = null) {
@@ -10,7 +11,7 @@ export class FactStoreQueryHandler extends QueryHandler {
   evaluate(predicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
     const tick         = evaluationContext?.currentTick ?? factStore.currentTick;
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
     if (factStore.containedAt(tick, predicate.name, ...resolvedArgs)) return true;
     if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
       return factStore.containedAt(tick, predicate.name, resolvedArgs[1], resolvedArgs[0]);
@@ -20,7 +21,7 @@ export class FactStoreQueryHandler extends QueryHandler {
 
   evaluateHistoricalWindow(predicate, binding, window, currentTick, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
     const check = (args) => window === null
       ? factStore.wasEverTrueAtOrBefore(predicate.name, args, currentTick)
       : factStore.wasEverTrueInWindow(predicate.name, args, window, currentTick);
@@ -34,7 +35,7 @@ export class FactStoreQueryHandler extends QueryHandler {
   evaluateExplicitNegation(predicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
     const tick         = evaluationContext?.currentTick ?? factStore.currentTick;
-    const resolvedArgs = predicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
     if (factStore.containsNegatedAt(tick, predicate.name, ...resolvedArgs)) return true;
     if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
       return factStore.containsNegatedAt(tick, predicate.name, resolvedArgs[1], resolvedArgs[0]);
@@ -46,7 +47,7 @@ export class FactStoreQueryHandler extends QueryHandler {
   evaluateWeak(innerPredicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
     const tick         = evaluationContext?.currentTick ?? factStore.currentTick;
-    const resolvedArgs = innerPredicate.args.map(arg => this.toFactArg(binding.resolve(arg)));
+    const resolvedArgs = innerPredicate.args.map(arg => toFactArg(binding.resolve(arg)));
     const symmetric    = this.schema?.isSymmetric(innerPredicate.name) && resolvedArgs.length === 2;
     const reversed     = symmetric ? [resolvedArgs[1], resolvedArgs[0]] : null;
 
@@ -87,11 +88,4 @@ export class FactStoreQueryHandler extends QueryHandler {
     return evaluationContext?.getActiveFactStore?.() ?? this.factStore;
   }
 
-  // Entity objects are identified by name in the fact store
-  toFactArg(value) {
-    if (value !== null && typeof value === 'object' && 'name' in value) {
-      return value.name;
-    }
-    return value;
-  }
 }

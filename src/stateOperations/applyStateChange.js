@@ -41,9 +41,7 @@ function getTargetStores(operation, binding, queryHandlers, privateStores, targe
   }
 
   const factStore = privateStores?.get(ownerName);
-  if (!factStore) {
-    throw new Error(`Entity "${ownerName}" has no private store`);
-  }
+  if (!factStore) return null;
 
   return {
     factStore,
@@ -84,23 +82,31 @@ export function applyStateChange(operation, binding, queryHandlers, {
     return;
   }
 
-  const { factStore, evaluationContext } = getTargetStores(
+  const stores = getTargetStores(
     operation, binding, queryHandlers, privateStores, targetFactStore
   );
+  if (!stores) return false;
+  const { factStore, evaluationContext } = stores;
   const strength = operation.strength ?? 1.0;
 
   switch (operation.type) {
     case 'assert': {
       const negated = operation.negated ?? false;
-      const alreadyActive = factStore.query(operation.name, ...resolvedArgs).some(f => f.negated === negated);
+      const alreadyActive = negated
+        ? factStore.containsNegated(operation.name, ...resolvedArgs)
+        : factStore.contains(operation.name, ...resolvedArgs);
+      if (alreadyActive) return false;
       factStore.assert(new Fact(operation.name, ...resolvedArgs, { negated }), strength, provenance);
-      return !alreadyActive;
+      return true;
     }
     case 'retract': {
       const negated = operation.negated ?? false;
-      const wasActive = factStore.query(operation.name, ...resolvedArgs).some(f => f.negated === negated);
+      const wasActive = negated
+        ? factStore.containsNegated(operation.name, ...resolvedArgs)
+        : factStore.contains(operation.name, ...resolvedArgs);
+      if (!wasActive) return false;
       factStore.retract(new Fact(operation.name, ...resolvedArgs, { negated }), provenance);
-      return wasActive;
+      return true;
     }
     case 'adjust-numeric': {
       const numeric = queryHandlers.getHandler('numeric');
@@ -207,17 +213,24 @@ function roleNameOf(roleRef) {
 }
 
 export function applyEffects(effects, binding, queryHandlers, {
-  privateStores = null,
-  provenance    = null,
-  world         = null,
-  action        = null,
+  privateStores       = null,
+  provenance          = null,
+  world               = null,
+  action              = null,
+  satisfactionScore   = 1.0,
+  scaleDelta          = null,
 } = {}) {
   let currentBinding = binding;
   let changed = false;
 
   for (const effect of effects) {
+    let deltaOverride = null;
+    if (scaleDelta && effect.type === 'adjust-numeric') {
+      deltaOverride = scaleDelta(effect.delta, satisfactionScore);
+    }
+
     const result = applyStateChange(effect, currentBinding, queryHandlers, {
-      privateStores, provenance, world, action,
+      privateStores, provenance, world, action, deltaOverride,
     });
 
     if (effect.type === 'new-entity' && result && typeof result === 'object' && 'name' in result) {

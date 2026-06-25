@@ -5,7 +5,7 @@ import { FactStoreQueryHandler } from './queryHandlers/FactStoreQueryHandler.js'
 import { ExternalAPIQueryHandler } from './queryHandlers/ExternalAPIQueryHandler.js';
 import { DerivedFactQueryHandler } from './queryHandlers/DerivedFactQueryHandler.js';
 import { ForwardChainer } from './ForwardChainer.js';
-import { applyStateChange } from './stateOperations/applyStateChange.js';
+import { applyEffects } from './stateOperations/applyStateChange.js';
 import { Binding } from './Binding.js';
 import { RuleEffectProvenance } from './provenance/RuleEffectProvenance.js';
 import { buildPremiseJustifications } from './provenance/justifyPremise.js';
@@ -118,12 +118,12 @@ export class World {
         app.rule, app.binding,
         buildPremiseJustifications(app.rule.predicateEntries, app.binding, evaluationContext)
       );
-      const effects = Array.isArray(app.rule.effects) ? app.rule.effects : [];
-      let changed = false;
-      for (const effect of effects) {
-        if (this._commitEffect(effect, app.binding, app.satisfactionScore, provenance)) changed = true;
-      }
-      return changed;
+      return applyEffects(app.rule.effects, app.binding, this.queryHandlers, {
+        privateStores: this.privateStores,
+        provenance,
+        world: this,
+        satisfactionScore: app.satisfactionScore,
+      });
     });
 
     return this;
@@ -143,90 +143,16 @@ export class World {
         app.rule, app.binding,
         buildPremiseJustifications(app.rule.predicateEntries, app.binding, evaluationContext)
       );
-      const effects = Array.isArray(app.rule.effects) ? app.rule.effects : [];
-      let changed = false;
-      for (const effect of effects) {
-        if (this._commitEffect(effect, app.binding, app.satisfactionScore, provenance, scaleDelta)) changed = true;
-      }
-      return changed;
+      return applyEffects(app.rule.effects, app.binding, this.queryHandlers, {
+        privateStores: this.privateStores,
+        provenance,
+        world: this,
+        satisfactionScore: app.satisfactionScore,
+        scaleDelta,
+      });
     });
 
     return this;
-  }
-
-  _commitEffect(operation, binding, satisfactionScore, provenance = null, scaleDelta = (d, s) => d * s) {
-    if (operation.type === 'new-entity') {
-      const result = applyStateChange(operation, binding, this.queryHandlers, { world: this });
-      return result?.created === true;
-    }
-
-    if (operation.type === 'remove-entity') {
-      return applyStateChange(operation, binding, this.queryHandlers, { world: this }) === true;
-    }
-
-    if (operation.type === 'actuate' || operation.type === 'actuate-numeric') {
-      applyStateChange(operation, binding, this.queryHandlers, { privateStores: this.privateStores });
-      return true;
-    }
-
-    // Numeric effects report convergence: "changed" only when the clamped value
-    // actually moved, so fixpoint apply() terminates at clamp boundaries.
-    if (operation.type === 'adjust-numeric') {
-      return applyStateChange(operation, binding, this.queryHandlers, {
-        deltaOverride: scaleDelta(operation.delta, satisfactionScore),
-        privateStores: this.privateStores,
-        provenance,
-      }) === true;
-    }
-
-    if (operation.type === 'set-numeric') {
-      return applyStateChange(operation, binding, this.queryHandlers, {
-        privateStores: this.privateStores,
-        provenance,
-      }) === true;
-    }
-
-    // assert / retract: only commit if the world actually changes (convergence)
-    const resolvedArgs = operation.resolveArgs(binding);
-    const negated = operation.negated ?? false;
-    const targetStore = this._resolveTargetStore(operation, binding);
-    if (!targetStore) return false;
-
-    const tick = this.tickTracker.currentTick;
-    const isActive = negated
-      ? targetStore.containsNegatedAt(tick, operation.name, ...resolvedArgs)
-      : targetStore.containedAt(tick, operation.name, ...resolvedArgs);
-
-    if (operation.type === 'assert') {
-      if (isActive) return false;
-      applyStateChange(operation, binding, this.queryHandlers, {
-        privateStores: this.privateStores,
-        targetFactStore: targetStore,
-        provenance,
-      });
-      return true;
-    }
-
-    if (operation.type === 'retract') {
-      if (!isActive) return false;
-      applyStateChange(operation, binding, this.queryHandlers, {
-        privateStores: this.privateStores,
-        targetFactStore: targetStore,
-        provenance,
-      });
-      return true;
-    }
-
-    return false;
-  }
-
-  _resolveTargetStore(operation, binding) {
-    if (!operation.owner) return this.factStore;
-    if (!operation.ownerIsVariable) return this.privateStores.get(operation.owner) ?? null;
-    const resolved = binding.resolve(operation.owner);
-    const ownerName = (resolved !== null && typeof resolved === 'object' && 'name' in resolved)
-      ? resolved.name : resolved;
-    return this.privateStores.get(ownerName) ?? null;
   }
 
   _syncStoreTicks() {

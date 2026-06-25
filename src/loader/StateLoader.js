@@ -43,6 +43,7 @@ export class StateLoader {
     applyStateChange(operation, groundBinding, world.queryHandlers, {
       privateStores:   world.privateStores,
       targetFactStore,
+      world,
     });
   }
 }

@@ -1,5 +1,5 @@
 // End-to-end stress harness for the data/stress scenario: 10 agents, 30 ticks
-// of history, 31 stored + 2 sensor predicates, 15 derived predicates, 104 rules.
+// of history, 31 stored + 2 sensor predicates, 15 derived predicates, 106 rules.
 //
 // Hand-computed expectations: the exact numeric totals below were derived by
 // summing rule contributions for specific pairs (see data/stress/rules group
@@ -110,9 +110,9 @@ const tick = (world, rules) =>
 describe('Stress scenario', () => {
 
   describe('loading', () => {
-    it('loads the scenario and all 104 rules through the cycle detector', () => {
+    it('loads the scenario and all 106 rules through the cycle detector', () => {
       const { rules } = buildWorld();
-      assert.equal(rules.length, 104);
+      assert.equal(rules.length, 106);
     });
 
     it('passes schema annotations through opaquely', () => {
@@ -495,6 +495,45 @@ describe('Stress scenario', () => {
     });
   });
 
+  describe('entity lifecycle — new entity, remove entity, multi-effect rules', () => {
+    it('N1 creates a pact entity for close allies', () => {
+      const { world, rules } = buildWorld();
+      const nRules = rules.filter(r => r.name.startsWith('N'));
+      world.applyOnce(nRules, { advanceTick: true, minimumSatisfactionScore: 1 });
+
+      const pacts = world.entityRegistry.get('pact') ?? [];
+      assert.ok(pacts.length > 0, 'at least one pact should be created');
+      assert.ok(pacts.some(p => p.name === 'mara_talia_pact'),
+        'mara and talia are close allies and should have a pact');
+    });
+
+    it('N1 is idempotent — running again does not duplicate the pact', () => {
+      const { world, rules } = buildWorld();
+      const nRules = rules.filter(r => r.name.startsWith('N'));
+      world.applyOnce(nRules, { advanceTick: true, minimumSatisfactionScore: 1 });
+      const countAfterFirst = (world.entityRegistry.get('pact') ?? []).length;
+      world.applyOnce(nRules, { advanceTick: true, minimumSatisfactionScore: 1 });
+      const countAfterSecond = (world.entityRegistry.get('pact') ?? []).length;
+      assert.equal(countAfterFirst, countAfterSecond);
+    });
+
+    it('N2 removes a pact when the members are feuding', () => {
+      const { engine, world, rules } = buildWorld();
+      const nRules = rules.filter(r => r.name.startsWith('N'));
+
+      world.applyOnce(nRules, { advanceTick: true, minimumSatisfactionScore: 1 });
+      assert.ok((world.entityRegistry.get('pact') ?? []).some(p => p.name === 'mara_talia_pact'));
+
+      engine.assert('feuding(mara, talia)');
+      world.applyOnce(nRules, { advanceTick: true, minimumSatisfactionScore: 1 });
+
+      assert.ok(!(world.entityRegistry.get('pact') ?? []).some(p => p.name === 'mara_talia_pact'),
+        'pact should be removed after feuding');
+      assert.ok(world.factStore.contains('pactBroken', 'mara_talia_pact'),
+        'pactBroken fact should be asserted');
+    });
+  });
+
   describe('partial truth and importance', () => {
     it('scores weighted conjunctions by satisfied importance', () => {
       const { engine } = buildWorld();
@@ -623,7 +662,7 @@ describe('Stress scenario', () => {
     // The "norm" actions rewrite another action's info traits; they are kept out
     // of the behavioral 'social' actionset so the 10-step narrative is unaffected,
     // and exercised on their own in the runtime-mutable-traits suite below.
-    const NORM_ACTIONS = new Set(['denounce a practice', 'rehabilitate a practice']);
+    const NORM_ACTIONS = new Set(['denounce a practice', 'rehabilitate a practice', 'forge a pact']);
 
     function buildSimWorld() {
       const { engine, world, rules, nearPairs } = buildWorld();
@@ -642,8 +681,7 @@ describe('Stress scenario', () => {
       for (const agentName of AGENTS) {
         const candidates = engine.scoreActionset('social', { SELF: agentName }, { minimumScore: 0 });
         if (candidates.length > 0) {
-          const { action, binding } = candidates[0];
-          action.execute(binding, engine.world.queryHandlers, null, { privateStores: engine.world.privateStores });
+          engine.execute(candidates[0]);
         }
       }
       world.applyOnce(rules, { advanceTick: true, minimumSatisfactionScore: 1 });
@@ -652,7 +690,7 @@ describe('Stress scenario', () => {
     it('loads 16 actions from the social actionset', () => {
       const { engine } = buildSimWorld();
       assert.equal(engine.actionsets.get('social').length, 16);
-      assert.equal(engine.actionsets.get('norms').length, 2);
+      assert.equal(engine.actionsets.get('norms').length, 3);
     });
 
     it('all 10 agents find a scored action before step 1', () => {

@@ -87,6 +87,9 @@
     "marketRival":      { "type": "derived", "args": ["agent", "agent"] },
     "kinOf":            { "type": "derived", "args": ["agent", "agent"] },
 
-    "tag":              { "type": "boolean", "args": ["action", "actionTag"] }
+    "tag":              { "type": "boolean", "args": ["action", "actionTag"] },
+
+    "pactMembers":      { "type": "boolean", "args": ["pact", "agent", "agent"] },
+    "pactBroken":       { "type": "boolean", "args": ["pact"] }
   }
 }

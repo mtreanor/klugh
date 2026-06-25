@@ -175,6 +175,16 @@ rule "exploitation followed by respect, and history is honoured now"
   => considerate(?SELF, ?Y) += 3.0
 ```
 
+The first step of a chain can carry a `[history: N]` window to restrict how far back the initial event is looked for:
+
+```klugh
+rule "recent betrayal followed by apology"
+  betrayed(?X, ?Y) [history: 10] then apologized(?X, ?Y)
+  => goodwill(?Y, ?X) += 3
+```
+
+Without `[history: N]`, the first step matches any assertion in the full history.
+
 `then` binds tighter than `^`. A chain like `A then B ^ C` means `(A then B) ^ C`.
 
 Temporal chains with private-store predicates are not supported.

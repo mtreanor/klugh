@@ -38,6 +38,7 @@
     "prizeGoat":    {},
     "ledger":       {}
   },
+  "pact": {},
   "actionTag": {
     "distinct": false,
     "prosocial":      {},

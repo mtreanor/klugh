@@ -310,6 +310,7 @@ console.log('  negation:   not trusts(alice, ?Y)  |  -trusts(alice, carol)  |  ~
 console.log('  degree:     degree knows(alice, ?Y) ^ friendship.strong(alice, ?Y)');
 console.log('  as:         as alice: canPair(alice, ?Y)   — query from an entity\'s private-store perspective');
 console.log('  assert:     assert knows(alice, carol) | assert -trusts(alice, carol) | assert friendship(alice, carol) = 75');
+console.log('  entity:     assert new entity(bond, myBond) | assert remove entity(bond, myBond)');
 console.log('  facts:      facts | facts all | facts alice | facts alice bob');
 console.log('  entities:   entities');
 console.log('  tick:       tick | tick N   — advance time, resetting ephemeral predicates');

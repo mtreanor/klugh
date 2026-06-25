@@ -13,7 +13,9 @@ export class RuleSerializer {
       lines.push(prefix + this.serializePredicateEntry(entry));
     });
 
-    lines.push('  => ' + effects.map(e => this.serializeRuleEffect(e)).join(', '));
+    for (let i = 0; i < effects.length; i++) {
+      lines.push('  => ' + this.serializeRuleEffect(effects[i]));
+    }
 
     return lines.join('\n');
   }
@@ -92,18 +94,35 @@ export class RuleSerializer {
     return `${rhs.fn}|${inner}|`;
   }
 
+  serializeArg(arg) {
+    if (arg === null) return '_';
+    return String(arg);
+  }
+
+  serializeStringArg(value) {
+    if (typeof value === 'string' && /[^a-zA-Z0-9_-]/.test(value)) return `"${value}"`;
+    return String(value);
+  }
+
   serializeArgs(args) {
-    return args.map(arg => {
-      if (arg === null) return '_';
-      return String(arg);
-    }).join(', ');
+    return args.map(arg => this.serializeArg(arg)).join(', ');
   }
 
   serializeRuleEffect(effect) {
+    if (effect.type === 'new-entity') {
+      const nameArg = effect.nameArg != null ? `, ${this.serializeArg(effect.nameArg)}` : '';
+      const nameMod = effect.explicitName != null ? ` [name: ${this.serializeStringArg(effect.explicitName)}]` : '';
+      return `new entity(${effect.entityType}${nameArg})${nameMod}`;
+    }
+    if (effect.type === 'remove-entity') {
+      return `remove entity(${effect.entityType}, ${this.serializeArg(effect.nameArg)})`;
+    }
+    if (effect.type === 'record') {
+      return `record(${this.serializeArg(effect.bindVar)})`;
+    }
+
     const owner = this.ownerPrefix(effect);
     const call  = `${effect.name}(${this.serializeArgs(effect.args)})`;
-    // Mirror parseStateOperationCore: an assert places the owner before the '-'
-    // (?SELF.-pred), a retract places it after ('not -?SELF.pred').
     if (effect.type === 'assert') {
       const neg = effect.negated ? '-' : '';
       return `${owner}${neg}${call}` + this.strengthSuffix(effect);

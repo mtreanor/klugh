@@ -1,8 +1,9 @@
-# Stress scenario — 104 rules, 1–5 predicates each.
+# Stress scenario — 106 rules, 1–5 predicates each.
 # Groups:
 #   A — social baseline        B — negation operators     C — history
 #   D — temporal chains        E — numeric tiers/compares F — counts
 #   G — private stores         H — derived consumers      I — sensors
+#   N — entity lifecycle (new entity, remove entity, multi-effect)
 #   J — importance/partial     K — boolean cascade        L — mixed/edge
 #   M — predicate-to-predicate comparisons
 #
@@ -534,3 +535,20 @@ rule "M4 — allies and rivals are not the same"
   knows(?X, ?Y)
   ^ closeAllies(?X, ?Y) != rivals(?X, ?Y)
   => precedence(?X, ?Y) += 1
+
+# ── N: entity lifecycle (new entity, remove entity, multi-effect) ───────────
+# These rules exercise dynamic entity creation and removal. They write only
+# to `pactMembers` and `pactBroken`, which no other rule reads or writes, so
+# they stay orthogonal to the hand-computed totals of the other groups.
+
+rule "N1 — close allies seal a pact"
+  closeAllies(?X, ?Y)
+  ^ not feuding(?X, ?Y)
+  => new entity(pact, ?p) [name: "{?X}_{?Y}_pact"]
+  => pactMembers(?p, ?X, ?Y)
+
+rule "N2 — feuding shatters the pact"
+  pactMembers(?P, ?X, ?Y)
+  ^ feuding(?X, ?Y)
+  => pactBroken(?P)
+  => remove entity(pact, ?P)

@@ -1,7 +1,20 @@
 import { FactRecord } from './FactRecord.js';
 import { GivenProvenance } from './provenance/GivenProvenance.js';
 
+const EMPTY_RECORDS = Object.freeze([]);
+
 export class FactStore {
+  // Secondary index: predicate name -> array of its canonical records, in
+  // insertion order. A denormalized view of #canonicalRecords kept for fast,
+  // name-scoped reads. INVARIANT: every record in _canonicalRecords appears in
+  // exactly one bucket here (the one for its fact.name), and buckets hold
+  // nothing else. The invariant holds because records are append-only and the
+  // sole insertion point is _getOrCreateCanonicalRecord, which updates both.
+  // A new write path, or any record removal, must preserve it (see the index
+  // consistency test in tests/FactStore.test.js). Private so the only way to
+  // add a record is the path that also indexes it.
+  #byName = new Map();
+
   constructor({ contradictionPolicy = 'lastWins', schema = null } = {}) {
     this._canonicalRecords   = new Map();
     this._provenanceHook     = null;
@@ -10,12 +23,27 @@ export class FactStore {
     this.schema              = schema;
   }
 
+  // Canonical records for one predicate name, in insertion order — the fast,
+  // name-scoped read path. Returns an empty array when the name is unknown.
+  // Every internal read filters by name first, so scanning this bucket is
+  // identical in result to scanning all of factHistory (findLast included — a
+  // bucket is a stable subsequence of the full record order), at O(records for
+  // this name) instead of O(all records). Prefer this over factHistory whenever
+  // you know the predicate name. The returned array is live; do not mutate it.
+  recordsForName(name) {
+    return this.#byName.get(name) ?? EMPTY_RECORDS;
+  }
+
   // Register a provenance hook called when assert/retract has no explicit provenance.
   useProvenance(hook) {
     this._provenanceHook = hook;
   }
 
   // All canonical records as an array — one per unique (name, args, polarity[, value]).
+  // NOTE: this allocates and scans across every predicate; it is O(all records).
+  // When you know the predicate name, use recordsForName(name) instead — every
+  // name-scoped read in this class does. Reach for factHistory only when you
+  // genuinely need all records regardless of name (e.g. full snapshots).
   get factHistory() {
     return Array.from(this._canonicalRecords.values());
   }
@@ -42,9 +70,8 @@ export class FactStore {
 
   findOpposingRecords(fact) {
     const symmetric = this.schema?.isSymmetric(fact.name) && fact.args.length === 2;
-    return this.factHistory.filter(r => {
+    return this.recordsForName(fact.name).filter(r => {
       if (!r.isCurrentlyActive()) return false;
-      if (r.fact.name !== fact.name) return false;
       if (r.fact.negated === fact.negated) return false;
       if (r.fact.args.length !== fact.args.length) return false;
       if (r.fact.args.every((a, i) => a === fact.args[i])) return true;
@@ -61,9 +88,8 @@ export class FactStore {
     if (fact.negated) return [];
     const keyPos = this.schema?.keyPositions(fact.name);
     if (!keyPos) return [];
-    return this.factHistory.filter(r => {
+    return this.recordsForName(fact.name).filter(r => {
       if (!r.isCurrentlyActive()) return false;
-      if (r.fact.name !== fact.name) return false;
       if (r.fact.args.length !== fact.args.length) return false;
       if (!keyPos.every(i => r.fact.args[i] === fact.args[i])) return false;
       // A plain re-assert of the identical positive fact is not a conflict.
@@ -86,9 +112,8 @@ export class FactStore {
     const negated  = fact.negated ?? false;
     const provObj  = this._resolveProvenance(fact, provenance);
 
-    for (const record of this._canonicalRecords.values()) {
+    for (const record of this.recordsForName(fact.name)) {
       if (!record.isCurrentlyActive()) continue;
-      if (record.fact.name    !== fact.name)    continue;
       if (record.fact.negated !== negated)       continue;
       if (record.fact.args.length !== fact.args.length) continue;
       if (!record.fact.args.every((a, i) => a === fact.args[i])) continue;
@@ -99,9 +124,8 @@ export class FactStore {
 
     if (this.schema?.isSymmetric(fact.name) && fact.args.length === 2) {
       const rev = [fact.args[1], fact.args[0]];
-      for (const record of this._canonicalRecords.values()) {
+      for (const record of this.recordsForName(fact.name)) {
         if (!record.isCurrentlyActive()) continue;
-        if (record.fact.name    !== fact.name)    continue;
         if (record.fact.negated !== negated)       continue;
         if (record.fact.args.length !== rev.length) continue;
         if (!record.fact.args.every((a, i) => a === rev[i])) continue;
@@ -113,23 +137,23 @@ export class FactStore {
 
   // null in any arg position acts as a wildcard
   query(name, ...args) {
-    return this.factHistory
+    return this.recordsForName(name)
       .filter(r => r.isCurrentlyActive() && this.factMatches(r.fact, name, args))
       .map(r => r.fact);
   }
 
   queryAt(tick, name, ...args) {
-    return this.factHistory
+    return this.recordsForName(name)
       .filter(r => r.isActiveAt(tick) && this.factMatches(r.fact, name, args))
       .map(r => r.fact);
   }
 
   wasEverTrue(name, ...args) {
-    return this.factHistory.some(r => this.factMatches(r.fact, name, args));
+    return this.recordsForName(name).some(r => this.factMatches(r.fact, name, args));
   }
 
   wasEverTrueAtOrBefore(name, args, currentTick) {
-    return this.factHistory.some(r =>
+    return this.recordsForName(name).some(r =>
       this.factMatches(r.fact, name, args) &&
       r.events.some(e => e.type === 'asserted' && e.tick <= currentTick)
     );
@@ -137,7 +161,7 @@ export class FactStore {
 
   wasEverTrueInWindow(name, args, window, currentTick) {
     const since = currentTick - window;
-    return this.factHistory.some(r =>
+    return this.recordsForName(name).some(r =>
       this.factMatches(r.fact, name, args) &&
       r.events.some(e => e.type === 'asserted' && e.tick >= since && e.tick <= currentTick)
     );
@@ -145,21 +169,21 @@ export class FactStore {
 
   // All ticks at which the fact was asserted across its full event log.
   getAssertionTicks(name, args) {
-    return this.factHistory
+    return this.recordsForName(name)
       .filter(r => this.factMatches(r.fact, name, args))
       .flatMap(r => r.events.filter(e => e.type === 'asserted').map(e => e.tick));
   }
 
   retractAll(name) {
-    for (const record of this._canonicalRecords.values()) {
-      if (record.isCurrentlyActive() && record.fact.name === name) {
+    for (const record of this.recordsForName(name)) {
+      if (record.isCurrentlyActive()) {
         record.addEvent({ type: 'retracted', tick: this.currentTick, provenance: new GivenProvenance() });
       }
     }
   }
 
   getCurrentValue(name, args) {
-    const record = this.factHistory.findLast(r =>
+    const record = this.recordsForName(name).findLast(r =>
       r.isCurrentlyActive() && this.factMatches(r.fact, name, args)
     );
     return record ? record.fact.value : null;
@@ -167,7 +191,7 @@ export class FactStore {
 
   // Returns all canonical records whose fact matches name and args.
   getRecords(name, args) {
-    return this.factHistory.filter(r => this.factMatches(r.fact, name, args));
+    return this.recordsForName(name).filter(r => this.factMatches(r.fact, name, args));
   }
 
   contains(name, ...args) {
@@ -175,20 +199,20 @@ export class FactStore {
   }
 
   containsNegated(name, ...args) {
-    return this.factHistory.some(r =>
+    return this.recordsForName(name).some(r =>
       r.isCurrentlyActive() && this.factMatches(r.fact, name, args, true)
     );
   }
 
   getStrength(name, args, negated = false) {
-    const record = this.factHistory.findLast(r =>
+    const record = this.recordsForName(name).findLast(r =>
       r.isCurrentlyActive() && this.factMatches(r.fact, name, args, negated)
     );
     return record ? record.strength : 0.0;
   }
 
   setStrength(name, args, newStrength, negated = false) {
-    const record = this.factHistory.findLast(r =>
+    const record = this.recordsForName(name).findLast(r =>
       r.isCurrentlyActive() && this.factMatches(r.fact, name, args, negated)
     );
     if (record) record.strength = newStrength;
@@ -199,7 +223,7 @@ export class FactStore {
   }
 
   containsNegatedAt(tick, name, ...args) {
-    return this.factHistory.some(r =>
+    return this.recordsForName(name).some(r =>
       r.isActiveAt(tick) && this.factMatches(r.fact, name, args, true)
     );
   }
@@ -212,7 +236,11 @@ export class FactStore {
   _getOrCreateCanonicalRecord(fact) {
     const key = this._canonicalKey(fact);
     if (!this._canonicalRecords.has(key)) {
-      this._canonicalRecords.set(key, new FactRecord(fact));
+      const record = new FactRecord(fact);
+      this._canonicalRecords.set(key, record);
+      let bucket = this.#byName.get(fact.name);
+      if (!bucket) { bucket = []; this.#byName.set(fact.name, bucket); }
+      bucket.push(record);
     }
     return this._canonicalRecords.get(key);
   }

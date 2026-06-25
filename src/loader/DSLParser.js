@@ -248,12 +248,26 @@ export class DSLParser {
       return this.parseTemporalChainFrom(pred);
     }
 
-    if (!this.check('LBRACKET')) return pred;
-    return this.parseBracketModifiers(pred);
+    if (this.check('LBRACKET')) {
+      const modified = this.parseBracketModifiers(pred);
+      if (this.check('IDENT', 'then')) {
+        if (pred.type === 'private') {
+          throw new Error('Temporal chains with private-store predicates are not supported');
+        }
+        return this.parseTemporalChainFrom(pred, modified);
+      }
+      return modified;
+    }
+
+    return pred;
   }
 
-  parseTemporalChainFrom(firstPred) {
-    const steps = [{ name: firstPred.name, args: firstPred.args }];
+  parseTemporalChainFrom(firstPred, modifiedFirstPred = null) {
+    const firstStep = { name: firstPred.name, args: firstPred.args };
+    if (modifiedFirstPred?.type === 'historical-window' && modifiedFirstPred.window != null) {
+      firstStep.within = modifiedFirstPred.window;
+    }
+    const steps = [firstStep];
 
     while (this.check('IDENT', 'then')) {
       this.advance();

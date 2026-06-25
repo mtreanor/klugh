@@ -144,6 +144,64 @@ describe('TemporalChainPredicate', () => {
     assert.ok(pred.evaluate(binding, evaluationContext));
   });
 
+  describe('bounded first step (history window on step 0)', () => {
+    function buildContextAtTick(assertionsByTick, currentTick) {
+      const factStore = new FactStore();
+      for (const [tick, fact] of assertionsByTick) factStore.assertAt(fact, tick);
+      const queryHandlers = new QueryHandlers();
+      queryHandlers.register('factStore', new FactStoreQueryHandler(factStore));
+      return new EvaluationContext(queryHandlers, { tickTracker: { currentTick } });
+    }
+
+    it('matches when the first step is within the window', () => {
+      const ctx = buildContextAtTick([
+        [12, new Fact('challenged', 'alice', 'bob')],
+        [14, new Fact('madeUp',     'alice', 'bob')],
+      ], 15);
+      const pred = new TemporalChainPredicate([
+        { name: 'challenged', args: ['alice', 'bob'], within: 5 },
+        { name: 'madeUp',     args: ['alice', 'bob'], within: null },
+      ]);
+      assert.ok(pred.evaluate(new Binding(), ctx));
+    });
+
+    it('fails when the first step is outside the window', () => {
+      const ctx = buildContextAtTick([
+        [5,  new Fact('challenged', 'alice', 'bob')],
+        [14, new Fact('madeUp',     'alice', 'bob')],
+      ], 15);
+      const pred = new TemporalChainPredicate([
+        { name: 'challenged', args: ['alice', 'bob'], within: 5 },
+        { name: 'madeUp',     args: ['alice', 'bob'], within: null },
+      ]);
+      assert.ok(!pred.evaluate(new Binding(), ctx));
+    });
+
+    it('combines a bounded first step with a bounded second step', () => {
+      const ctx = buildContextAtTick([
+        [12, new Fact('challenged', 'alice', 'bob')],
+        [14, new Fact('madeUp',     'alice', 'bob')],
+      ], 15);
+      const pred = new TemporalChainPredicate([
+        { name: 'challenged', args: ['alice', 'bob'], within: 5 },
+        { name: 'madeUp',     args: ['alice', 'bob'], within: 3 },
+      ]);
+      assert.ok(pred.evaluate(new Binding(), ctx));
+    });
+
+    it('fails when the second step exceeds its gap even if first is in window', () => {
+      const ctx = buildContextAtTick([
+        [12, new Fact('challenged', 'alice', 'bob')],
+        [20, new Fact('madeUp',     'alice', 'bob')],
+      ], 22);
+      const pred = new TemporalChainPredicate([
+        { name: 'challenged', args: ['alice', 'bob'], within: 15 },
+        { name: 'madeUp',     args: ['alice', 'bob'], within: 3 },
+      ]);
+      assert.ok(!pred.evaluate(new Binding(), ctx));
+    });
+  });
+
   it('exposes all unique logical variables across all steps', () => {
     const pred = new TemporalChainPredicate([
       { name: 'knows',       args: [X, Y] },

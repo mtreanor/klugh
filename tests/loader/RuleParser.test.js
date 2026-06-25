@@ -219,6 +219,18 @@ describe('RuleParser', () => {
       assert.equal(rules[0].predicates[0].steps[2].within, 3);
     });
 
+    it('parses [history:N] on the first step of a temporal chain', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [history: 5] then hadConflict(?SELF, ?Y)
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'temporal-chain');
+      assert.equal(rules[0].predicates[0].steps[0].within, 5);
+      assert.equal(rules[0].predicates[0].steps[0].name, 'knows');
+    });
+
     it('parses [importance] on a temporal chain', () => {
       const { rules } = parser.parse(`
         rule "R1"

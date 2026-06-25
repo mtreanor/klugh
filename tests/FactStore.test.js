@@ -271,4 +271,71 @@ describe('FactStore — _getCanonicalRecord', () => {
     assert.equal(event.provenance.premiseRecords[0], premRecord);
     assert.equal(event.provenance.premiseRecords[0].fact.name, 'tired');
   });
+
+  // Guards the denormalization invariant: the name index (recordsForName) must
+  // always mirror the canonical record set exposed by factHistory. If a future
+  // write path adds or removes a record without updating the index, these fail.
+  describe('name index consistency', () => {
+    // Drives the store through every kind of record-creating mutation, then
+    // checks the index against factHistory (the source of truth).
+    function exercisedStore() {
+      const store = new FactStore({ contradictionPolicy: 'allow' });
+      store.assert(new Fact('knows', 'alice', 'bob'));
+      store.assert(new Fact('knows', 'bob', 'carol'));
+      store.assert(new Fact('knows', 'alice', 'bob', { negated: true })); // same name, opposite polarity
+      store.assert(new Fact('trusts', 'alice', 'bob'));
+      store.currentTick = 1;
+      store.assert(new Fact('feels', 'alice', null, { value: 'calm' }));
+      store.assert(new Fact('feels', 'alice', null, { value: 'angry' })); // distinct value -> new record
+      store.currentTick = 2;
+      store.retract(new Fact('trusts', 'alice', 'bob')); // retraction keeps the record
+      store.assertAt(new Fact('helped', 'alice', 'carol'), -5);
+      return store;
+    }
+
+    it('every canonical record is reachable through its name bucket', () => {
+      const store = exercisedStore();
+      for (const record of store.factHistory) {
+        const bucket = store.recordsForName(record.fact.name);
+        assert.ok(bucket.includes(record),
+          `record ${record.fact.name}(${record.fact.args}) missing from its name bucket`);
+      }
+    });
+
+    it('the buckets partition factHistory exactly — no missing or extra records', () => {
+      const store = exercisedStore();
+      const names = new Set(store.factHistory.map(r => r.fact.name));
+      let indexed = 0;
+      for (const name of names) {
+        for (const record of store.recordsForName(name)) {
+          assert.equal(record.fact.name, name, 'bucket holds a record of the wrong name');
+          indexed++;
+        }
+      }
+      assert.equal(indexed, store.factHistory.length,
+        'sum of bucket sizes must equal the canonical record count');
+    });
+
+    it('retraction does not desynchronize the index (records are append-only)', () => {
+      const store = exercisedStore();
+      // trusts was retracted but its record persists in both structures.
+      const trusts = store.recordsForName('trusts');
+      assert.equal(trusts.length, 1);
+      assert.ok(store.factHistory.includes(trusts[0]));
+    });
+
+    it('recordsForName matches a name-filtered scan of factHistory', () => {
+      const store = exercisedStore();
+      for (const name of ['knows', 'feels', 'trusts', 'helped']) {
+        const viaIndex = store.recordsForName(name);
+        const viaScan  = store.factHistory.filter(r => r.fact.name === name);
+        assert.deepEqual(viaIndex, viaScan);
+      }
+    });
+
+    it('returns an empty array for an unknown name', () => {
+      const store = exercisedStore();
+      assert.deepEqual(store.recordsForName('nonexistent'), []);
+    });
+  });
 });

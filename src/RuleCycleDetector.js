@@ -1,20 +1,31 @@
-function* walkPredicates(predicate) {
-  yield predicate;
+// Dependency keys are scoped by store, not just predicate name. A premise that
+// reads the world store and an effect that writes a private store (or vice
+// versa) touch independent facts and cannot feed each other — keying them as
+// `world:name` vs `private:name` keeps that distinction so a learning rule
+// (world read → private belief write) is not mistaken for a self-cycle. Private
+// owners collapse to a single `private` class: this stays conservative (it may
+// over-link two private rules with different owners, never under-links), so
+// genuine cross-store cycles are still caught.
+function* walkScoped(predicate, scope) {
   // Negation wrappers (not, ~) are guards: asserting the inner predicate makes
   // them fail, so they do not create a dependency edge for cycle detection.
   if (predicate.predicateIsNegation) return;
-  if (predicate.predicate)      yield* walkPredicates(predicate.predicate);
-  if (predicate.innerPredicate) yield* walkPredicates(predicate.innerPredicate);
+  yield { predicate, scope };
+  // A PrivatePredicate wraps an inner predicate evaluated against an owner's
+  // private store; descend into it under the `private` scope.
+  const innerScope = ('owner' in predicate && predicate.innerPredicate) ? 'private' : scope;
+  if (predicate.predicate)      yield* walkScoped(predicate.predicate, scope);
+  if (predicate.innerPredicate) yield* walkScoped(predicate.innerPredicate, innerScope);
 }
 
 function lhsBooleanNames(rule) {
   const names = new Set();
   for (const { predicate } of rule.predicateEntries) {
-    for (const p of walkPredicates(predicate)) {
+    for (const { predicate: p, scope } of walkScoped(predicate, 'world')) {
       if (p.steps) {
-        for (const step of p.steps) names.add(step.name);
+        for (const step of p.steps) names.add(`${scope}:${step.name}`);
       } else if (typeof p.name === 'string') {
-        names.add(p.name);
+        names.add(`${scope}:${p.name}`);
       }
     }
   }
@@ -28,7 +39,8 @@ function rhsBooleanNames(rule) {
     // Retract effects remove predicates, which reduces the set of satisfiable
     // rules rather than expanding it — they cannot sustain a cycle.
     if (effect.type === 'assert' && effect.name) {
-      names.add(effect.name);
+      const scope = effect.owner ? 'private' : 'world';
+      names.add(`${scope}:${effect.name}`);
     }
   }
   return names;

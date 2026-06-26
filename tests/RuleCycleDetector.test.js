@@ -4,14 +4,26 @@ import { RuleCycleDetector } from '../src/RuleCycleDetector.js';
 import { Rule } from '../src/Rule.js';
 import { FactPredicate } from '../src/predicates/FactPredicate.js';
 import { NegationPredicate } from '../src/predicates/NegationPredicate.js';
+import { PrivatePredicate } from '../src/predicates/PrivatePredicate.js';
 import { StateOperation } from '../src/stateOperations/StateOperation.js';
 import { LogicalVariable } from '../src/LogicalVariable.js';
 
 const X = new LogicalVariable('X');
 const Y = new LogicalVariable('Y');
+const SELF = new LogicalVariable('SELF');
 
 function booleanEffect(name) {
   return new StateOperation('assert', name, [X, Y]);
+}
+
+// An assert into ?SELF's private store, e.g. `?SELF.married(?X, ?Y)`.
+function privateEffect(name) {
+  return new StateOperation('assert', name, [X, Y], { owner: SELF, ownerIsVariable: true });
+}
+
+// A premise read against ?SELF's private store, e.g. `?SELF.married(?X, ?Y)`.
+function privatePremise(name) {
+  return new PrivatePredicate(SELF, new FactPredicate(name, X, Y));
 }
 
 function numericEffect(name) {
@@ -122,6 +134,32 @@ describe('RuleCycleDetector', () => {
     const retractEffect = new StateOperation('retract', 'p', [X, Y]);
     const r1 = new Rule('R1', [{ predicate: new FactPredicate('p', X, Y), importance: 1.0 }], [retractEffect]);
     assert.strictEqual(detector.detect([r1]), null);
+  });
+
+  it('does not flag a world read feeding a private write of the same name', () => {
+    // A learning rule: read the world fact `married`, copy it into ?SELF's
+    // private store. The two `married` references live in different stores, so
+    // this cannot re-trigger itself.
+    const r1 = new Rule('learn', [{ predicate: new FactPredicate('married', X, Y), importance: 1.0 }], [privateEffect('married')]);
+    assert.strictEqual(detector.detect([r1]), null);
+  });
+
+  it('still detects a cross-store cycle between world and private', () => {
+    // R1 reads world `m`, writes private `m`; R2 reads private `m`, writes world
+    // `m`. That is a genuine loop and must be caught despite the store split.
+    const r1 = new Rule('R1', [{ predicate: new FactPredicate('m', X, Y), importance: 1.0 }], [privateEffect('m')]);
+    const r2 = new Rule('R2', [{ predicate: privatePremise('m'), importance: 1.0 }], [booleanEffect('m')]);
+    const cycle = detector.detect([r1, r2]);
+    assert.ok(cycle !== null, 'expected a cross-store cycle to be detected');
+    assert.ok(cycle.includes('R1') && cycle.includes('R2'));
+  });
+
+  it('still detects a self-cycle within the private store', () => {
+    // Read private `p`, write private `p` — a real self-loop in one store.
+    const r1 = new Rule('R1', [{ predicate: privatePremise('p'), importance: 1.0 }], [privateEffect('p')]);
+    const cycle = detector.detect([r1]);
+    assert.ok(cycle !== null, 'expected a private self-cycle to be detected');
+    assert.ok(cycle.includes('R1'));
   });
 
   it('does not flag a two-rule retract chain as a cycle', () => {

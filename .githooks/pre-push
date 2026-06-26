@@ -1,0 +1,20 @@
+#!/bin/sh
+# Fail fast if the VitePress docs build is broken before anything reaches CI.
+#
+# Why: VitePress aborts the whole build on a single dead link (or bad
+# markdown). In CI a failed build silently *skips* the GitHub Pages deploy
+# job, so the site keeps serving its previous state (which looks like the
+# raw README) with no obvious error. Catching it here means a broken push
+# is stopped on your machine instead of quietly not deploying.
+#
+# Enabled via: git config core.hooksPath .githooks  (run once per clone)
+
+echo "pre-push: verifying docs build (npm run docs:build)…"
+if ! npm run docs:build; then
+  echo ""
+  echo "✖ docs build failed — push aborted. Most often this is a dead link."
+  echo "  Fix the errors above (or add the file to srcExclude) and push again."
+  exit 1
+fi
+echo "✓ docs build OK — proceeding with push"
+exit 0

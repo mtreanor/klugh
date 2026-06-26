@@ -7,6 +7,11 @@ export default defineConfig({
   description: 'A symbolic logic engine for reasoning about state',
   base: '/klugh/',
 
+  // Scratch/archive notes that are not part of the published site. Keeping
+  // them out of the build means a stray dead link in a draft can't fail the
+  // deploy (VitePress aborts the whole build on any dead link).
+  srcExclude: ['old/**', 'ml-ideas.md'],
+
   markdown: {
     languages: [klughGrammar],
     config: (md) => {

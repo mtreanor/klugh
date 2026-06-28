@@ -1,6 +1,8 @@
 # klugh
 
-A logic engine built for authorship. Describe relationships, beliefs, and history in a readable rule language; the engine evaluates them against an evolving world and tells you what follows.
+A logic engine built for authorship. Describe relationships, beliefs, and history as rules; define scoreable actions against them; the engine evaluates an evolving world and tells you what follows.
+
+**Rules** turn conditions into numeric scores:
 
 ```klugh
 rule "kindness warms friendship"
@@ -16,11 +18,28 @@ rule "forgiveness follows demonstrated change"
   => friendship(?Y, ?SELF) += 8
 ```
 
-Rules read like intent. Write hundreds of them and you get emergent behavior — social physics shaped by authored intuition, not hand-coded case logic.
+**Actions** read those scores as utility to choose behavior:
+
+```klugh
+action "seek reconciliation"
+  roles: ?SELF: agent, ?Y: agent
+  preconditions
+    strainedPair(?SELF, ?Y)
+    ^ knows(?SELF, ?Y)
+  utility
+    friendship(?SELF, ?Y)
+  content text: "?SELF reaches out to ?Y after the falling-out"
+  effects
+    helped(?SELF, ?Y)
+    friendship(?Y, ?SELF) += 4
+    trusts(?Y, ?SELF)
+```
 
 ![klugh core loop: rulesets build numeric scores, actions read them as utility](/core-loop.svg)
 
-Rulesets turn boolean conditions into numeric predicate scores. Actions read those scores as utility to choose what happens next.
+Rulesets run to fixpoint, accumulating numeric predicates. Actions score eligible candidates from those values — `friendship(?SELF, ?Y)` ranks who alice is most motivated to reconcile with. The winning action fires, its effects update the world, and the rules fire again.
+
+Write hundreds of rules and actions and you get emergent behavior — social physics shaped by authored intuition, not hand-coded case logic.
 
 ---
 

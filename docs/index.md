@@ -18,6 +18,10 @@ rule "forgiveness follows demonstrated change"
 
 Rules read like intent. Write hundreds of them and you get emergent behavior — social physics shaped by authored intuition, not hand-coded case logic.
 
+![klugh core loop: rulesets build numeric scores, actions read them as utility](/core-loop.svg)
+
+Rulesets turn boolean conditions into numeric predicate scores. Actions read those scores as utility to choose what happens next.
+
 ---
 
 ## What it's built for

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 168" role="img" aria-labelledby="title desc">
+  <title id="title">klugh core loop</title>
+  <desc id="desc">Rulesets build numeric predicate scores; actions read them as utility.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#faf8f5"/>
+      <stop offset="100%" stop-color="#f4f1eb"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-16%" y="-24%" width="132%" height="180%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#2c2418" flood-opacity="0.07"/>
+    </filter>
+
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#a39686"/>
+    </marker>
+
+    <style>
+      .title { font: 600 18px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #1f1b16; }
+      .sub   { font: 400 13.5px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #6b6258; }
+      .loop  { font: 400 12px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #958a7c; }
+    </style>
+  </defs>
+
+  <rect width="640" height="168" rx="14" fill="url(#bg)"/>
+
+  <!-- rulesets -->
+  <g filter="url(#shadow)">
+    <rect x="20" y="36" width="168" height="84" rx="12" fill="#fff"/>
+    <rect x="20" y="36" width="4" height="84" rx="2" fill="#c47a3a"/>
+  </g>
+  <text x="38" y="66" class="title">Rulesets</text>
+  <text x="38" y="96" class="sub">conditions → scores</text>
+
+  <path d="M 196 78 H 218" stroke="#a39686" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- numeric -->
+  <g filter="url(#shadow)">
+    <rect x="228" y="36" width="168" height="84" rx="12" fill="#fff"/>
+    <rect x="228" y="36" width="4" height="84" rx="2" fill="#4a6fa5"/>
+  </g>
+  <text x="246" y="66" class="title">Numeric</text>
+  <text x="246" y="96" class="sub">the utility landscape</text>
+
+  <path d="M 404 78 H 426" stroke="#a39686" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- actions -->
+  <g filter="url(#shadow)">
+    <rect x="436" y="36" width="184" height="84" rx="12" fill="#fff"/>
+    <rect x="436" y="36" width="4" height="84" rx="2" fill="#5a8f6b"/>
+  </g>
+  <text x="454" y="66" class="title">Actions</text>
+  <text x="454" y="96" class="sub">score → choose → act</text>
+
+  <!-- loop -->
+  <path
+    d="M 528 128 C 528 148, 320 148, 104 148 C 86 148, 72 136, 72 120"
+    stroke="#c4b9ab"
+    stroke-width="1.2"
+    fill="none"
+    stroke-dasharray="3.5 3.5"
+    marker-end="url(#arrow)"
+  />
+  <text x="320" y="162" text-anchor="middle" class="loop">world updates</text>
+</svg>

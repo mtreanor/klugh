@@ -40,7 +40,7 @@
     <rect x="228" y="36" width="168" height="84" rx="12" fill="#fff"/>
     <rect x="228" y="36" width="4" height="84" rx="2" fill="#4a6fa5"/>
   </g>
-  <text x="246" y="66" class="title">Numeric</text>
+  <text x="246" y="66" class="title">Numbers</text>
   <text x="246" y="96" class="sub">the utility landscape</text>
 
   <path d="M 404 78 H 426" stroke="#a39686" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>

@@ -84,9 +84,16 @@ export class Engine {
       }
     }
 
-    for (const [name, pathOrPaths] of Object.entries(paths.actionsets ?? {})) {
-      for (const path of [].concat(pathOrPaths)) {
-        this.loadActions(readFileSync(path, 'utf-8'), name, { merge: this.actionsets.has(name) });
+    const actionsetConfig = paths.actionsets ?? {};
+    if (Array.isArray(actionsetConfig)) {
+      for (const path of actionsetConfig) {
+        this.loadActions(readFileSync(path, 'utf-8'), null);
+      }
+    } else {
+      for (const [name, pathOrPaths] of Object.entries(actionsetConfig)) {
+        for (const path of [].concat(pathOrPaths)) {
+          this.loadActions(readFileSync(path, 'utf-8'), name, { merge: this.actionsets.has(name) });
+        }
       }
     }
 
@@ -117,10 +124,19 @@ export class Engine {
     return rules;
   }
 
-  // Parses source text and adds the actions to the named actionset.
+  // Parses source text and registers actions. For single-actionset files the
+  // `name` parameter names the actionset; for multi-actionset files (those
+  // containing named `actionset` blocks) the names come from the file and
+  // `name` is ignored.
   loadActions(source, name, { merge = false } = {}) {
-    const { actions } = new ActionLoader(this.schema, this.world.entityTypeConfig).load(new ActionParser(this.schema).parse(source));
-    return this.addActionset(name, actions, { merge });
+    const data = new ActionLoader(this.schema, this.world.entityTypeConfig).load(new ActionParser(this.schema).parse(source));
+    if (data.actionsets) {
+      for (const [setName, actions] of Object.entries(data.actionsets)) {
+        this.addActionset(setName, actions, { merge: this.actionsets.has(setName) });
+      }
+      return data.actionsets;
+    }
+    return this.addActionset(name, data.actions, { merge });
   }
 
   // Attaches actions to a named actionset, registering each as a queryable
@@ -135,8 +151,16 @@ export class Engine {
   // when actions are used (e.g. in scoreActionset), because re-asserting info:
   // facts would resurrect traits that effects retracted at run time.
   addActionset(name, actions, { merge = false } = {}) {
-    registerActionEntities(actions, this.world);
     const existing = merge ? (this.actionsets.get(name) ?? []) : [];
+    if (merge && existing.length > 0) {
+      const existingNames = new Set(existing.map(a => a.name));
+      for (const action of actions) {
+        if (existingNames.has(action.name)) {
+          throw new Error(`Duplicate action "${action.name}" in actionset "${name}" — action names within a merged actionset must be unique`);
+        }
+      }
+    }
+    registerActionEntities(actions, this.world);
     this.actionsets.set(name, [...existing, ...actions]);
     return actions;
   }

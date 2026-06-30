@@ -12,6 +12,7 @@ export class Action {
     effects        = [],
     utilitySources = [],
     content        = null,
+    routesTo       = null,
   } = {}) {
     this.name            = name;
     this.roles           = roles;
@@ -22,6 +23,7 @@ export class Action {
     this.stateOperations = effects;
     this.utilitySources  = utilitySources;
     this.content         = content;
+    this.routesTo        = routesTo; // stage name(s) to enter after this action executes, or null
   }
 
   collectVariables() {

@@ -5,11 +5,54 @@ const RESERVED_SOURCES = new Set(['random']);
 
 class ActionDSLParser extends DSLParser {
   parse() {
+    if (this.check('EOF')) return { actions: [] };
+
+    if (this.check('IDENT', 'actionset')) {
+      return this.parseMultiActionsets();
+    }
+
+    if (this.check('IDENT', 'action')) {
+      return this.parseSingleActionset();
+    }
+
+    const tok = this.peek();
+    throw new Error(`Expected 'action' or 'actionset' at line ${tok.line}`);
+  }
+
+  parseMultiActionsets() {
+    const actionsets = {};
+    while (!this.check('EOF')) {
+      if (!this.check('IDENT', 'actionset')) {
+        const tok = this.peek();
+        throw new Error(`Expected 'actionset' at line ${tok.line} — cannot mix bare actions with named actionset blocks`);
+      }
+      this.advance();
+      const name = this.expect('STRING').value;
+      const actions = [];
+      while (!this.check('EOF') && !this.check('IDENT', 'actionset')) {
+        if (!this.check('IDENT', 'action')) {
+          const tok = this.peek();
+          throw new Error(`Expected 'action' at line ${tok.line}`);
+        }
+        actions.push(this.parseAction());
+      }
+      if (name in actionsets) {
+        actionsets[name].push(...actions);
+      } else {
+        actionsets[name] = actions;
+      }
+    }
+    return { actionsets };
+  }
+
+  parseSingleActionset() {
     const actions = [];
     while (!this.check('EOF')) {
-      if (this.check('IDENT', 'action')) { actions.push(this.parseAction()); continue; }
-      const tok = this.peek();
-      throw new Error(`Expected 'action' at line ${tok.line}`);
+      if (!this.check('IDENT', 'action')) {
+        const tok = this.peek();
+        throw new Error(`Expected 'action' at line ${tok.line}`);
+      }
+      actions.push(this.parseAction());
     }
     return { actions };
   }
@@ -62,17 +105,25 @@ class ActionDSLParser extends DSLParser {
     const effects = [];
     if (this.check('IDENT', 'effects')) {
       this.advance();
-      while (!this.check('EOF') && !this.check('IDENT', 'action')) {
+      while (!this.check('EOF') && !this.check('IDENT', 'action') && !this.check('IDENT', 'actionset') && !this.check('IDENT', 'routes-to')) {
         effects.push(this.parseStateOperation());
       }
     }
 
+    let routesTo = null;
+    if (this.check('IDENT', 'routes-to')) {
+      this.advance();
+      this.expect('COLON');
+      routesTo = this.expect('IDENT').value;
+    }
+
     const result = { name, effects };
-    if (roles.length > 0)         result.roles          = roles;
-    if (info.length > 0)          result.info           = info;
-    if (preconditions.length > 0) result.preconditions  = preconditions;
+    if (roles.length > 0)          result.roles          = roles;
+    if (info.length > 0)           result.info           = info;
+    if (preconditions.length > 0)  result.preconditions  = preconditions;
     if (utilitySources.length > 0) result.utilitySources = utilitySources;
-    if (content !== null)         result.content        = content;
+    if (content !== null)          result.content        = content;
+    if (routesTo !== null)         result.routesTo       = routesTo;
     return result;
   }
 

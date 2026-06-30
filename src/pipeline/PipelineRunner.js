@@ -28,7 +28,7 @@ export class PipelineRunner {
 
     const candidates = this.engine.scoreActionset(stage.actionset, this._toPartial(stageBinding))
       .filter(c => c.score >= floor);
-    const winners = selectCandidates(candidates, strategy);
+    const winners = selectCandidates(candidates, strategy, this.engine);
 
     for (const winner of winners) {
       this._commitAndRoute(pipeline, stageName, winner);
@@ -66,7 +66,7 @@ export class PipelineRunner {
         ? (pipeline.stages[childStageNames[0]].selectionStrategy ?? pipeline.selectionStrategy ?? 'highestUtility')
         : (pipeline.selectionStrategy ?? 'highestUtility');
 
-      const childWinners = selectCandidates(pool, childStrategy);
+      const childWinners = selectCandidates(pool, childStrategy, this.engine);
       for (const childWinner of childWinners) {
         this._commitAndRoute(pipeline, childWinner._stageName, childWinner);
       }

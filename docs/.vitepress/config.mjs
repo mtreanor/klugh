@@ -56,6 +56,7 @@ export default defineConfig({
           { text: 'Sensor predicates', link: '/sensors' },
           { text: 'Actions', link: '/actions' },
           { text: 'Action records', link: '/action-records' },
+          { text: 'Pipelines', link: '/pipeline' },
           { text: 'Provenance', link: '/provenance' },
           { text: 'REPL', link: '/repl' },
         ],

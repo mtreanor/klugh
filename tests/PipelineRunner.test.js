@@ -236,7 +236,7 @@ describe('PipelineRunner — salienceFloor', () => {
 
 // ── groupBy selection ────────────────────────────────────────────────────────
 
-describe('PipelineRunner — groupBy', () => {
+describe('PipelineRunner — groupBy (string form)', () => {
   it('selects one winner per distinct value of the groupBy variable', () => {
     const engine = new Engine({
       predicates: {
@@ -269,6 +269,117 @@ describe('PipelineRunner — groupBy', () => {
 
     assert.ok(engine.world.factStore.contains('handoff', 'alice', 'bob'));
     assert.ok(engine.world.factStore.contains('handoff', 'alice', 'carol'));
+  });
+});
+
+describe('PipelineRunner — groupBy (pattern form)', () => {
+  // Scenario: a judge evaluates acts. Each act has a `role` record linking it
+  // to the actor. The judge action is scored per (JUDGE, ACT) pair, but we
+  // want one winner per distinct actor derived from world state via the role
+  // predicate — not directly from the binding.
+  function makeJudgeEngine() {
+    return new Engine({
+      predicates: {
+        predicates: {
+          role:     { type: 'boolean', args: ['occurrence', 'agent'] },
+          judged:   { type: 'boolean', args: ['agent', 'occurrence'] },
+          witnessed:{ type: 'boolean', args: ['agent', 'occurrence'] },
+        },
+      },
+      entities: {
+        agent:      { alice: {}, bob: {}, carol: {} },
+        occurrence: { act1: {}, act2: {} },
+      },
+    });
+  }
+
+  it('derives the grouping key from world state via a pattern query', () => {
+    const engine = makeJudgeEngine();
+
+    // alice witnessed both acts; act1 was by bob, act2 by carol.
+    engine.world.assert(new Fact('witnessed', 'alice', 'act1'));
+    engine.world.assert(new Fact('witnessed', 'alice', 'act2'));
+    engine.world.assert(new Fact('role', 'act1', 'bob'));
+    engine.world.assert(new Fact('role', 'act2', 'carol'));
+
+    engine.loadActions(`
+      action "judge"
+        roles: ?JUDGE: agent, ?ACT: occurrence
+        utility 1.0
+        effects judged(?JUDGE, ?ACT)
+    `, 'judge-acts');
+
+    // groupBy pattern: for each candidate (JUDGE, ACT), look up the actor of
+    // ACT in world state. Group by actor — one judgement per distinct actor.
+    const pipeline = new Pipeline('test', {
+      entry: 'judge-stage',
+      stages: {
+        'judge-stage': new Stage({
+          actionset: 'judge-acts',
+          selectionStrategy: {
+            type: 'highestUtility',
+            groupBy: { pattern: 'role(?ACT, ?actor)', key: 'actor' },
+          },
+        }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { JUDGE: 'alice' });
+
+    // One judgement per actor (bob, carol) — two total.
+    const judgedAct1 = engine.world.factStore.contains('judged', 'alice', 'act1');
+    const judgedAct2 = engine.world.factStore.contains('judged', 'alice', 'act2');
+    assert.ok(judgedAct1, 'alice should judge act1 (actor: bob)');
+    assert.ok(judgedAct2, 'alice should judge act2 (actor: carol)');
+  });
+
+  it('picks the highest-scoring candidate when multiple acts share the same actor', () => {
+    const engine = new Engine({
+      predicates: {
+        predicates: {
+          role:     { type: 'boolean', args: ['occurrence', 'agent'] },
+          judged:   { type: 'boolean', args: ['agent', 'occurrence'] },
+          salience: { type: 'numeric', args: ['occurrence'], default: 0, minValue: 0, maxValue: 10 },
+        },
+      },
+      entities: {
+        agent:      { alice: {}, bob: {} },
+        occurrence: { act1: {}, act2: {} },
+      },
+    });
+
+    // Both acts are by bob. act2 has higher salience.
+    engine.world.assert(new Fact('role', 'act1', 'bob'));
+    engine.world.assert(new Fact('role', 'act2', 'bob'));
+    const ctx = engine.world.createEvaluationContext();
+    engine.world.queryHandlers.getHandler('numeric').setValue('salience', ['act1'], 3, ctx);
+    engine.world.queryHandlers.getHandler('numeric').setValue('salience', ['act2'], 7, ctx);
+
+    engine.loadActions(`
+      action "judge"
+        roles: ?JUDGE: agent, ?ACT: occurrence
+        utility salience(?ACT)
+        effects judged(?JUDGE, ?ACT)
+    `, 'judge-acts');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'judge-stage',
+      stages: {
+        'judge-stage': new Stage({
+          actionset: 'judge-acts',
+          selectionStrategy: {
+            type: 'highestUtility',
+            groupBy: { pattern: 'role(?ACT, ?actor)', key: 'actor' },
+          },
+        }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { JUDGE: 'alice' });
+
+    // Only one winner for the bob group — act2 (higher salience).
+    assert.ok(!engine.world.factStore.contains('judged', 'alice', 'act1'), 'act1 should lose to act2');
+    assert.ok(engine.world.factStore.contains('judged', 'alice', 'act2'), 'act2 should win (salience 7 > 3)');
   });
 });
 

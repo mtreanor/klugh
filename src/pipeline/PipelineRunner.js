@@ -3,6 +3,11 @@ import { RuleEvaluator } from '../RuleEvaluator.js';
 import { applyStateChange } from '../stateOperations/applyStateChange.js';
 import { selectCandidates } from './SelectionStrategy.js';
 
+// The reserved terminal route. Used as an action's `routes-to: end` to opt out
+// of a stage's default route and end that branch (firing the pipeline's
+// postHooks). It is not a stage name — no stage may be called "end".
+export const TERMINAL = 'end';
+
 export class PipelineRunner {
   constructor(engine) {
     this.engine        = engine;
@@ -10,6 +15,9 @@ export class PipelineRunner {
   }
 
   run(pipeline, initialBinding = {}) {
+    if (pipeline.stages[TERMINAL]) {
+      throw new Error(`Pipeline "${pipeline.name}": "${TERMINAL}" is a reserved terminal route and cannot be a stage name`);
+    }
     const binding = this.engine.resolveBinding(initialBinding);
     this._runHooks(pipeline.preHooks, binding);
     this._runStage(pipeline, pipeline.entry, binding);
@@ -48,8 +56,9 @@ export class PipelineRunner {
       }
       for (const winner of winners) this.engine.execute(winner);
       const outBinding = this._runHooks(stage.postHooks, stageBinding);
-      if (stage.routesTo) {
-        for (const childName of [].concat(stage.routesTo)) {
+      const route = stage.routesTo === TERMINAL ? null : stage.routesTo;
+      if (route) {
+        for (const childName of [].concat(route)) {
           this._runStage(pipeline, childName, outBinding);
         }
       } else {
@@ -64,15 +73,20 @@ export class PipelineRunner {
 
   // Executes a selected candidate, fires postHooks, then either routes to child
   // stages (pooling their candidates and selecting one) or fires pipeline postHooks
-  // when terminal.
+  // when terminal. The route is the action's own routes-to when set, else the
+  // stage's routesTo default; `routes-to: end` on the action is an explicit
+  // terminal that beats the stage default.
   _commitAndRoute(pipeline, stageName, candidate) {
     const stage = pipeline.stages[stageName];
 
     this.engine.execute(candidate);
     const outBinding = this._runHooks(stage.postHooks, candidate.binding);
 
-    if (candidate.action.routesTo) {
-      const childStageNames = [].concat(candidate.action.routesTo);
+    const resolved = candidate.action.routesTo ?? stage.routesTo;
+    const route    = resolved === TERMINAL ? null : resolved;
+
+    if (route) {
+      const childStageNames = [].concat(route);
       const pool = [];
 
       // Executing the candidate may have changed the world; drop stale derived

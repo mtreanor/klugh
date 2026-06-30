@@ -44,7 +44,7 @@ new Stage({
 | `salienceFloor` | Candidates scoring below this are discarded. Defaults to `0`. |
 | `selectionStrategy` | How winners are picked from the scored candidates — see [Selection strategies](#selection-strategies). Falls back to the pipeline's strategy, then `highestUtility`. |
 | `routing` | **Required.** `'branch'` or `'collect'` — see [Routing disciplines](#routing-disciplines-branch-vs-collect). |
-| `routesTo` | Stage-level destination (a stage name or array), used in `collect` routing. |
+| `routesTo` | Stage-level destination (a stage name or array). In `collect` routing it is *the* route; in `branch` routing it is the **default** route for winners whose action carries no `routes-to` of its own. |
 | `preHooks` / `postHooks` | Ordered [hooks](#hooks) that run before scoring / after a winner executes (`branch`) or once after the group (`collect`). |
 
 A `Pipeline` carries the same `preHooks` / `postHooks` / `selectionStrategy` at the top level. The pipeline's `preHooks` run once at the start; its `postHooks` run each time a **terminal** action executes.
@@ -156,7 +156,28 @@ A `routes-to` may name several child stages (an array, in JS). Their candidates 
 
 ## Routing disciplines: branch vs collect
 
-The examples above use the **branch** discipline: each winning action carries its own continuation (`routes-to:`), so a stage with *N* winners produces up to *N* independent continuations, and each child stage scores against the world *as that one winner left it*. This is right for agent-turn pipelines — alice greets bob, bob responds; one actor's choice hands to the next.
+The examples above use the **branch** discipline: each winning action carries its own continuation, so a stage with *N* winners produces up to *N* independent continuations, and each child stage scores against the world *as that one winner left it*. This is right for agent-turn pipelines — alice greets bob, bob responds; one actor's choice hands to the next.
+
+A winner's continuation is resolved as `action.routes-to ?? stage.routesTo`: an action's own `routes-to` wins, and when it has none the winner falls back to the **stage default**. Because the next stage is so often the same for every action in a stage, set it once on the stage and only annotate the actions that diverge:
+
+```javascript
+new Stage({
+  actionset: 'initiate',
+  routing: 'branch',
+  routesTo: 'respond-stage',   // default continuation for this stage's winners
+});
+```
+
+To make a single action **terminal** despite a stage default — ending that branch and firing the pipeline's `postHooks` — route it to the reserved sentinel `end`:
+
+```klugh
+action "wait"
+  roles: ?SELF: agent
+  utility 0.2
+  routes-to: end          // beats the stage default; this branch stops here
+```
+
+`end` is reserved: no stage may be named `end`, and the runner throws if one is.
 
 Generation/transform pipelines want the opposite: apply the **whole group**, settle, then advance once. "Pick one mechanic per edge, *then* add a single win condition against the finished set." That is the **collect** discipline, set on the `Stage`:
 
@@ -173,12 +194,13 @@ A `collect` stage executes every selected winner, runs its `postHooks` **once**,
 
 | | `branch` | `collect` |
 |---|---|---|
-| route source | each winner's action `routes-to` | the stage's `routesTo` |
+| route source | each winner's `action.routes-to ?? stage.routesTo` | the stage's `routesTo` |
 | route fires | once per winner | once per stage |
 | `postHooks` | after **each** winner | once, after the **group** |
 | child's starting binding | that winner's (post-hook) binding | the stage's incoming binding |
+| terminal | action with no route and no stage default, or `routes-to: end` | stage with no `routesTo` |
 
-`routesTo` is only valid with `routing: 'collect'` (a `branch` stage routes via its actions); the `Stage` constructor throws otherwise. Routing always re-scores the destination against **fresh derivations** — a stage mutates the world the next one queries, so derived-fact caches are invalidated between stages.
+Routing always re-scores the destination against **fresh derivations** — a stage mutates the world the next one queries, so derived-fact caches are invalidated between stages.
 
 ::: tip Collect fan-out
 A collect stage's `routesTo` may also be an array — each named child then runs **independently**, once, with the same post-group binding (no pooled selection; that's a branch-mode feature).

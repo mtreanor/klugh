@@ -149,6 +149,165 @@ describe('PipelineRunner — routing between stages', () => {
   });
 });
 
+// ── branch stage-level default routing ───────────────────────────────────────
+
+describe('PipelineRunner — branch routesTo default', () => {
+  it('routes an action with no routes-to via the stage default', () => {
+    const engine = makeEngine();
+    // Neither action carries routes-to — both fall back to the stage default.
+    engine.loadActions(`
+      action "engage"
+        roles: ?SELF: agent
+        utility 1.0
+        effects acted(?SELF)
+    `, 'tier1');
+    engine.loadActions(`
+      action "respond"
+        roles: ?SELF: agent, ?OTHER: agent
+        utility 1.0
+        effects responded(?OTHER)
+    `, 'tier2');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'tier1-stage',
+      stages: {
+        'tier1-stage': new Stage({ actionset: 'tier1', routing: 'branch', routesTo: 'respond-stage' }),
+        'respond-stage': new Stage({ actionset: 'tier2', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice', OTHER: 'bob' });
+
+    assert.ok(engine.world.factStore.contains('acted', 'alice'));
+    assert.ok(engine.world.factStore.contains('responded', 'bob'),
+      'the winner should follow the stage default route');
+  });
+
+  it("lets an action's own routes-to override the stage default", () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "engage"
+        roles: ?SELF: agent
+        utility 1.0
+        effects acted(?SELF)
+        routes-to: special-stage
+    `, 'tier1');
+    engine.loadActions(`
+      action "respond"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'default-tier');
+    engine.loadActions(`
+      action "special"
+        roles: ?SELF: agent
+        utility 1.0
+        effects handoff(?SELF, ?SELF)
+    `, 'special-tier');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'tier1-stage',
+      stages: {
+        'tier1-stage':   new Stage({ actionset: 'tier1', routing: 'branch', routesTo: 'default-stage' }),
+        'default-stage': new Stage({ actionset: 'default-tier', routing: 'branch' }),
+        'special-stage': new Stage({ actionset: 'special-tier', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    assert.ok(engine.world.factStore.contains('handoff', 'alice', 'alice'),
+      'the action route should win over the stage default');
+    assert.ok(!engine.world.factStore.contains('responded', 'alice'),
+      'the stage default should not fire when the action routes elsewhere');
+  });
+
+  it("treats `routes-to: end` as terminal, beating the stage default", () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "engage"
+        roles: ?SELF: agent
+        utility 1.0
+        effects acted(?SELF)
+        routes-to: end
+    `, 'tier1');
+    engine.loadActions(`
+      action "respond"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'default-tier');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'tier1-stage',
+      stages: {
+        'tier1-stage':   new Stage({ actionset: 'tier1', routing: 'branch', routesTo: 'default-stage' }),
+        'default-stage': new Stage({ actionset: 'default-tier', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    assert.ok(engine.world.factStore.contains('acted', 'alice'));
+    assert.ok(!engine.world.factStore.contains('responded', 'alice'),
+      'routes-to: end should terminate the branch instead of taking the stage default');
+  });
+
+  it('fires pipeline postHooks when an action ends via routes-to: end', () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "engage"
+        roles: ?SELF: agent
+        utility 1.0
+        effects acted(?SELF)
+        routes-to: end
+    `, 'tier1');
+    engine.loadActions(`
+      action "respond"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'default-tier');
+    engine.loadRules(`
+      rule "terminal hook"
+        acted(?X)
+        => handoff(?X, ?X)
+    `, 'post');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'tier1-stage',
+      postHooks: [{ type: 'ruleset', name: 'post' }],
+      stages: {
+        'tier1-stage':   new Stage({ actionset: 'tier1', routing: 'branch', routesTo: 'default-stage' }),
+        'default-stage': new Stage({ actionset: 'default-tier', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    assert.ok(engine.world.factStore.contains('handoff', 'alice', 'alice'),
+      'pipeline postHooks should fire for an action that ends via routes-to: end');
+  });
+
+  it('rejects a pipeline with a stage named "end"', () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "act"
+        roles: ?SELF: agent
+        utility 1.0
+        effects acted(?SELF)
+    `, 'moves');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'end',
+      stages: { end: new Stage({ actionset: 'moves', routing: 'branch' }) },
+    });
+
+    assert.throws(() => new PipelineRunner(engine).run(pipeline, { SELF: 'alice' }),
+      /reserved terminal route/);
+  });
+});
+
 // ── swap-roles hook ──────────────────────────────────────────────────────────
 
 describe('PipelineRunner — swap-roles hook', () => {
@@ -603,8 +762,8 @@ describe('PipelineRunner — collect routing', () => {
 });
 
 describe('Stage — routing validation', () => {
-  it('rejects routesTo on a branch stage', () => {
-    assert.throws(() => new Stage({ actionset: 'x', routing: 'branch', routesTo: 'y' }), /routesTo.*collect/);
+  it('accepts routesTo on a branch stage (the per-winner default)', () => {
+    assert.doesNotThrow(() => new Stage({ actionset: 'x', routing: 'branch', routesTo: 'y' }));
   });
   it('requires routing to be declared', () => {
     assert.throws(() => new Stage({ actionset: 'x' }), /routing is required/);

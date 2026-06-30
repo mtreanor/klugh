@@ -36,7 +36,7 @@ describe('PipelineRunner — single stage, terminal action', () => {
     const pipeline = new Pipeline('test', {
       entry: 'moves-stage',
       stages: {
-        'moves-stage': new Stage({ actionset: 'moves' }),
+        'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
       },
     });
 
@@ -64,7 +64,7 @@ describe('PipelineRunner — single stage, terminal action', () => {
       entry: 'moves-stage',
       postHooks: [{ type: 'ruleset', name: 'post-consequences' }],
       stages: {
-        'moves-stage': new Stage({ actionset: 'moves' }),
+        'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
       },
     });
 
@@ -102,8 +102,8 @@ describe('PipelineRunner — routing between stages', () => {
     const pipeline = new Pipeline('test', {
       entry: 'tier1-stage',
       stages: {
-        'tier1-stage': new Stage({ actionset: 'tier1' }),
-        'respond-stage': new Stage({ actionset: 'tier2' }),
+        'tier1-stage': new Stage({ actionset: 'tier1', routing: 'branch' }),
+        'respond-stage': new Stage({ actionset: 'tier2', routing: 'branch' }),
       },
     });
 
@@ -137,8 +137,8 @@ describe('PipelineRunner — routing between stages', () => {
       entry: 'tier1-stage',
       postHooks: [{ type: 'ruleset', name: 'post' }],
       stages: {
-        'tier1-stage': new Stage({ actionset: 'tier1' }),
-        'respond-stage': new Stage({ actionset: 'tier2' }),
+        'tier1-stage': new Stage({ actionset: 'tier1', routing: 'branch' }),
+        'respond-stage': new Stage({ actionset: 'tier2', routing: 'branch' }),
       },
     });
 
@@ -173,9 +173,10 @@ describe('PipelineRunner — swap-roles hook', () => {
       stages: {
         'tier1-stage': new Stage({
           actionset: 'tier1',
+          routing: 'branch',
           postHooks: [{ type: 'swap-roles', roles: ['SELF', 'OTHER'] }],
         }),
-        'respond-stage': new Stage({ actionset: 'tier2' }),
+        'respond-stage': new Stage({ actionset: 'tier2', routing: 'branch' }),
       },
     });
 
@@ -202,7 +203,7 @@ describe('PipelineRunner — salienceFloor', () => {
     const pipeline = new Pipeline('test', {
       entry: 'moves-stage',
       stages: {
-        'moves-stage': new Stage({ actionset: 'moves', salienceFloor: 0.01 }),
+        'moves-stage': new Stage({ actionset: 'moves', salienceFloor: 0.01, routing: 'branch' }),
       },
     });
 
@@ -224,7 +225,7 @@ describe('PipelineRunner — salienceFloor', () => {
     const pipeline = new Pipeline('test', {
       entry: 'moves-stage',
       stages: {
-        'moves-stage': new Stage({ actionset: 'moves', salienceFloor: 0.01 }),
+        'moves-stage': new Stage({ actionset: 'moves', salienceFloor: 0.01, routing: 'branch' }),
       },
     });
 
@@ -258,6 +259,7 @@ describe('PipelineRunner — groupBy (string form)', () => {
       stages: {
         'moves-stage': new Stage({
           actionset: 'moves',
+          routing: 'branch',
           selectionStrategy: { type: 'highestUtility', groupBy: 'OTHER' },
         }),
       },
@@ -316,6 +318,7 @@ describe('PipelineRunner — groupBy (pattern form)', () => {
       stages: {
         'judge-stage': new Stage({
           actionset: 'judge-acts',
+          routing: 'branch',
           selectionStrategy: {
             type: 'highestUtility',
             groupBy: { pattern: 'role(?ACT, ?actor)', key: 'actor' },
@@ -367,6 +370,7 @@ describe('PipelineRunner — groupBy (pattern form)', () => {
       stages: {
         'judge-stage': new Stage({
           actionset: 'judge-acts',
+          routing: 'branch',
           selectionStrategy: {
             type: 'highestUtility',
             groupBy: { pattern: 'role(?ACT, ?actor)', key: 'actor' },
@@ -380,6 +384,233 @@ describe('PipelineRunner — groupBy (pattern form)', () => {
     // Only one winner for the bob group — act2 (higher salience).
     assert.ok(!engine.world.factStore.contains('judged', 'alice', 'act1'), 'act1 should lose to act2');
     assert.ok(engine.world.factStore.contains('judged', 'alice', 'act2'), 'act2 should win (salience 7 > 3)');
+  });
+});
+
+// ── collect routing ──────────────────────────────────────────────────────────
+
+describe('PipelineRunner — collect routing', () => {
+  it('executes the whole winning group, then routes the stage once', () => {
+    const engine = new Engine({
+      predicates: {
+        predicates: {
+          minted: { type: 'boolean', args: ['agent'] },
+          tally:  { type: 'numeric', args: [], default: 0, minValue: 0, maxValue: 100 },
+        },
+      },
+      entities: { agent: { alice: {}, bob: {} } },
+    });
+    engine.loadActions(`
+      action "mint"
+        roles: ?A: agent
+        utility 1.0
+        effects minted(?A)
+    `, 'produce');
+    engine.loadActions(`
+      action "done"
+        utility 1.0
+        effects tally() += 1
+    `, 'finish');
+
+    // produce: groupBy A → one winner per agent (alice, bob). collect → both
+    // mint, THEN route once to the finish stage.
+    const pipeline = new Pipeline('test', {
+      entry: 'produce-stage',
+      stages: {
+        'produce-stage': new Stage({
+          actionset: 'produce',
+          selectionStrategy: { type: 'highestUtility', groupBy: 'A' },
+          routing: 'collect',
+          routesTo: 'finish-stage',
+        }),
+        'finish-stage': new Stage({ actionset: 'finish', routing: 'collect' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, {});
+
+    assert.ok(engine.world.factStore.contains('minted', 'alice'));
+    assert.ok(engine.world.factStore.contains('minted', 'bob'));
+    // Routed ONCE for the whole group — not once per winner (which would be 2).
+    const ctx = engine.world.createEvaluationContext();
+    assert.equal(engine.world.queryHandlers.getHandler('numeric').getValue('tally', [], ctx), 1);
+  });
+
+  it('routes per winner under branch routing (the contrast)', () => {
+    const engine = new Engine({
+      predicates: {
+        predicates: {
+          minted: { type: 'boolean', args: ['agent'] },
+          tally:  { type: 'numeric', args: [], default: 0, minValue: 0, maxValue: 100 },
+        },
+      },
+      entities: { agent: { alice: {}, bob: {} } },
+    });
+    // Same shape, but the route lives on the action and the stage is branch.
+    engine.loadActions(`
+      action "mint"
+        roles: ?A: agent
+        utility 1.0
+        effects minted(?A)
+        routes-to: finish-stage
+    `, 'produce');
+    engine.loadActions(`
+      action "done"
+        utility 1.0
+        effects tally() += 1
+    `, 'finish');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'produce-stage',
+      stages: {
+        'produce-stage': new Stage({
+          actionset: 'produce',
+          routing: 'branch',
+          selectionStrategy: { type: 'highestUtility', groupBy: 'A' },
+        }),
+        'finish-stage': new Stage({ actionset: 'finish', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, {});
+
+    // Each of the two winners routed independently → finish ran twice.
+    const ctx = engine.world.createEvaluationContext();
+    assert.equal(engine.world.queryHandlers.getHandler('numeric').getValue('tally', [], ctx), 2);
+  });
+
+  it('fires pipeline postHooks after a terminal collect group', () => {
+    const engine = new Engine({
+      predicates: {
+        predicates: {
+          minted:  { type: 'boolean', args: ['agent'] },
+          settled: { type: 'boolean', args: ['agent'] },
+        },
+      },
+      entities: { agent: { alice: {}, bob: {} } },
+    });
+    engine.loadActions(`
+      action "mint"
+        roles: ?A: agent
+        utility 1.0
+        effects minted(?A)
+    `, 'produce');
+    engine.loadRules(`
+      rule "settle minted"
+        minted(?A)
+        => settled(?A)
+    `, 'post');
+
+    // A terminal collect stage (no routesTo) fires the pipeline postHooks once,
+    // after the whole group has executed — so the consequence ruleset sees every
+    // winner's effects.
+    const pipeline = new Pipeline('test', {
+      entry: 'produce-stage',
+      postHooks: [{ type: 'ruleset', name: 'post' }],
+      stages: {
+        'produce-stage': new Stage({
+          actionset: 'produce',
+          selectionStrategy: { type: 'highestUtility', groupBy: 'A' },
+          routing: 'collect',
+        }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, {});
+
+    assert.ok(engine.world.factStore.contains('settled', 'alice'));
+    assert.ok(engine.world.factStore.contains('settled', 'bob'),
+      'postHooks run after the whole group, so both winners are settled');
+  });
+
+  it('rejects a collect stage whose winning action carries routes-to', () => {
+    const engine = new Engine({
+      predicates: { predicates: { acted: { type: 'boolean', args: ['agent'] } } },
+      entities: { agent: { alice: {} } },
+    });
+    engine.loadActions(`
+      action "act"
+        roles: ?A: agent
+        utility 1.0
+        effects acted(?A)
+        routes-to: other-stage
+    `, 'moves');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'm',
+      stages: {
+        m:           new Stage({ actionset: 'moves', routing: 'collect' }),
+        'other-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
+      },
+    });
+
+    assert.throws(
+      () => new PipelineRunner(engine).run(pipeline, { A: 'alice' }),
+      /collect/,
+      'a collect stage routes via its own routesTo, so action routes-to is a conflict',
+    );
+  });
+
+  it('scores a routed stage against fresh derivations the group just changed', () => {
+    // Regression: the derived-fact cache is tick-scoped. Stage 1 queries armed(A)
+    // (caching it false) and then asserts ready(A); stage 2's precondition is
+    // armed(A). Without invalidation between stages the stale `false` would make
+    // stage 2 ineligible.
+    const engine = new Engine({
+      predicates: {
+        predicates: {
+          ready:   { type: 'boolean', args: ['agent'] },
+          armed:   { type: 'derived', args: ['agent'] },
+          started: { type: 'boolean', args: ['agent'] },
+        },
+      },
+      entities: { agent: { alice: {} } },
+    });
+    engine.loadDefinitions(`
+      define "armed when ready"
+        ready(?A)
+        => armed(?A)
+    `);
+    engine.loadActions(`
+      action "arm"
+        roles: ?A: agent
+        preconditions not armed(?A)
+        utility 1.0
+        effects ready(?A)
+    `, 'stage1');
+    engine.loadActions(`
+      action "fire"
+        roles: ?A: agent
+        preconditions armed(?A)
+        utility 1.0
+        effects started(?A)
+    `, 'stage2');
+
+    const pipeline = new Pipeline('test', {
+      entry: 's1',
+      stages: {
+        s1: new Stage({ actionset: 'stage1', routing: 'collect', routesTo: 's2' }),
+        s2: new Stage({ actionset: 'stage2', routing: 'collect' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { A: 'alice' });
+
+    assert.ok(engine.world.factStore.contains('ready', 'alice'));
+    assert.ok(engine.world.factStore.contains('started', 'alice'),
+      'stage 2 should see armed(alice) become true after stage 1 — not a stale cached false');
+  });
+});
+
+describe('Stage — routing validation', () => {
+  it('rejects routesTo on a branch stage', () => {
+    assert.throws(() => new Stage({ actionset: 'x', routing: 'branch', routesTo: 'y' }), /routesTo.*collect/);
+  });
+  it('requires routing to be declared', () => {
+    assert.throws(() => new Stage({ actionset: 'x' }), /routing is required/);
+  });
+  it('rejects an unknown routing discipline', () => {
+    assert.throws(() => new Stage({ actionset: 'x', routing: 'wat' }), /branch.*collect/);
   });
 });
 
@@ -418,6 +649,7 @@ describe('PipelineRunner — impulse ruleset', () => {
         'moves-stage': new Stage({
           ruleset: 'score-rules',
           actionset: 'moves',
+          routing: 'branch',
         }),
       },
     });

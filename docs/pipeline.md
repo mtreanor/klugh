@@ -10,7 +10,7 @@ import { Pipeline, Stage, PipelineRunner } from 'klugh';
 const pipeline = new Pipeline('turn', {
   entry: 'choose-stage',
   stages: {
-    'choose-stage': new Stage({ actionset: 'moves' }),
+    'choose-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
   },
 });
 
@@ -29,6 +29,7 @@ The pipeline *structure* — stages, hooks, selection strategies — is construc
 new Stage({
   ruleset:           'priming-rules',   // optional impulse ruleset, single-pass
   actionset:         'moves',           // required — the actions to score
+  routing:           'branch',          // required — 'branch' or 'collect'
   salienceFloor:     0.01,              // drop candidates scoring below this
   selectionStrategy: 'highestUtility',  // string or { type, groupBy }
   preHooks:          [],                // run before scoring
@@ -42,7 +43,9 @@ new Stage({
 | `actionset` | The named actionset to score for this stage. |
 | `salienceFloor` | Candidates scoring below this are discarded. Defaults to `0`. |
 | `selectionStrategy` | How winners are picked from the scored candidates — see [Selection strategies](#selection-strategies). Falls back to the pipeline's strategy, then `highestUtility`. |
-| `preHooks` / `postHooks` | Ordered [hooks](#hooks) that run before scoring / after a winner executes. |
+| `routing` | **Required.** `'branch'` or `'collect'` — see [Routing disciplines](#routing-disciplines-branch-vs-collect). |
+| `routesTo` | Stage-level destination (a stage name or array), used in `collect` routing. |
+| `preHooks` / `postHooks` | Ordered [hooks](#hooks) that run before scoring / after a winner executes (`branch`) or once after the group (`collect`). |
 
 A `Pipeline` carries the same `preHooks` / `postHooks` / `selectionStrategy` at the top level. The pipeline's `preHooks` run once at the start; its `postHooks` run each time a **terminal** action executes.
 
@@ -71,7 +74,7 @@ import { Pipeline, Stage, PipelineRunner } from 'klugh';
 const pipeline = new Pipeline('turn', {
   entry: 'rest-stage',
   stages: {
-    'rest-stage': new Stage({ actionset: 'moves' }),
+    'rest-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
   },
 });
 
@@ -129,10 +132,11 @@ const pipeline = new Pipeline('exchange', {
   stages: {
     'initiate-stage': new Stage({
       actionset: 'initiate',
+      routing: 'branch',
       // After alice greets bob, swap so bob is ?SELF for the response.
       postHooks: [{ type: 'swap-roles', roles: ['SELF', 'OTHER'] }],
     }),
-    'respond-stage': new Stage({ actionset: 'respond' }),
+    'respond-stage': new Stage({ actionset: 'respond', routing: 'branch' }),
   },
 });
 
@@ -146,6 +150,38 @@ The route follows the winning action's `routes-to`. The child stage runs its own
 
 ::: tip Fan-out routing
 A `routes-to` may name several child stages (an array, in JS). Their candidates are **pooled** and one selection runs across the union, using the pipeline-level strategy. A single named route uses that child stage's own strategy.
+:::
+
+---
+
+## Routing disciplines: branch vs collect
+
+The examples above use the **branch** discipline: each winning action carries its own continuation (`routes-to:`), so a stage with *N* winners produces up to *N* independent continuations, and each child stage scores against the world *as that one winner left it*. This is right for agent-turn pipelines — alice greets bob, bob responds; one actor's choice hands to the next.
+
+Generation/transform pipelines want the opposite: apply the **whole group**, settle, then advance once. "Pick one mechanic per edge, *then* add a single win condition against the finished set." That is the **collect** discipline, set on the `Stage`:
+
+```javascript
+new Stage({
+  actionset: 'micro-rhetoric',
+  selectionStrategy: { type: 'highestUtility', groupBy: 'E' },
+  routing: 'collect',      // required: 'branch' or 'collect'
+  routesTo: 'structure',   // the stage routes once, after the whole group
+});
+```
+
+A `collect` stage executes every selected winner, runs its `postHooks` **once**, then routes the *stage* once via `routesTo` (which the child sees with the stage's incoming binding — the group has no single winner to carry a binding onward). With no `routesTo`, the group is terminal and the pipeline's `postHooks` fire once.
+
+| | `branch` | `collect` |
+|---|---|---|
+| route source | each winner's action `routes-to` | the stage's `routesTo` |
+| route fires | once per winner | once per stage |
+| `postHooks` | after **each** winner | once, after the **group** |
+| child's starting binding | that winner's (post-hook) binding | the stage's incoming binding |
+
+`routesTo` is only valid with `routing: 'collect'` (a `branch` stage routes via its actions); the `Stage` constructor throws otherwise. Routing always re-scores the destination against **fresh derivations** — a stage mutates the world the next one queries, so derived-fact caches are invalidated between stages.
+
+::: tip Collect fan-out
+A collect stage's `routesTo` may also be an array — each named child then runs **independently**, once, with the same post-group binding (no pooled selection; that's a branch-mode feature).
 :::
 
 ---
@@ -179,6 +215,7 @@ The string names a role variable. Candidates are grouped by that variable's boun
 ```javascript
 new Stage({
   actionset: 'respond',
+  routing: 'branch',
   selectionStrategy: { type: 'highestUtility', groupBy: 'OTHER' },
 });
 ```
@@ -192,6 +229,7 @@ When the grouping key isn't a binding variable but something you must *look up*,
 ```javascript
 new Stage({
   actionset: 'judge-acts',
+  routing: 'branch',
   selectionStrategy: {
     type: 'highestUtility',
     groupBy: { pattern: 'role(?ACT, ?actor)', key: 'actor' },
@@ -210,7 +248,7 @@ A candidate can match several result bindings and so participate in several grou
 | Call | Description |
 |------|-------------|
 | `new Pipeline(name, { entry, selectionStrategy, preHooks, postHooks, stages })` | Builds a pipeline. `stages` maps stage names to `Stage` instances; `entry` names the first. |
-| `new Stage({ ruleset, actionset, salienceFloor, selectionStrategy, preHooks, postHooks })` | Builds one stage. `actionset` is required. |
+| `new Stage({ ruleset, actionset, salienceFloor, selectionStrategy, routing, routesTo, preHooks, postHooks })` | Builds one stage. `actionset` and `routing` are required; `routing` is `'branch'` or `'collect'`, and `routesTo` (a stage name or array) is only valid with `'collect'`. |
 | `new PipelineRunner(engine)` | Wraps an engine for execution. |
 | `runner.run(pipeline, initialBinding)` | Runs the pipeline from its entry stage with the given starting binding (e.g. `{ SELF: 'alice' }`). |
 | `selectCandidates(candidates, strategy, engine?)` | The selection primitive. `engine` is required only for the pattern form of `groupBy`. |

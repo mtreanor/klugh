@@ -30,3 +30,9 @@ export { ActionParser } from './loader/ActionParser.js';
 export { ActionLoader } from './loader/ActionLoader.js';
 export { RuleParser } from './loader/RuleParser.js';
 export { RuleLoader } from './loader/RuleLoader.js';
+
+// Pipeline
+export { Pipeline } from './pipeline/Pipeline.js';
+export { Stage } from './pipeline/Stage.js';
+export { PipelineRunner } from './pipeline/PipelineRunner.js';
+export { selectCandidates } from './pipeline/SelectionStrategy.js';

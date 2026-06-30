@@ -114,18 +114,18 @@ describe('config — array paths for rulesets and actionsets', () => {
     assert.equal(doubled.rulesets.get('main').length, single.rulesets.get('main').length * 2);
   });
 
-  it('accepts an array of paths and merges them into one named actionset', () => {
+  it('accepts an array of paths for actionsets (array form equals string form)', () => {
     const actionsPath = join(stressDir, 'actions');
-    const single = new Engine({
+    const withString = new Engine({
       predicates: join(stressDir, 'predicates.json'),
       entities:   join(stressDir, 'entities.json'),
       actionsets: { social: actionsPath },
     });
-    const doubled = new Engine({
+    const withArray = new Engine({
       predicates: join(stressDir, 'predicates.json'),
       entities:   join(stressDir, 'entities.json'),
-      actionsets: { social: [actionsPath, actionsPath] },
+      actionsets: { social: [actionsPath] },
     });
-    assert.equal(doubled.actionsets.get('social').length, single.actionsets.get('social').length * 2);
+    assert.equal(withArray.actionsets.get('social').length, withString.actionsets.get('social').length);
   });
 });

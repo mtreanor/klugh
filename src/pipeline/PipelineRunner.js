@@ -15,12 +15,18 @@ export class PipelineRunner {
     this._runStage(pipeline, pipeline.entry, binding);
   }
 
-  // Runs one stage from scratch: preHooks → impulses → score → select → commit.
+  // Runs one stage from scratch: preHooks → impulses → score → select → route.
+  // Routing depends on the stage's discipline:
+  //   'branch'  — each winner executes and follows its own action's routes-to.
+  //   'collect' — the whole winning group executes, then the stage routes once.
   _runStage(pipeline, stageName, binding) {
     const stage = pipeline.stages[stageName];
     if (!stage) throw new Error(`Pipeline "${pipeline.name}": stage "${stageName}" not found`);
 
     const stageBinding = this._runHooks(stage.preHooks, binding);
+    // A previous stage may have mutated the world; drop stale derived-fact caches
+    // so this stage's impulses and scoring see current derivations.
+    this._freshDerivations();
     if (stage.ruleset) this._applyImpulses(stage.ruleset, stageBinding);
 
     const strategy = stage.selectionStrategy ?? pipeline.selectionStrategy ?? 'highestUtility';
@@ -30,8 +36,29 @@ export class PipelineRunner {
       .filter(c => c.score >= floor);
     const winners = selectCandidates(candidates, strategy, this.engine);
 
-    for (const winner of winners) {
-      this._commitAndRoute(pipeline, stageName, winner);
+    if (stage.routing === 'collect') {
+      // Execute the whole group, settle once, then advance the stage once. The
+      // child stage(s) see the world after the entire group committed, scored
+      // against the stage's incoming binding (the group has no single winner to
+      // carry a binding onward).
+      for (const winner of winners) {
+        if (winner.action.routesTo) {
+          throw new Error(`Pipeline "${pipeline.name}": action "${winner.action.name}" carries routes-to, but stage "${stageName}" is collect — a collect stage routes via its own routesTo, not per action. Remove the action's routes-to or make the stage 'branch'.`);
+        }
+      }
+      for (const winner of winners) this.engine.execute(winner);
+      const outBinding = this._runHooks(stage.postHooks, stageBinding);
+      if (stage.routesTo) {
+        for (const childName of [].concat(stage.routesTo)) {
+          this._runStage(pipeline, childName, outBinding);
+        }
+      } else {
+        this._runHooks(pipeline.postHooks, outBinding); // terminal group
+      }
+    } else {
+      for (const winner of winners) {
+        this._commitAndRoute(pipeline, stageName, winner);
+      }
     }
   }
 
@@ -47,6 +74,10 @@ export class PipelineRunner {
     if (candidate.action.routesTo) {
       const childStageNames = [].concat(candidate.action.routesTo);
       const pool = [];
+
+      // Executing the candidate may have changed the world; drop stale derived
+      // caches before the child stages score against it.
+      this._freshDerivations();
 
       for (const childStageName of childStageNames) {
         const childStage = pipeline.stages[childStageName];
@@ -73,6 +104,14 @@ export class PipelineRunner {
     } else {
       this._runHooks(pipeline.postHooks, outBinding);
     }
+  }
+
+  // Invalidate derived-fact caches. The derived query handler caches per tick on
+  // the assumption that facts are stable within a tick — but a pipeline mutates
+  // the world between stages within one tick, so we drop the cache whenever a
+  // stage is about to score against a world a prior stage may have changed.
+  _freshDerivations() {
+    this.engine.world.queryHandlers.getHandler('derived')?.clearCache();
   }
 
   // Runs an impulse ruleset single-pass with the given binding, applying all

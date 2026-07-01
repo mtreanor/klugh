@@ -17,7 +17,7 @@ function buildEngine() {
   });
 }
 
-describe('Engine.runRuleset — fixpoint convergence', () => {
+describe('Engine.runRulesetFixpoint — fixpoint convergence', () => {
   it('terminates on an idempotent rule whose conclusion is never consumed', () => {
     // a ^ b => c: once c is asserted, re-asserting it is a no-op. The chainer
     // must reach fixpoint rather than loop forever on the re-satisfiable premises.
@@ -30,7 +30,7 @@ describe('Engine.runRuleset — fixpoint convergence', () => {
         => c(?X)
     `, 'derive');
 
-    const fired = engine.runRuleset('derive');
+    const fired = engine.runRulesetFixpoint('derive');
 
     assert.ok(engine.query('c(alice)').length > 0, 'c(alice) should be asserted');
     assert.equal(fired.length, 1, 'rule should fire exactly once');
@@ -47,7 +47,7 @@ describe('Engine.runRuleset — fixpoint convergence', () => {
         => c(?X)
     `, 'derive');
 
-    engine.runRuleset('derive');
+    engine.runRulesetFixpoint('derive');
 
     assert.ok(engine.query('c(alice)').length > 0, 'c(alice) should be asserted');
   });
@@ -64,7 +64,7 @@ describe('Engine.runRuleset — fixpoint convergence', () => {
         => c(?X)
     `, 'derive');
 
-    engine.runRuleset('derive');
+    engine.runRulesetFixpoint('derive');
 
     assert.ok(engine.query('b(alice)').length > 0, 'b(alice) should be asserted');
     assert.ok(engine.query('c(alice)').length > 0, 'c(alice) should be asserted');
@@ -81,7 +81,7 @@ describe('Engine.runRuleset — fixpoint convergence', () => {
         => not a(?X)
     `, 'derive');
 
-    engine.runRuleset('derive');
+    engine.runRulesetFixpoint('derive');
 
     assert.ok(engine.query('b(alice)').length > 0, 'b(alice) should still be present');
     assert.equal(engine.query('a(alice)').length, 0, 'a(alice) should have been retracted');
@@ -97,14 +97,14 @@ describe('Engine.runRuleset — fixpoint convergence', () => {
         => c(?X)
     `, 'derive');
 
-    const fired = engine.runRuleset('derive');
+    const fired = engine.runRulesetFixpoint('derive');
 
     assert.equal(fired.length, 1);
     assert.equal(fired[0].rule.name, 'mark');
   });
 });
 
-describe('Engine.runRuleset — sensor premise provenance', () => {
+describe('Engine.runRulesetFixpoint — sensor premise provenance', () => {
   function buildSensorEngine() {
     const engine = new Engine({
       predicates: { predicates: {
@@ -136,7 +136,7 @@ describe('Engine.runRuleset — sensor premise provenance', () => {
     const engine = buildSensorEngine();
     const numeric = engine.world.queryHandlers.getHandler('numeric');
 
-    engine.runRuleset('tick');
+    engine.runRulesetFixpoint('tick');
 
     const record = numeric.getRecord('score', ['alice']);
     assert.ok(record, 'score(alice) should have a numeric record');
@@ -160,14 +160,14 @@ describe('Engine.runRuleset — sensor premise provenance', () => {
   it('sensor premise detail is the application-supplied string', () => {
     const engine = buildSensorEngine();
     const numeric = engine.world.queryHandlers.getHandler('numeric');
-    engine.runRuleset('tick');
+    engine.runRulesetFixpoint('tick');
     const record = numeric.getRecord('score', ['alice']);
     const prov   = record.events.find(e => e.type === 'adjusted').provenance;
     assert.equal(prov.premiseRecords[0].record.detail, 'distance=1');
   });
 });
 
-describe('Engine.runRuleset — new entity / remove entity', () => {
+describe('Engine.runRulesetFixpoint — new entity / remove entity', () => {
   it('new entity with explicit name creates an entity and converges', () => {
     const engine = new Engine({
       predicates: { predicates: {
@@ -183,7 +183,7 @@ describe('Engine.runRuleset — new entity / remove entity', () => {
         => new entity(item, "sword")
     `, 'setup');
 
-    engine.runRuleset('setup');
+    engine.runRulesetFixpoint('setup');
 
     const items = engine.world.entityRegistry.get('item');
     assert.equal(items.length, 1);
@@ -209,7 +209,7 @@ describe('Engine.runRuleset — new entity / remove entity', () => {
         => new entity(item, "thing")
     `, 'setup');
 
-    engine.runRuleset('setup');
+    engine.runRulesetFixpoint('setup');
 
     const items = engine.world.entityRegistry.get('item');
     assert.equal(items.length, 1, 'find-or-create should not duplicate');
@@ -232,7 +232,7 @@ describe('Engine.runRuleset — new entity / remove entity', () => {
         => prepped(?X)
     `, 'setup');
 
-    engine.runRuleset('setup');
+    engine.runRulesetFixpoint('setup');
 
     assert.ok(engine.query('armed(alice)').length > 0);
     assert.ok(engine.query('prepped(alice)').length > 0);
@@ -252,7 +252,7 @@ describe('Engine.runRuleset — new entity / remove entity', () => {
         => remove entity(item, ?X)
     `, 'gc');
 
-    engine.runRuleset('gc');
+    engine.runRulesetFixpoint('gc');
 
     const items = engine.world.entityRegistry.get('item');
     assert.equal(items.length, 0, 'sword should be removed');

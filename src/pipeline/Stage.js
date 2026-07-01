@@ -1,6 +1,6 @@
 export class Stage {
   constructor({
-    ruleset           = null,
+    primingRules      = [],
     actionset,
     salienceFloor     = 0,
     selectionStrategy = null,
@@ -14,7 +14,13 @@ export class Stage {
     if (routing !== 'branch' && routing !== 'collect') {
       throw new Error(`Stage routing is required and must be 'branch' or 'collect', got "${routing}"`);
     }
-    this.ruleset           = ruleset;
+    // primingRules: an ordered array of { type: 'ruleset-single' | 'ruleset-fixpoint', name }
+    // — same shape as preHooks/postHooks — run just before this stage scores its
+    // actionset, to prime the ephemeral numerics its actions read as utility.
+    // Almost always 'ruleset-single' (accumulating += rules); 'ruleset-fixpoint'
+    // is available for the rare case priming needs a settled boolean derivation
+    // first, but a fixpoint entry here still can't safely carry a +=/-= effect.
+    this.primingRules      = primingRules;
     this.actionset         = actionset;
     this.salienceFloor     = salienceFloor;
     this.selectionStrategy = selectionStrategy;

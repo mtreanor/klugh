@@ -14,15 +14,11 @@ import { StateLoader } from './loader/StateLoader.js';
 import { EntityLoader } from './loader/EntityLoader.js';
 import { Rule } from './Rule.js';
 import { RuleEvaluator } from './RuleEvaluator.js';
-import { ForwardChainer } from './ForwardChainer.js';
 import { bindingSatisfiesDistinctArguments } from './DistinctArguments.js';
-import { applyStateChange, applyEffects } from './stateOperations/applyStateChange.js';
 import { THIS_ACTION } from './actionVariables.js';
 import { NumericStateQueryHandler } from './queryHandlers/NumericStateQueryHandler.js';
 import { Planner } from './planner/Planner.js';
 import { PlannerSnapshot } from './planner/PlannerSnapshot.js';
-import { RuleEffectProvenance } from './provenance/RuleEffectProvenance.js';
-import { buildPremiseJustifications } from './provenance/justifyPremise.js';
 import { proofNodeForFact, proofNodeForNumeric } from './provenance/ProofTree.js';
 import { Fact } from './Fact.js';
 import { restoreFromFile } from './Snapshot.js';
@@ -259,33 +255,34 @@ export class Engine {
       .sort((a, b) => b.satisfactionScore - a.satisfactionScore);
   }
 
-  // Runs a named ruleset to fixpoint. Applies all rule applications whose
+  // Runs a named ruleset to fixpoint (the "ruleset-fixpoint" mechanism —
+  // loops passes until nothing changes). Safe for idempotent assert/retract
+  // effects; a rule with a +=/-= effect will keep re-firing every pass and
+  // drive the value to its min/max clamp instead of applying once — use
+  // runRulesetSingle for those. Applies all rule applications whose
   // satisfactionScore meets the threshold (default: fully satisfied only).
   // Returns the list of RuleApplications that fired.
-  runRuleset(name, { minimumSatisfactionScore = 1.0, startingBinding = {} } = {}) {
+  runRulesetFixpoint(name, { minimumSatisfactionScore = 1.0, startingBinding = {} } = {}) {
     const rules = this.rulesets.get(name);
     if (!rules) throw new Error(`No ruleset named "${name}"`);
-
-    const ctx          = this.world.createEvaluationContext();
-    const startBinding = this.resolveBinding(startingBinding);
-    const fired        = [];
-
-    new ForwardChainer().run(rules, ctx, startBinding, (app) => {
-      if (app.satisfactionScore < minimumSatisfactionScore) return false;
-      const provenance = new RuleEffectProvenance(
-        app.rule, app.binding,
-        buildPremiseJustifications(app.rule.predicateEntries, app.binding, ctx)
-      );
-      const changed = applyEffects(app.rule.effects, app.binding, this.world.queryHandlers, {
-        privateStores: this.world.privateStores,
-        provenance,
-        world: this.world,
-      });
-      if (changed) fired.push(app);
-      return changed;
+    return this.world.apply(rules, {
+      minimumSatisfactionScore,
+      startingBinding: this.resolveBinding(startingBinding),
     });
+  }
 
-    return fired;
+  // Runs a named ruleset exactly once, no fixpoint iteration (the
+  // "ruleset-single" mechanism) — the safe option for rules with +=/-=
+  // effects. Applies all rule applications whose satisfactionScore meets the
+  // threshold (default: fully satisfied only). Returns the list of
+  // RuleApplications that fired.
+  runRulesetSingle(name, { minimumSatisfactionScore = 1.0, startingBinding = {} } = {}) {
+    const rules = this.rulesets.get(name);
+    if (!rules) throw new Error(`No ruleset named "${name}"`);
+    return this.world.applyOnce(rules, {
+      minimumSatisfactionScore,
+      startingBinding: this.resolveBinding(startingBinding),
+    });
   }
 
   // Scores every action in a named actionset against the current world state.

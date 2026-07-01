@@ -341,7 +341,7 @@ describe('new entity() in effects', () => {
       rulesets:   { test: join(dir, 'rules') },
     });
 
-    engine.runRuleset('test');
+    engine.runRulesetFixpoint('test');
 
     const buildings = engine.world.entityRegistry.get('building');
     assert.equal(buildings.length, 1);
@@ -590,7 +590,7 @@ describe('remove entity() in effects', () => {
 
     assert.equal(engine.world.entityRegistry.get('building').length, 1);
 
-    engine.runRuleset('test');
+    engine.runRulesetFixpoint('test');
 
     assert.equal(engine.world.entityRegistry.get('building').length, 0);
   });

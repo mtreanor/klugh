@@ -2,7 +2,7 @@
 
 A **pipeline** is a named, declarative layer over the engine. Where [actions](actions.md) give you scoreable units of behaviour and `scoreActionset` gives you one pass of *score → pick → execute*, a pipeline strings several of those passes together: a graph of **stages** connected by `routes-to` links, run from an entry stage to a terminal action in one call.
 
-Each stage pairs an **impulse ruleset** with an **actionset**. Running a stage means: run its hooks, fire its impulse rules to prime scores, score the actionset, filter by a salience floor, pick winners with a selection strategy, execute them, and — if a winning action carries a `routes-to` — continue into the named child stage. When a winner has no `routes-to`, it is *terminal*: the pipeline's `postHooks` fire and that branch ends.
+Each stage pairs **priming rules** with an **actionset**. Running a stage means: run its hooks, fire its priming rules to prime scores, score the actionset, filter by a salience floor, pick winners with a selection strategy, execute them, and — if a winning action carries a `routes-to` — continue into the named child stage. When a winner has no `routes-to`, it is *terminal*: the pipeline's `postHooks` fire and that branch ends.
 
 ```javascript
 import { Pipeline, Stage, PipelineRunner } from 'klugh';
@@ -27,7 +27,7 @@ The pipeline *structure* — stages, hooks, selection strategies — is construc
 
 ```javascript
 new Stage({
-  ruleset:           'priming-rules',   // optional impulse ruleset, single-pass
+  primingRules:      [{ type: 'ruleset-single', name: 'score-rules' }],  // optional, run before scoring
   actionset:         'moves',           // required — the actions to score
   routing:           'branch',          // required — 'branch' or 'collect'
   salienceFloor:     0.01,              // drop candidates scoring below this
@@ -39,7 +39,7 @@ new Stage({
 
 | Field | Purpose |
 |-------|---------|
-| `ruleset` | An **impulse** ruleset run *single-pass* before scoring — typically `+=` accumulation into ephemeral numerics that the actions then read as utility. Unlike `postHooks` rulesets, it does **not** loop to fixpoint. |
+| `primingRules` | An ordered array of `{ type: 'ruleset-single' \| 'ruleset-fixpoint', name }` — same shape as `preHooks`/`postHooks` — run just before this stage scores its actionset. Almost always `'ruleset-single'`: typically `+=` accumulation into ephemeral numerics that the actions then read as utility. Unlike `postHooks` rulesets, `'ruleset-single'` does **not** loop to fixpoint. |
 | `actionset` | The named actionset to score for this stage. |
 | `salienceFloor` | Candidates scoring below this are discarded. Defaults to `0`. |
 | `selectionStrategy` | How winners are picked from the scored candidates — see [Selection strategies](#selection-strategies). Falls back to the pipeline's strategy, then `highestUtility`. |
@@ -146,7 +146,7 @@ new PipelineRunner(engine).run(pipeline, { SELF: 'alice', OTHER: 'bob' });
 // 3. respond-stage: bob picks the higher-scoring of "greet back" / "ignore".
 ```
 
-The route follows the winning action's `routes-to`. The child stage runs its own hooks and impulse ruleset, scores its actionset against the (swapped) binding, and selects a winner — which may itself be terminal or route onward. Only a terminal action fires the pipeline's `postHooks`; routing actions do not.
+The route follows the winning action's `routes-to`. The child stage runs its own hooks and priming rules, scores its actionset against the (swapped) binding, and selects a winner — which may itself be terminal or route onward. Only a terminal action fires the pipeline's `postHooks`; routing actions do not.
 
 ::: tip Fan-out routing
 A `routes-to` may name several child stages (an array, in JS). Their candidates are **pooled** and one selection runs across the union, using the pipeline-level strategy. A single named route uses that child stage's own strategy.
@@ -214,13 +214,14 @@ Hooks run at stage boundaries and the pipeline edges. Each hook is a small tagge
 
 | Hook | Shape | Effect |
 |------|-------|--------|
-| Ruleset | `{ type: 'ruleset', name: 'consequences' }` | Runs a consequence ruleset **to fixpoint** (`engine.runRuleset`). Used for world-state settling — e.g. propagating the effects a stage just produced. Does not transform the binding. |
+| Ruleset (single) | `{ type: 'ruleset-single', name: 'priming-rules' }` | Runs a ruleset **single-pass**, scoped to the current binding (`Engine.runRulesetSingle`). The only safe option for rules with `+=`/`-=` effects — a fixpoint pass would keep re-firing a satisfiable accumulating rule every pass, driving the value to its min/max clamp instead of applying once. Does not transform the binding. |
+| Ruleset (fixpoint) | `{ type: 'ruleset-fixpoint', name: 'consequences' }` | Runs a ruleset **to fixpoint**, unscoped (`Engine.runRulesetFixpoint`). Used for world-state settling — e.g. propagating the effects a stage just produced. Safe for idempotent assert/retract effects; not for `+=`/`-=`. Does not transform the binding. |
 | Swap-roles | `{ type: 'swap-roles', roles: ['SELF', 'OTHER'] }` | Atomically swaps two binding variables. Both values are read before either is written, so the swap is simultaneous. Used for turn-alternating exchanges. |
 
-Note the two ways a stage runs rules:
+Note the two ways a stage runs rules, both using the same two mechanisms:
 
-- **`ruleset` on the `Stage`** — an *impulse* pass, run **once**, for priming utility (e.g. `score(?X) += …` into ephemeral numerics). Must not loop, or accumulating rules would never terminate.
-- **`ruleset` *hook*** (in `preHooks` / `postHooks`) — a *consequence* pass, run **to fixpoint**, for settling world state.
+- **`primingRules` on the `Stage`** — almost always `'ruleset-single'` entries, run **once**, for priming utility (e.g. `score(?X) += …` into ephemeral numerics). A `'ruleset-fixpoint'` entry here is possible but still can't safely carry a `+=`/`-=` effect, since it isn't scoped to this stage's binding either.
+- **Hooks** (`preHooks` / `postHooks`) — either mechanism, by `type`. `'ruleset-fixpoint'` is the common case, for settling world state; `'ruleset-single'` is available when a hook ruleset needs `+=`/`-=` accumulation scoped to the current binding instead.
 
 ---
 

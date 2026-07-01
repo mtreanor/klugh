@@ -11,10 +11,13 @@ function makeEngine() {
   return new Engine({
     predicates: {
       predicates: {
-        acted:    { type: 'boolean', args: ['agent'] },
-        responded: { type: 'boolean', args: ['agent'] },
-        handoff:  { type: 'boolean', args: ['agent', 'agent'] },
-        score:    { type: 'numeric', args: ['agent'], minValue: 0, maxValue: 100, default: 0, annotations: { ephemeral: true } },
+        acted:      { type: 'boolean', args: ['agent'] },
+        responded:  { type: 'boolean', args: ['agent'] },
+        handoff:    { type: 'boolean', args: ['agent', 'agent'] },
+        score:      { type: 'numeric', args: ['agent'], minValue: 0, maxValue: 100, default: 0, annotations: { ephemeral: true } },
+        actionType: { type: 'boolean', args: ['occurrence', 'action'] },
+        role:       { type: 'boolean', args: ['occurrence', 'roleName', 'entity'] },
+        witnessed:  { type: 'boolean', args: ['occurrence', 'agent'] },
       },
     },
     entities: { agent: { alice: {}, bob: {} } },
@@ -62,7 +65,7 @@ describe('PipelineRunner — single stage, terminal action', () => {
 
     const pipeline = new Pipeline('test', {
       entry: 'moves-stage',
-      postHooks: [{ type: 'ruleset', name: 'post-consequences' }],
+      postHooks: [{ type: 'ruleset-fixpoint', name: 'post-consequences' }],
       stages: {
         'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
       },
@@ -135,7 +138,7 @@ describe('PipelineRunner — routing between stages', () => {
 
     const pipeline = new Pipeline('test', {
       entry: 'tier1-stage',
-      postHooks: [{ type: 'ruleset', name: 'post' }],
+      postHooks: [{ type: 'ruleset-fixpoint', name: 'post' }],
       stages: {
         'tier1-stage': new Stage({ actionset: 'tier1', routing: 'branch' }),
         'respond-stage': new Stage({ actionset: 'tier2', routing: 'branch' }),
@@ -276,7 +279,7 @@ describe('PipelineRunner — branch routesTo default', () => {
 
     const pipeline = new Pipeline('test', {
       entry: 'tier1-stage',
-      postHooks: [{ type: 'ruleset', name: 'post' }],
+      postHooks: [{ type: 'ruleset-fixpoint', name: 'post' }],
       stages: {
         'tier1-stage':   new Stage({ actionset: 'tier1', routing: 'branch', routesTo: 'default-stage' }),
         'default-stage': new Stage({ actionset: 'default-tier', routing: 'branch' }),
@@ -665,7 +668,7 @@ describe('PipelineRunner — collect routing', () => {
     // winner's effects.
     const pipeline = new Pipeline('test', {
       entry: 'produce-stage',
-      postHooks: [{ type: 'ruleset', name: 'post' }],
+      postHooks: [{ type: 'ruleset-fixpoint', name: 'post' }],
       stages: {
         'produce-stage': new Stage({
           actionset: 'produce',
@@ -773,13 +776,13 @@ describe('Stage — routing validation', () => {
   });
 });
 
-// ── impulse ruleset integration ──────────────────────────────────────────────
+// ── stage primingRules integration ──────────────────────────────────────────────
 
-describe('PipelineRunner — impulse ruleset', () => {
-  it('applies the stage ruleset before scoring', () => {
+describe('PipelineRunner — stage primingRules', () => {
+  it('applies the stage primingRules before scoring', () => {
     const engine = makeEngine();
 
-    // Pre-assert a fact the impulse rule can fire on
+    // Pre-assert a fact the priming rule can fire on
     engine.world.assert(new Fact('acted', 'alice'));
 
     engine.loadActions(`
@@ -793,7 +796,7 @@ describe('PipelineRunner — impulse ruleset', () => {
         utility 0.1
     `, 'moves');
 
-    // Impulse rule fires on ?SELF (already bound in starting binding) rather
+    // Priming rule fires on ?SELF (already bound in starting binding) rather
     // than a free ?X — a free variable of type 'agent' cannot enumerate alice
     // because alice is already bound in the starting binding (distinct check).
     engine.loadRules(`
@@ -806,7 +809,7 @@ describe('PipelineRunner — impulse ruleset', () => {
       entry: 'moves-stage',
       stages: {
         'moves-stage': new Stage({
-          ruleset: 'score-rules',
+          primingRules: [{ type: 'ruleset-single', name: 'score-rules' }],
           actionset: 'moves',
           routing: 'branch',
         }),
@@ -816,6 +819,278 @@ describe('PipelineRunner — impulse ruleset', () => {
     new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
 
     assert.ok(engine.world.factStore.contains('responded', 'alice'),
-      'high-score-act should win after impulse rules fire');
+      'high-score-act should win after priming rules fire');
+  });
+});
+
+// ── ruleset-fixpoint vs ruleset-single hooks — accumulating numeric effects ──
+//
+// A 'ruleset-fixpoint' hook runs unscoped, to fixpoint, via
+// Engine.runRulesetFixpoint. That's safe for idempotent boolean effects
+// (re-asserting a true fact is a no-op, so the chainer naturally reaches
+// fixpoint) but not for +=/-= effects: a satisfiable accumulating rule
+// counts as "changed" on every pass, so the chainer keeps re-firing it until
+// the numeric value hits its min/max clamp, rather than applying the delta
+// once. 'ruleset-single' exists specifically for hook rulesets with numeric
+// effects — single pass, scoped to the binding the hook was called with
+// (reusing the same evaluation path stage primingRules already use safely).
+
+describe('PipelineRunner — ruleset-fixpoint hook clamps an accumulating numeric effect', () => {
+  it('a += rule in a ruleset-fixpoint postHook runs to its max clamp, not one delta', () => {
+    const engine = makeEngine();
+    engine.world.assert(new Fact('acted', 'alice'));
+
+    engine.loadActions(`
+      action "act"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'moves');
+    engine.loadRules(`
+      rule "give score on any act"
+        acted(?X)
+        => score(?X) += 10
+    `, 'score-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      postHooks: [{ type: 'ruleset-fixpoint', name: 'score-rules' }],
+      stages: {
+        'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    const numeric = engine.world.queryHandlers.getHandler('numeric');
+    assert.equal(numeric.getRecord('score', ['alice']).currentValue(), 100,
+      'a fixpoint-run += rule keeps re-firing every pass until it hits the numeric maxValue clamp');
+  });
+});
+
+describe('PipelineRunner — ruleset-single hook applies an accumulating numeric effect exactly once', () => {
+  it('a += rule in a ruleset-single postHook applies its delta exactly once', () => {
+    const engine = makeEngine();
+    engine.world.assert(new Fact('acted', 'alice'));
+
+    engine.loadActions(`
+      action "act"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'moves');
+    engine.loadRules(`
+      rule "give score on any act"
+        acted(?SELF)
+        => score(?SELF) += 10
+    `, 'score-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      postHooks: [{ type: 'ruleset-single', name: 'score-rules' }],
+      stages: {
+        'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    const numeric = engine.world.queryHandlers.getHandler('numeric');
+    assert.equal(numeric.getRecord('score', ['alice']).currentValue(), 10,
+      'single-pass application should apply the += 10 delta exactly once');
+  });
+
+  it('is scoped to the incoming binding — a free variable does not enumerate unrelated entities', () => {
+    const engine = makeEngine();
+    engine.world.assert(new Fact('acted', 'alice'));
+    engine.world.assert(new Fact('acted', 'bob'));
+
+    engine.loadActions(`
+      action "act"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'moves');
+    // ?SELF is pre-bound by the pipeline's starting binding, so this rule
+    // should only ever touch the agent the pipeline is running for.
+    engine.loadRules(`
+      rule "give score to self if already acted"
+        acted(?SELF)
+        => score(?SELF) += 10
+    `, 'score-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      postHooks: [{ type: 'ruleset-single', name: 'score-rules' }],
+      stages: {
+        'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    const numeric = engine.world.queryHandlers.getHandler('numeric');
+    assert.equal(numeric.getRecord('score', ['alice']).currentValue(), 10);
+    assert.equal(numeric.getRecord('score', ['bob']), null,
+      'bob was never bound to ?SELF, so the hook must not touch bob at all');
+  });
+
+  it('works as a pipeline preHook, scoped to the run() starting binding', () => {
+    const engine = makeEngine();
+    // Pre-existing state the preHook rule reacts to — both agents qualify,
+    // but only the one the pipeline is invoked for should be touched.
+    engine.world.assert(new Fact('acted', 'alice'));
+    engine.world.assert(new Fact('acted', 'bob'));
+
+    engine.loadActions(`
+      action "act"
+        roles: ?SELF: agent
+        utility 1.0
+        effects responded(?SELF)
+    `, 'moves');
+    engine.loadRules(`
+      rule "seed score before scoring"
+        acted(?SELF)
+        => score(?SELF) += 7
+    `, 'seed-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      preHooks: [{ type: 'ruleset-single', name: 'seed-rules' }],
+      stages: {
+        'moves-stage': new Stage({ actionset: 'moves', routing: 'branch' }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    const numeric = engine.world.queryHandlers.getHandler('numeric');
+    assert.equal(numeric.getRecord('score', ['alice']).currentValue(), 7);
+    assert.equal(numeric.getRecord('score', ['bob']), null,
+      'preHook should only run scoped to the agent the pipeline was invoked for');
+  });
+});
+
+// ── hook `requires` — occurrence-scoped postHooks ────────────────────────────
+//
+// Only actions with a `record()` effect mint an occurrence; most don't
+// (e.g. wait/leave). A postHook with `requires: ['occ']` must skip entirely
+// when nothing was minted this firing, and — when something was — must be
+// scoped to *only* that occurrence, not every occurrence that has ever
+// existed (the retroactive-reprocessing bug `requires` exists to prevent).
+
+describe('PipelineRunner — hook requires', () => {
+  it('a requires: [\'occ\'] postHook fires, scoped to the just-minted occurrence', () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "speak"
+        roles: ?SELF: agent
+        utility 1.0
+        effects
+          record(?occ)
+    `, 'moves');
+    engine.loadRules(`
+      rule "witness self"
+        role(?occ, SELF, ?SELF)
+        => witnessed(?occ, ?SELF)
+    `, 'occ-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      stages: {
+        'moves-stage': new Stage({
+          actionset: 'moves',
+          routing: 'branch',
+          postHooks: [{ type: 'ruleset-fixpoint', name: 'occ-rules', requires: ['occ'] }],
+        }),
+      },
+    });
+
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    const occurrences = engine.world.entityRegistry.get('occurrence');
+    assert.equal(occurrences.length, 1);
+    assert.ok(engine.world.factStore.contains('witnessed', occurrences[0].name, 'alice'));
+  });
+
+  it('a requires: [\'occ\'] postHook is skipped entirely when the action minted no occurrence', () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "wait"
+        roles: ?SELF: agent
+        utility 1.0
+        effects
+          acted(?SELF)
+    `, 'moves');
+    engine.loadRules(`
+      rule "witness self"
+        role(?occ, SELF, ?SELF)
+        => witnessed(?occ, ?SELF)
+    `, 'occ-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      stages: {
+        'moves-stage': new Stage({
+          actionset: 'moves',
+          routing: 'branch',
+          postHooks: [{ type: 'ruleset-fixpoint', name: 'occ-rules', requires: ['occ'] }],
+        }),
+      },
+    });
+
+    // Should not throw, and should simply do nothing — no occurrence exists
+    // for the hook to run against.
+    new PipelineRunner(engine).run(pipeline, { SELF: 'alice' });
+
+    assert.ok(engine.world.factStore.contains('acted', 'alice'));
+    assert.equal((engine.world.entityRegistry.get('occurrence') ?? []).length, 0,
+      'no occurrence should have been minted by "wait"');
+  });
+
+  it('does not reprocess an earlier occurrence when a later, unrelated action fires the same hook', () => {
+    const engine = makeEngine();
+    engine.loadActions(`
+      action "speak"
+        roles: ?SELF: agent
+        utility 1.0
+        effects
+          record(?occ)
+    `, 'moves');
+    // Accumulating effect gated on witnessed(?occ, ?SELF) — if this hook ever
+    // re-ran against occ1 while processing occ2, score(alice) would be 20,
+    // not 10.
+    engine.loadRules(`
+      rule "witness self"
+        role(?occ, SELF, ?SELF)
+        => witnessed(?occ, ?SELF)
+    `, 'witness-rules');
+    engine.loadRules(`
+      rule "score for being witnessed"
+        witnessed(?occ, ?SELF)
+        => score(?SELF) += 10
+    `, 'score-rules');
+
+    const pipeline = new Pipeline('test', {
+      entry: 'moves-stage',
+      stages: {
+        'moves-stage': new Stage({
+          actionset: 'moves',
+          routing: 'branch',
+          postHooks: [
+            { type: 'ruleset-fixpoint', name: 'witness-rules', requires: ['occ'] },
+            { type: 'ruleset-single', name: 'score-rules', requires: ['occ'] },
+          ],
+        }),
+      },
+    });
+
+    const runner = new PipelineRunner(engine);
+    runner.run(pipeline, { SELF: 'alice' });
+    runner.run(pipeline, { SELF: 'alice' });
+
+    const numeric = engine.world.queryHandlers.getHandler('numeric');
+    assert.equal(numeric.getRecord('score', ['alice']).currentValue(), 20,
+      'each of the two occurrences should contribute its own +10 exactly once');
   });
 });

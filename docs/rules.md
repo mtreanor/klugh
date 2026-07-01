@@ -110,18 +110,24 @@ Declare named rulesets in `project.config.json` under your scenario:
 All rulesets are loaded at `Engine` construction time. Run one by name:
 
 ```javascript
-const fired = engine.runRuleset('social');
+const fired = engine.runRulesetFixpoint('social');
 // fired: RuleApplication[] — every application that was committed this run
 ```
 
-`runRuleset` runs to fixpoint and applies all fully-satisfied rule applications. Pass `minimumSatisfactionScore` to allow partial-satisfaction firing:
+`runRulesetFixpoint` runs to fixpoint and applies all fully-satisfied rule applications. Pass `minimumSatisfactionScore` to allow partial-satisfaction firing:
 
 ```javascript
-const fired = engine.runRuleset('social', { minimumSatisfactionScore: 0.5 });
+const fired = engine.runRulesetFixpoint('social', { minimumSatisfactionScore: 0.5 });
 ```
 
 To pre-bind a variable (run rules only for one agent):
 
 ```javascript
-const fired = engine.runRuleset('social', { startingBinding: { SELF: 'alice' } });
+const fired = engine.runRulesetFixpoint('social', { startingBinding: { SELF: 'alice' } });
+```
+
+`runRulesetSingle` is the other half of the pair — same signature, but evaluates the ruleset exactly once instead of looping to fixpoint. Use it for any ruleset with `+=`/`-=` effects: a fixpoint pass keeps re-firing a satisfiable accumulating rule every pass, driving the value straight to its min/max clamp instead of applying the delta once.
+
+```javascript
+const fired = engine.runRulesetSingle('scoring-rules', { startingBinding: { SELF: 'alice' } });
 ```

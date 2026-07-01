@@ -1,6 +1,5 @@
 import { Binding } from '../Binding.js';
-import { RuleEvaluator } from '../RuleEvaluator.js';
-import { applyStateChange } from '../stateOperations/applyStateChange.js';
+import { LogicalVariable } from '../LogicalVariable.js';
 import { selectCandidates } from './SelectionStrategy.js';
 
 // The reserved terminal route. Used as an action's `routes-to: end` to opt out
@@ -10,8 +9,7 @@ export const TERMINAL = 'end';
 
 export class PipelineRunner {
   constructor(engine) {
-    this.engine        = engine;
-    this.ruleEvaluator = new RuleEvaluator();
+    this.engine = engine;
   }
 
   run(pipeline, initialBinding = {}) {
@@ -23,7 +21,7 @@ export class PipelineRunner {
     this._runStage(pipeline, pipeline.entry, binding);
   }
 
-  // Runs one stage from scratch: preHooks → impulses → score → select → route.
+  // Runs one stage from scratch: preHooks → priming rules → score → select → route.
   // Routing depends on the stage's discipline:
   //   'branch'  — each winner executes and follows its own action's routes-to.
   //   'collect' — the whole winning group executes, then the stage routes once.
@@ -33,9 +31,9 @@ export class PipelineRunner {
 
     const stageBinding = this._runHooks(stage.preHooks, binding);
     // A previous stage may have mutated the world; drop stale derived-fact caches
-    // so this stage's impulses and scoring see current derivations.
+    // so this stage's priming rules and scoring see current derivations.
     this._freshDerivations();
-    if (stage.ruleset) this._applyImpulses(stage.ruleset, stageBinding);
+    this._runHooks(stage.primingRules, stageBinding);
 
     const strategy = stage.selectionStrategy ?? pipeline.selectionStrategy ?? 'highestUtility';
     const floor    = stage.salienceFloor ?? 0;
@@ -76,11 +74,24 @@ export class PipelineRunner {
   // when terminal. The route is the action's own routes-to when set, else the
   // stage's routesTo default; `routes-to: end` on the action is an explicit
   // terminal that beats the stage default.
+  //
+  // If the action minted an occurrence (a `record()` effect — not every action
+  // has one; `wait`/`leave` never do), it's bound as `occ` for postHooks that
+  // declare `requires: ['occ']`. Only meaningful here (branch routing, one
+  // winner per call) — the 'collect' path in _runStage can execute several
+  // winners at once, so "the" occurrence minted isn't well-defined there and
+  // is deliberately not attempted.
   _commitAndRoute(pipeline, stageName, candidate) {
     const stage = pipeline.stages[stageName];
 
+    const seqBefore = this.engine.world.occurrenceSeq ?? 0;
     this.engine.execute(candidate);
-    const outBinding = this._runHooks(stage.postHooks, candidate.binding);
+    const minted = this._mintedOccurrence(seqBefore);
+    const bindingForHooks = minted != null
+      ? candidate.binding.extend(new LogicalVariable('occ'), minted)
+      : candidate.binding;
+
+    const outBinding = this._runHooks(stage.postHooks, bindingForHooks);
 
     const resolved = candidate.action.routesTo ?? stage.routesTo;
     const route    = resolved === TERMINAL ? null : resolved;
@@ -98,7 +109,7 @@ export class PipelineRunner {
         if (!childStage) throw new Error(`Pipeline "${pipeline.name}": stage "${childStageName}" not found (routed from "${candidate.action.name}")`);
 
         const childBinding = this._runHooks(childStage.preHooks, outBinding);
-        if (childStage.ruleset) this._applyImpulses(childStage.ruleset, childBinding);
+        this._runHooks(childStage.primingRules, childBinding);
 
         const childCandidates = this.engine.scoreActionset(childStage.actionset, this._toPartial(childBinding))
           .filter(c => c.score >= (childStage.salienceFloor ?? 0));
@@ -128,25 +139,26 @@ export class PipelineRunner {
     this.engine.world.queryHandlers.getHandler('derived')?.clearCache();
   }
 
-  // Runs an impulse ruleset single-pass with the given binding, applying all
-  // fully-satisfied rule firings. Used for += accumulation into ephemeral
-  // numerics before scoring — must NOT be run via engine.runRuleset, which
-  // loops to fixpoint and never terminates on accumulating rules.
-  _applyImpulses(rulesetName, binding) {
-    const rules = this.engine.rulesets.get(rulesetName);
-    if (!rules) return;
-    const ctx    = this.engine.world.createEvaluationContext();
-    const active = this.ruleEvaluator.evaluate(rules, this.engine.world.entityRegistry, ctx, binding, this.engine.schema);
-    for (const [rule, applications] of active) {
-      for (const application of applications) {
-        if (!application.isFullySatisfied()) continue;
-        for (const effect of rule.effects) {
-          applyStateChange(effect, application.binding, this.engine.world.queryHandlers, {
-            privateStores: this.engine.world.privateStores,
-          });
-        }
-      }
-    }
+  // Runs a named ruleset single-pass, scoped to the given binding — delegates
+  // to Engine.runRulesetSingle (which itself delegates to World.applyOnce),
+  // so this is a thin adapter rather than a separate evaluation path. Used
+  // for 'ruleset-single' hooks and stage primingRules entries: the only safe
+  // mechanism for +=/-= accumulation into ephemeral numerics, since a
+  // fixpoint pass (runRulesetFixpoint) keeps re-firing a satisfiable
+  // accumulating rule every pass, driving the value to its min/max clamp
+  // instead of applying once.
+  _runRulesetSingle(rulesetName, binding) {
+    this.engine.runRulesetSingle(rulesetName, { startingBinding: this._toPartial(binding) });
+  }
+
+  // Which occurrence (if any) the action just executed just minted, as an
+  // entity value suitable for Binding.extend — or null if it didn't mint one
+  // (most actions don't; only those with a `record()` effect do).
+  _mintedOccurrence(occurrenceSeqBefore) {
+    const seqAfter = this.engine.world.occurrenceSeq ?? 0;
+    if (seqAfter <= occurrenceSeqBefore) return null;
+    const occId = `occ${seqAfter}`;
+    return this.engine.findEntityByName(occId) ?? occId;
   }
 
   // Runs a hook array in order, threading the binding through any hooks that
@@ -161,14 +173,56 @@ export class PipelineRunner {
   }
 
   _applyHook(hook, binding) {
-    if (hook.type === 'ruleset') {
-      this.engine.runRuleset(hook.name);
-      return null;
+    if (hook.type === 'ruleset-fixpoint' || hook.type === 'ruleset-single') {
+      return this._applyRulesetHook(hook, binding);
     }
     if (hook.type === 'swap-roles') {
       return this._swapRoles(hook.roles, binding);
     }
     throw new Error(`Unknown hook type: "${hook.type}"`);
+  }
+
+  // A hook with `requires` only runs when every named variable is actually
+  // bound this firing (e.g. `requires: ['occ']` — most actions never mint an
+  // occurrence, so most firings skip such a hook entirely); its
+  // startingBinding is built from *only* those named variables, not the
+  // whole incoming binding, so it can't accidentally over-scope. A hook with
+  // no `requires` keeps the type's existing default: 'ruleset-fixpoint' runs
+  // fully unscoped (most fixpoint rulesets, like act-phase-consequences, are
+  // deliberately aggregate — threading the whole binding through would
+  // silently constrain any same-typed free variable in the ruleset to be
+  // distinct from whatever's already bound, breaking rules meant to apply
+  // globally); 'ruleset-single' uses the whole incoming binding (e.g. the
+  // self-state-rules preHook, scoped to ?SELF via the pipeline's own binding).
+  _applyRulesetHook(hook, binding) {
+    if (hook.requires) {
+      const missing = hook.requires.some(name => !binding.isBound(new LogicalVariable(name)));
+      if (missing) return null;
+      const startingBinding = this._pick(binding, hook.requires);
+      if (hook.type === 'ruleset-fixpoint') {
+        this.engine.runRulesetFixpoint(hook.name, { startingBinding });
+      } else {
+        this.engine.runRulesetSingle(hook.name, { startingBinding });
+      }
+      return null;
+    }
+    if (hook.type === 'ruleset-fixpoint') {
+      this.engine.runRulesetFixpoint(hook.name);
+    } else {
+      this._runRulesetSingle(hook.name, binding);
+    }
+    return null;
+  }
+
+  // Builds a partial-binding object containing only the named variables,
+  // resolved from the given Binding — the scoped startingBinding for a
+  // `requires`-declaring hook.
+  _pick(binding, names) {
+    const partial = {};
+    for (const name of names) {
+      partial[name] = binding.resolve(new LogicalVariable(name));
+    }
+    return partial;
   }
 
   // Atomically swaps two role variables in a binding. Both values are read from

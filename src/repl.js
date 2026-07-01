@@ -247,7 +247,7 @@ function handleRunCommand(parts) {
   if (parts.length === 0) throw new Error('Usage: run <name> [?VAR=entity …]');
   const [name, ...bindingTokens] = parts;
   const partialBinding = parseBindings(bindingTokens);
-  const fired = engine.runRuleset(name, { startingBinding: partialBinding });
+  const fired = engine.runRulesetFixpoint(name, { startingBinding: partialBinding });
   if (fired.length === 0) {
     console.log('  (no rules fired)');
     return;

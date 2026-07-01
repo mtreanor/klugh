@@ -102,57 +102,70 @@ export class World {
     return this;
   }
 
-  // Runs rules to fixpoint, committing all effects to the world.
-  // With advanceTick: true, increments the canonical tick before running —
-  // all effects land at the new tick.
-  apply(rules, { advanceTick = false, minimumSatisfactionScore = 0 } = {}) {
+  // Runs rules to fixpoint (the "ruleset-fixpoint" mechanism), committing all
+  // effects to the world. With advanceTick: true, increments the canonical
+  // tick before running — all effects land at the new tick. startingBinding
+  // pre-binds variables (e.g. ?occ) so the rules only enumerate what's
+  // consistent with it, rather than every entity of the relevant type.
+  // Returns the list of RuleApplications that actually fired.
+  apply(rules, { advanceTick = false, minimumSatisfactionScore = 0, startingBinding = new Binding() } = {}) {
     if (advanceTick) {
       this.advanceTick();
     }
 
     const evaluationContext = this.createEvaluationContext();
+    const fired = [];
 
-    new ForwardChainer().run(rules, evaluationContext, new Binding(), (app) => {
+    new ForwardChainer().run(rules, evaluationContext, startingBinding, (app) => {
       if (app.satisfactionScore < minimumSatisfactionScore) return false;
       const provenance = new RuleEffectProvenance(
         app.rule, app.binding,
         buildPremiseJustifications(app.rule.predicateEntries, app.binding, evaluationContext)
       );
-      return applyEffects(app.rule.effects, app.binding, this.queryHandlers, {
+      const changed = applyEffects(app.rule.effects, app.binding, this.queryHandlers, {
         privateStores: this.privateStores,
         provenance,
         world: this,
         satisfactionScore: app.satisfactionScore,
       });
+      if (changed) fired.push(app);
+      return changed;
     });
 
-    return this;
+    return fired;
   }
 
-  // Runs rules exactly once (no fixpoint iteration), committing all effects to the world.
-  applyOnce(rules, { advanceTick = false, minimumSatisfactionScore = 0, scaleDelta = (d, s) => d * s } = {}) {
+  // Runs rules exactly once, no fixpoint iteration (the "ruleset-single"
+  // mechanism) — the only safe option for rules with +=/-= effects, since a
+  // fixpoint pass keeps re-firing a satisfiable accumulating rule every pass
+  // instead of applying its delta once. Returns the list of RuleApplications
+  // that fired.
+  applyOnce(rules, { advanceTick = false, minimumSatisfactionScore = 0, scaleDelta = (d, s) => d * s, startingBinding = new Binding() } = {}) {
     if (advanceTick) {
       this.advanceTick();
     }
 
     const evaluationContext = this.createEvaluationContext();
+    const fired = [];
 
-    new ForwardChainer().runOnce(rules, evaluationContext, new Binding(), (app) => {
+    new ForwardChainer().runOnce(rules, evaluationContext, startingBinding, (app) => {
       if (app.satisfactionScore < minimumSatisfactionScore) return false;
       const provenance = new RuleEffectProvenance(
         app.rule, app.binding,
         buildPremiseJustifications(app.rule.predicateEntries, app.binding, evaluationContext)
       );
-      return applyEffects(app.rule.effects, app.binding, this.queryHandlers, {
+      const changed = applyEffects(app.rule.effects, app.binding, this.queryHandlers, {
         privateStores: this.privateStores,
         provenance,
         world: this,
         satisfactionScore: app.satisfactionScore,
         scaleDelta,
       });
+      if (changed) fired.push(app);
+      return changed;
     });
 
-    return this;
+    return fired;
   }
 
   _syncStoreTicks() {

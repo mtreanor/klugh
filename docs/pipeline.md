@@ -223,6 +223,28 @@ Note the two ways a stage runs rules, both using the same two mechanisms:
 - **`primingRules` on the `Stage`** — almost always `'ruleset-single'` entries, run **once**, for priming utility (e.g. `score(?X) += …` into ephemeral numerics). A `'ruleset-fixpoint'` entry here is possible but still can't safely carry a `+=`/`-=` effect, since it isn't scoped to this stage's binding either.
 - **Hooks** (`preHooks` / `postHooks`) — either mechanism, by `type`. `'ruleset-fixpoint'` is the common case, for settling world state; `'ruleset-single'` is available when a hook ruleset needs `+=`/`-=` accumulation scoped to the current binding instead.
 
+### Binding scope and `requires`
+
+A ruleset hook's *starting binding* — which variables it runs scoped to — depends on its `type` and whether it declares `requires`:
+
+| Hook | Scope when it runs |
+|------|-------------------|
+| `'ruleset-fixpoint'`, no `requires` | **Unscoped.** Runs fully aggregate over world state. This is deliberate — threading the current binding through would constrain any same-typed free variable in the ruleset to differ from what's already bound, quietly breaking rules meant to apply globally. |
+| `'ruleset-single'`, no `requires` | Scoped to the **whole** incoming binding (e.g. a `?SELF`-scoped priming pass). |
+| either, with `requires: [...]` | Runs **only when every named variable is bound** this firing, scoped to *just* those variables — nothing else leaks in. |
+
+`requires` turns a hook into a conditional, self-scoping step. Its main use is the **`occ` binding**: in `branch` routing, when a winning action mints an occurrence (via a `record()` effect — see [Action records](action-records.md)), the runner binds that occurrence as `occ` for the stage's `postHooks`. A postHook that should only fire for actions that actually recorded declares it:
+
+```javascript
+new Stage({
+  actionset: 'moves',
+  routing: 'branch',
+  postHooks: [{ type: 'ruleset-fixpoint', name: 'annotate-occurrence', requires: ['occ'] }],
+});
+```
+
+Most actions mint no occurrence, so `occ` is unbound and the hook skips cleanly; when an action does record, the hook runs scoped to exactly that `occ`. The `occ` binding is a `branch`-only convenience — a `collect` stage can execute several recording winners at once, so "the" minted occurrence isn't well-defined there and is not provided.
+
 ---
 
 ## Selection strategies
@@ -271,7 +293,7 @@ A candidate can match several result bindings and so participate in several grou
 | Call | Description |
 |------|-------------|
 | `new Pipeline(name, { entry, selectionStrategy, preHooks, postHooks, stages })` | Builds a pipeline. `stages` maps stage names to `Stage` instances; `entry` names the first. |
-| `new Stage({ ruleset, actionset, salienceFloor, selectionStrategy, routing, routesTo, preHooks, postHooks })` | Builds one stage. `actionset` and `routing` are required; `routing` is `'branch'` or `'collect'`, and `routesTo` (a stage name or array) is only valid with `'collect'`. |
+| `new Stage({ primingRules, actionset, salienceFloor, selectionStrategy, routing, routesTo, preHooks, postHooks })` | Builds one stage. `actionset` and `routing` are required; `routing` is `'branch'` or `'collect'`. `routesTo` (a stage name or array) is the route in `collect`, and the default route for `branch` winners whose action has no `routes-to`. `primingRules`, `preHooks`, and `postHooks` are hook arrays. |
 | `new PipelineRunner(engine)` | Wraps an engine for execution. |
 | `runner.run(pipeline, initialBinding)` | Runs the pipeline from its entry stage with the given starting binding (e.g. `{ SELF: 'alice' }`). |
 | `selectCandidates(candidates, strategy, engine?)` | The selection primitive. `engine` is required only for the pattern form of `groupBy`. |

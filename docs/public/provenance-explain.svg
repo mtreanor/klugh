@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" role="img" aria-labelledby="title desc">
+  <title id="title">engine.explain() proof tree</title>
+  <desc id="desc">One rule firing expands into the full premise tree behind it.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#faf8f5"/>
+      <stop offset="100%" stop-color="#f4f1eb"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#2c2418" flood-opacity="0.06"/>
+    </filter>
+    <style>
+      .title { font: 600 14px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #1f1b16; }
+      .sub { font: 400 11px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #7a6f62; }
+      .root { font: 600 12px ui-monospace, Menlo, monospace; fill: #c47a3a; }
+      .premise { font: 400 11.5px ui-monospace, Menlo, monospace; fill: #3d362e; }
+      .kind { font: 400 10px ui-sans-serif, system-ui, sans-serif; fill: #958a7c; }
+      .badge { font: 600 9px ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.03em; }
+    </style>
+  </defs>
+
+  <rect width="640" height="200" rx="14" fill="url(#bg)"/>
+
+  <text x="24" y="30" class="title">engine.explain() @ tick 1</text>
+  <text x="24" y="48" class="sub">why did forgiveness add +6.4?</text>
+
+  <g filter="url(#shadow)">
+    <rect x="24" y="64" width="592" height="36" rx="8" fill="#fff"/>
+    <rect x="24" y="64" width="4" height="36" rx="2" fill="#c47a3a"/>
+  </g>
+  <text x="40" y="86" class="root">+6.4  forgiveness follows demonstrated change</text>
+
+  <line x1="48" y1="108" x2="48" y2="168" stroke="#ebe6df" stroke-width="1"/>
+  <line x1="48" y1="124" x2="64" y2="124" stroke="#ebe6df" stroke-width="1"/>
+  <line x1="48" y1="144" x2="64" y2="144" stroke="#ebe6df" stroke-width="1"/>
+  <line x1="48" y1="164" x2="64" y2="164" stroke="#ebe6df" stroke-width="1"/>
+
+  <text x="72" y="128" class="premise">hadConflict then helped</text>
+  <text x="280" y="128" class="kind">temporal chain</text>
+
+  <text x="72" y="148" class="premise">|helped(alice, _)| &gt;= 2</text>
+  <text x="280" y="148" class="kind">count</text>
+
+  <text x="72" y="168" class="premise">not trusts(carol, alice)</text>
+  <text x="280" y="168" class="kind">absent</text>
+
+  <line x1="400" y1="108" x2="400" y2="168" stroke="#ebe6df" stroke-width="1"/>
+  <line x1="400" y1="124" x2="416" y2="124" stroke="#ebe6df" stroke-width="1"/>
+  <line x1="400" y1="144" x2="416" y2="144" stroke="#ebe6df" stroke-width="1"/>
+
+  <text x="424" y="128" class="premise">friendship.cold</text>
+  <text x="424" y="148" class="premise">readyToForgive</text>
+  <text x="424" y="168" class="kind">derived + private store</text>
+  <rect x="548" y="136" width="48" height="16" rx="3" fill="#f0eaf5"/>
+  <text x="554" y="147" class="badge" fill="#7a5a9a">PRIVATE</text>
+</svg>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 228" role="img" aria-labelledby="title desc">
+  <title id="title">engine.why() event log</title>
+  <desc id="desc">Every change to friendship(carol, alice) is stored with tick and source type.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#faf8f5"/>
+      <stop offset="100%" stop-color="#f4f1eb"/>
+    </linearGradient>
+    <style>
+      .title { font: 600 14px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #1f1b16; }
+      .sub { font: 400 11px ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #7a6f62; }
+      .tick { font: 500 11px ui-monospace, Menlo, monospace; fill: #958a7c; }
+      .fact { font: 400 12px ui-monospace, Menlo, monospace; fill: #2a241c; }
+      .note { font: 400 11px ui-monospace, Menlo, monospace; fill: #6b6258; }
+      .badge { font: 600 9px ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.03em; }
+      .final { font: 600 12px ui-monospace, Menlo, monospace; fill: #4a6fa5; }
+    </style>
+  </defs>
+
+  <rect width="640" height="228" rx="14" fill="url(#bg)"/>
+
+  <text x="24" y="30" class="title">engine.why(&quot;friendship(carol, alice)&quot;)</text>
+  <text x="24" y="48" class="sub">every adjustment stored with tick and source</text>
+
+  <line x1="56" y1="62" x2="56" y2="188" stroke="#ddd6cb" stroke-width="1.5"/>
+
+  <circle cx="56" cy="78" r="4" fill="#8a8074"/>
+  <text x="72" y="74" class="tick">0</text>
+  <text x="108" y="74" class="fact">= 25</text>
+  <text x="200" y="74" class="note">state file</text>
+  <rect x="536" y="62" width="44" height="16" rx="3" fill="#eeede9"/>
+  <text x="544" y="73" class="badge" fill="#8a8074">GIVEN</text>
+
+  <circle cx="56" cy="106" r="4" fill="#5a8f6b"/>
+  <text x="72" y="102" class="tick">0</text>
+  <text x="108" y="102" class="fact">+4 -&gt; 29</text>
+  <text x="200" y="102" class="note">seek reconciliation</text>
+  <rect x="512" y="90" width="68" height="16" rx="3" fill="#e8f2eb"/>
+  <text x="518" y="101" class="badge" fill="#5a8f6b">ACTION</text>
+
+  <circle cx="56" cy="134" r="4" fill="#c47a3a"/>
+  <text x="72" y="130" class="tick">1</text>
+  <text x="108" y="130" class="fact">+5 -&gt; 34</text>
+  <text x="200" y="130" class="note">kindness warms friendship</text>
+  <rect x="522" y="118" width="58" height="16" rx="3" fill="#fdf0e4"/>
+  <text x="528" y="129" class="badge" fill="#c47a3a">RULE</text>
+
+  <circle cx="56" cy="162" r="4" fill="#c47a3a"/>
+  <text x="72" y="158" class="tick">1</text>
+  <text x="108" y="158" class="fact">+6.4 -&gt; 40.4</text>
+  <text x="200" y="158" class="note">forgiveness follows demonstrated change</text>
+  <rect x="522" y="146" width="58" height="16" rx="3" fill="#fdf0e4"/>
+  <text x="528" y="157" class="badge" fill="#c47a3a">RULE</text>
+
+  <circle cx="56" cy="190" r="4" fill="#c47a3a"/>
+  <text x="72" y="186" class="tick">2</text>
+  <text x="108" y="186" class="fact">+4.8 -&gt; 50.2</text>
+  <text x="200" y="186" class="note">forgiveness (partial satisfaction)</text>
+  <rect x="522" y="174" width="58" height="16" rx="3" fill="#fdf0e4"/>
+  <text x="528" y="185" class="badge" fill="#c47a3a">RULE</text>
+
+  <rect x="24" y="204" width="592" height="20" rx="5" fill="#eef3fa"/>
+  <text x="36" y="218" class="final">25 to 50.2 across 5 recorded events</text>
+</svg>

@@ -65,9 +65,15 @@ Write hundreds of rules and actions and you get emergent behavior — social phy
 
 ## Designed for explanation
 
-A klugh world is fully auditable. Every fact records why it exists — which rule asserted it, which action caused it, what utility motivated the choice. Every action record carries a utility breakdown tracing the score back to the predicates and rules that drove it.
+A klugh world is fully auditable. Ask `why` for the event log; ask `explain` for the full proof behind any single step.
 
-This is a first-class design goal, not an afterthought. The interesting things that happen in a klugh world — emergent behaviors, unexpected interactions, narrative turns — should always be explainable after the fact. Every mechanism that produces state also produces the record of how and why it produced that state.
+![engine.why() stores every change with tick and source](/provenance-why.svg)
+
+![engine.explain() expands one rule firing into its premises](/provenance-explain.svg)
+
+Both diagrams use real output from the scenario above. The event log tracks every numeric adjustment from state load through action effects and rule firings. `explain` zooms into one step and shows the kinds of premises klugh records: temporal chains, counts, absence, derived predicates, private beliefs.
+
+This is a first-class design goal, not an afterthought.
 
 → [Provenance](provenance.md) · [Action records](action-records.md)
 

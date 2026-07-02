@@ -31,7 +31,7 @@
     <rect x="20" y="36" width="4" height="84" rx="2" fill="#c47a3a"/>
   </g>
   <text x="38" y="66" class="title">Rulesets</text>
-  <text x="38" y="96" class="sub">conditions → scores</text>
+  <text x="38" y="96" class="sub">rich query language</text>
 
   <path d="M 196 78 H 218" stroke="#a39686" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
 
@@ -40,8 +40,8 @@
     <rect x="228" y="36" width="168" height="84" rx="12" fill="#fff"/>
     <rect x="228" y="36" width="4" height="84" rx="2" fill="#4a6fa5"/>
   </g>
-  <text x="246" y="66" class="title">Numbers</text>
-  <text x="246" y="96" class="sub">the utility landscape</text>
+  <text x="246" y="66" class="title">Utility Scores</text>
+  <text x="246" y="96" class="sub">Numeric facts, etc.</text>
 
   <path d="M 404 78 H 426" stroke="#a39686" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
 
@@ -51,7 +51,7 @@
     <rect x="436" y="36" width="4" height="84" rx="2" fill="#5a8f6b"/>
   </g>
   <text x="454" y="66" class="title">Actions</text>
-  <text x="454" y="96" class="sub">score → choose → act</text>
+  <text x="454" y="96" class="sub">evolve/represent state</text>
 
   <!-- loop -->
   <path

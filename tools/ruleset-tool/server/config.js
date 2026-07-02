@@ -1,0 +1,88 @@
+import { readFileSync, existsSync, statSync } from 'fs';
+import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname, join, resolve } from 'path';
+
+// tools/ruleset-tool/server → the klugh repo root is three levels up. This is
+// used for klugh-shipped assets (the engine in src/, the TextMate grammar) and
+// is fixed regardless of where the project config lives.
+export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const toolRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// Optional local .env (gitignored) so a submodule host can persist KLUGH_CONFIG
+// without editing tracked files. Only KEY=VALUE lines; existing env wins.
+(function loadDotEnv() {
+  const envPath = join(toolRoot, '.env');
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+})();
+
+// When klugh is vendored as a git submodule, the host repo's working tree is its
+// "superproject". If that host has a project.config.json, it's the one the user
+// means — so the tool discovers it automatically, no configuration needed.
+// Returns null when klugh is standalone or the host has no config.
+function superprojectConfig() {
+  try {
+    const superRoot = execFileSync('git', ['rev-parse', '--show-superproject-working-tree'], {
+      cwd: repoRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (!superRoot) return null;
+    const candidate = join(superRoot, 'project.config.json');
+    return existsSync(candidate) ? candidate : null;
+  } catch {
+    return null; // git missing, not a repo, etc.
+  }
+}
+
+// Config resolution order:
+//   1. KLUGH_CONFIG (explicit override) — a project.config.json path, or a
+//      directory containing one. Relative paths resolve from the launch cwd.
+//   2. The host repo's config, when klugh is a git submodule (auto-discovered).
+//   3. klugh's own project.config.json (standalone development).
+// Scenario data paths are then resolved relative to the chosen config's directory.
+function locateConfig() {
+  const override = process.env.KLUGH_CONFIG;
+  if (override) {
+    const abs = resolve(override);
+    try {
+      if (statSync(abs).isDirectory()) return join(abs, 'project.config.json');
+    } catch {
+      // Not an existing directory — treat as a (possibly not-yet-existing) file path.
+    }
+    return abs;
+  }
+  return superprojectConfig() ?? join(repoRoot, 'project.config.json');
+}
+
+export const configPath = locateConfig();
+// Scenario data paths in the config are resolved relative to the config's own
+// directory, so a config can sit next to its data anywhere on disk.
+export const configDir = dirname(configPath);
+
+export function loadProjectConfig() {
+  if (!existsSync(configPath)) {
+    throw new Error(
+      `Project config not found at ${configPath}. ` +
+      `Set KLUGH_CONFIG to your project.config.json (see README).`,
+    );
+  }
+  return JSON.parse(readFileSync(configPath, 'utf-8'));
+}
+
+// Resolve every path a scenario references, relative to the config's directory —
+// mirroring the resolution the engine does, but rooted at the config so the data
+// can live in a parent repo rather than the klugh submodule.
+export function resolveScenarioPaths(scenario) {
+  const rel = (p) => (p ? resolve(configDir, p) : null);
+  return {
+    predicates:  rel(scenario.predicates),
+    entities:    rel(scenario.entities),
+    state:       rel(scenario.state),
+    definitions: rel(scenario.definitions),
+    rulesets:    Object.fromEntries(Object.entries(scenario.rulesets ?? {}).map(([k, v]) => [k, rel(v)])),
+    actionsets:  Object.fromEntries(Object.entries(scenario.actionsets ?? {}).map(([k, v]) => [k, rel(v)])),
+  };
+}

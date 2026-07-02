@@ -61,6 +61,12 @@ export default defineConfig({
           { text: 'REPL', link: '/repl' },
         ],
       },
+      {
+        text: 'Tools',
+        items: [
+          { text: 'Ruleset tool', link: '/ruleset-tool' },
+        ],
+      },
     ],
 
     socialLinks: [],

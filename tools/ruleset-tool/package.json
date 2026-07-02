@@ -1,0 +1,23 @@
+{
+  "name": "ruleset-tool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Authoring & visualization tool for klugh rulesets — inspect/search rules and add/edit/delete them with schema-aware autocomplete and DSL validation.",
+  "scripts": {
+    "server": "node server/index.js",
+    "dev": "concurrently -k -n server,web -c blue,magenta \"npm:server\" \"vite\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.8"
+  }
+}

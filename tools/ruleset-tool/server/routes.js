@@ -1,0 +1,117 @@
+import { Router } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { loadScenarioContext, listScenarios, schemaForClient, loadRulesets } from './scenario.js';
+import { buildQueryMatchers, ruleDescriptors, matchAll } from './matcher.js';
+import { validateRule } from './validate.js';
+import { appendRule, replaceRule, deleteRule } from './ruleFile.js';
+import { repoRoot } from './config.js';
+
+export const router = Router();
+
+// The klugh TextMate grammar, reused verbatim from the VS Code extension so the
+// tool's highlighting stays in sync with the editor's — single source of truth.
+const GRAMMAR_PATH = join(repoRoot, 'extensions', 'vscode', 'klugh.tmLanguage.json');
+
+// Wrap an async handler so thrown errors become 400s with a message.
+const h = (fn) => async (req, res) => {
+  try {
+    await fn(req, res);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+function symmetricFn(schema) {
+  return (name) => {
+    const def = schema.getDefinition(name);
+    return !!def?.symmetric && (def.args?.length ?? 0) === 2;
+  };
+}
+
+router.get('/grammar', h((req, res) => {
+  res.json(JSON.parse(readFileSync(GRAMMAR_PATH, 'utf-8')));
+}));
+
+router.get('/scenarios', h((req, res) => {
+  res.json({ scenarios: listScenarios() });
+}));
+
+router.get('/scenario/:name', h((req, res) => {
+  const ctx = loadScenarioContext(req.params.name);
+  res.json({
+    name: ctx.name,
+    predicates: schemaForClient(ctx.schema),
+    entityNames: [...ctx.entityNames],
+    rulesets: loadRulesets(ctx),
+  });
+}));
+
+// Structural search. Body: { scenario, files: [rulesetName], query }.
+// Returns matching rule ids plus any query parse error.
+router.post('/match', h((req, res) => {
+  const { scenario, files, query } = req.body;
+  const ctx = loadScenarioContext(scenario);
+
+  // Lenient: tolerate partial input so filtering works while typing.
+  const { matchers } = buildQueryMatchers(ctx.ruleParser, query);
+
+  const sym = symmetricFn(ctx.schema);
+  const selected = new Set(files ?? []);
+  const matches = [];
+  for (const rs of loadRulesets(ctx)) {
+    if (selected.size && !selected.has(rs.name)) continue;
+    for (const rule of rs.rules) {
+      if (!rule.parsed) continue;
+      if (matchers.length === 0 || matchAll(matchers, ruleDescriptors(rule.parsed), sym)) {
+        matches.push(rule.id);
+      }
+    }
+  }
+  res.json({ matches });
+}));
+
+router.post('/validate', h((req, res) => {
+  const { scenario, ruleset, name, comment, body, originalName } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const rulesetPath = ctx.paths.rulesets[ruleset] ?? null;
+  res.json(validateRule({ ctx, name, comment, body, rulesetPath, excludeName: originalName ?? null }));
+}));
+
+router.post('/rule', h((req, res) => {
+  const { scenario, ruleset, name, comment, body } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const rulesetPath = requireRulesetPath(ctx, ruleset);
+
+  const result = validateRule({ ctx, name, comment, body, rulesetPath });
+  if (!result.ok) return res.status(400).json({ error: 'Validation failed', ...result });
+
+  appendRule(rulesetPath, { name, comment, body });
+  res.json({ ok: true, warnings: result.warnings });
+}));
+
+router.put('/rule', h((req, res) => {
+  const { scenario, ruleset, originalName, name, comment, body } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const rulesetPath = requireRulesetPath(ctx, ruleset);
+
+  const result = validateRule({ ctx, name, comment, body, rulesetPath, excludeName: originalName });
+  if (!result.ok) return res.status(400).json({ error: 'Validation failed', ...result });
+
+  replaceRule(rulesetPath, originalName, { name, comment, body });
+  res.json({ ok: true, warnings: result.warnings });
+}));
+
+router.delete('/rule', h((req, res) => {
+  const { scenario, ruleset, name } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const rulesetPath = requireRulesetPath(ctx, ruleset);
+  deleteRule(rulesetPath, name);
+  res.json({ ok: true });
+}));
+
+function requireRulesetPath(ctx, ruleset) {
+  const path = ctx.paths.rulesets[ruleset];
+  if (!path) throw new Error(`Scenario "${ctx.name}" has no ruleset named "${ruleset}"`);
+  return path;
+}

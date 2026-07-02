@@ -1,0 +1,39 @@
+// Thin fetch wrappers over the backend JSON API.
+
+async function req(method, url, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch {
+    throw new Error(`Cannot reach the API at ${url}. Is the server running? Start both with \`npm run dev\` (API on :5174).`);
+  }
+
+  // A JSON body is expected. If we got HTML/nothing, the request likely hit the
+  // dev server instead of the API — surface that rather than a cryptic parse error.
+  const contentType = res.headers.get('content-type') || '';
+  let data = {};
+  if (contentType.includes('application/json')) {
+    data = await res.json().catch(() => ({}));
+  } else if (res.ok) {
+    throw new Error(`Expected JSON from ${url} but got "${contentType || 'no content-type'}". Is the API proxy pointing at the server on :5174?`);
+  }
+
+  if (!res.ok && data.error && !data.errors) {
+    throw new Error(data.error);
+  }
+  return { ok: res.ok, data };
+}
+
+export const api = {
+  grammar: () => req('GET', '/api/grammar').then(r => r.data),
+  scenarios: () => req('GET', '/api/scenarios').then(r => r.data.scenarios ?? []),
+  scenario: (name) => req('GET', `/api/scenario/${encodeURIComponent(name)}`).then(r => r.data),
+  match: (payload) => req('POST', '/api/match', payload).then(r => r.data),
+  validate: (payload) => req('POST', '/api/validate', payload).then(r => r.data),
+  addRule: (payload) => req('POST', '/api/rule', payload),
+  editRule: (payload) => req('PUT', '/api/rule', payload),
+  deleteRule: (payload) => req('DELETE', '/api/rule', payload),
+};

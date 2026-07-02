@@ -220,15 +220,15 @@ If the value falls within no declared tier (a gap in the tier specification), it
 
 ## 9. Count predicate forms
 
-`|p(x₁,...,xₙ)| ⊕ k` counts how many entity combinations satisfy the inner predicate, then compares against a threshold.
+`|p₁(...) ^ ... ^ p_ℓ(...)| ⊕ k` counts how many entity combinations satisfy *every* predicate in the conjunction, then compares against a threshold. A single predicate (ℓ = 1) is the common case; `|p(...)| ⊕ k` and `count|p(...)| ⊕ k` are the same form (bare `|...|` is sugar for `count|...|`).
 
-Let the counting positions be those argument positions holding a wildcard `_`, and let their declared types be τ_{i₁}, ..., τ_{iₘ}. Introduce fresh counting variables c₁,...,cₘ for these positions.
+Counting positions are the argument positions holding a wildcard `_`, across *all* of p₁,...,p_ℓ. Wildcards are shared by declared type, not by textual position: let τ₁,...,τₘ be the distinct types among all wildcard positions, and introduce one fresh counting variable c_j per distinct type τⱼ. Every `_` position whose declared type is τⱼ is bound to the same c_j — so a type appearing as a wildcard in two different pᵢ's forces those two positions to the same entity, not independent ones.
 
-> count(σ) = |\{ (e₁,...,eₘ) ∈ E_\{τ_\{i₁\}\} × ... × E_\{τ_\{iₘ\}\} | p is satisfied under σ ∪ \{c₁↦e₁,...,cₘ↦eₘ\} \}|
+> count(σ) = |\{ (e₁,...,eₘ) ∈ E_\{τ₁\} × ... × E_\{τₘ\} | p₁ ∧ ... ∧ p_ℓ are all satisfied under σ ∪ \{c₁↦e₁,...,cₘ↦eₘ\} \}|
 
 > satisfied iff count(σ) ⊕ k
 
-The inner predicate p is evaluated by Layer 1. The count itself is two-valued (a natural number).
+Each pᵢ is evaluated by Layer 1. The count itself is two-valued (a natural number); the conjunction inside the pipes has no truth-degree of its own; a combination either satisfies every pᵢ and is counted, or it doesn't and isn't.
 
 ---
 

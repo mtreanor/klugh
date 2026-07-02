@@ -1,4 +1,4 @@
-const AGGREGATE_FNS = new Set(['avg', 'sum', 'max', 'min']);
+const AGGREGATE_FNS = new Set(['avg', 'sum', 'max', 'min', 'count']);
 
 export class Lexer {
   constructor(source) {
@@ -339,19 +339,18 @@ export class DSLParser {
       return this.parseAggregate();
     }
 
+    // Bare |...| is sugar for count|...| — same grammar as the named aggregate
+    // form (a conjunction of one or more predicates, joined by ^), just with
+    // the function name implied. |pred(args)| and count|pred(args)| produce
+    // the identical AST; |pred1(...) ^ pred2(...)| works the same way count's
+    // named form always has, since both go through parseAggregateConjunction.
     if (this.check('PIPE')) {
       this.advance();
-      const inner = this.parsePredicate();
+      const predicates = this.parseAggregateConjunction();
       this.expect('PIPE');
-      let operator;
-      if      (this.check('GTE')) { this.advance(); operator = '>='; }
-      else if (this.check('LTE')) { this.advance(); operator = '<='; }
-      else if (this.check('GT'))  { this.advance(); operator = '>';  }
-      else if (this.check('LT'))  { this.advance(); operator = '<';  }
-      else if (this.check('EQ'))  { this.advance(); operator = '=';  }
-      else { const tok = this.peek(); throw new Error(`Expected >, >=, <, <=, or = after |...| at line ${tok.line}`); }
-      const threshold = this.expect('NUMBER').value;
-      return { type: 'count', predicate: inner, operator, threshold };
+      const operator = this.parseComparisonOperator('|...|');
+      const rhs      = this.parseAggregateRhs();
+      return { type: 'aggregate', fn: 'count', predicates, operator, rhs };
     }
 
     // 'not' keyword: absence check (NAF) or absence of explicit negation ('not -pred')
@@ -692,20 +691,31 @@ export class DSLParser {
 
   // Simple predicate inside an aggregate: pred(args) or pred.tier(args). No
   // operators, no negation — those are not supported inside aggregate pipes.
+  // An owner prefix (?SELF.pred(...) or entityName.pred(...)) is allowed —
+  // e.g. count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| reads a
+  // private-store filter alongside a world-store one in the same conjunction.
   parseAggregateAtom() {
+    const owner = this.parseOwnerPrefix();
     const name = this.expect('IDENT').value;
+    let result;
     if (this.check('DOT')) {
       this.advance();
       const tier = this.expect('IDENT').value;
       this.expect('LPAREN');
       const args = this.parseArgs();
       this.expect('RPAREN');
-      return { type: 'numeric-tier', name, tier, args };
+      result = { type: 'numeric-tier', name, tier, args };
+    } else {
+      this.expect('LPAREN');
+      const args = this.parseArgs();
+      this.expect('RPAREN');
+      // resolveType (not a hardcoded 'fact') so a derived predicate used
+      // inside a conjunction — e.g. sameGroup(?SELF, _) — is correctly tagged
+      // 'derived' and dispatches to DerivedFactPredicate, not a raw fact-store
+      // lookup for a fact that's never actually asserted.
+      result = { type: this.resolveType(name), name, args };
     }
-    this.expect('LPAREN');
-    const args = this.parseArgs();
-    this.expect('RPAREN');
-    return { type: 'fact', name, args };
+    return owner ? { type: 'private', ...owner, predicate: result } : result;
   }
 
   // RHS of an aggregate comparison: a literal, another aggregate expr, or a

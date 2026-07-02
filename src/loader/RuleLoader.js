@@ -11,7 +11,6 @@ import { WeakNegationPredicate } from '../predicates/WeakNegationPredicate.js';
 import { NumericTierPredicate } from '../predicates/NumericTierPredicate.js';
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
-import { CountPredicate } from '../predicates/CountPredicate.js';
 import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
 import { SensorNumericTierPredicate } from '../predicates/SensorNumericTierPredicate.js';
@@ -135,11 +134,6 @@ export class RuleLoader {
         }
         return new NumericTierPredicate(data.name, this.resolveArgs(data.args), data.tier);
       }
-      case 'count': {
-        const { innerData, countingVars, countingVarTypes } = this.rewriteCountArgs(data.predicate);
-        const innerPredicate = this.buildPredicate(innerData);
-        return new CountPredicate(innerPredicate, countingVars, countingVarTypes, data.operator, data.threshold);
-      }
       case 'comparison': {
         const leftKind  = this.comparisonOperandKind(data.left.name);
         const rightKind = this.comparisonOperandKind(data.right.name);
@@ -157,7 +151,7 @@ export class RuleLoader {
         );
       }
       case 'aggregate': {
-        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(data.predicates);
+        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(data.predicates, data.fn);
         const rhs = this.buildAggregateRhs(data.rhs);
         return new AggregatePredicate(data.fn, filterPredicates, valuePred, countingVars, countingVarTypes, data.operator, rhs);
       }
@@ -168,7 +162,7 @@ export class RuleLoader {
             throw new Error(`Predicate "${data.left.name}" must be numeric to appear on the left side of an aggregate comparison`);
           }
         }
-        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(data.right.predicates);
+        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(data.right.predicates, data.right.fn);
         const flippedOp = flipOperator(data.operator);
         const rhs = { kind: 'numeric', name: data.left.name, args: this.resolveArgs(data.left.args) };
         return new AggregatePredicate(data.right.fn, filterPredicates, valuePred, countingVars, countingVarTypes, flippedOp, rhs);
@@ -187,29 +181,6 @@ export class RuleLoader {
       default:
         throw new Error(`Unknown predicate type: "${data.type}"`);
     }
-  }
-
-  rewriteCountArgs(innerData) {
-    let countIdx = 0;
-    const countingVars     = [];
-    const countingVarTypes = new Map();
-
-    const predicateName = innerData.name;
-    const argTypes = (predicateName && this.predicateSchema?.hasDefinition(predicateName))
-      ? (this.predicateSchema.getDefinition(predicateName).args ?? [])
-      : [];
-
-    const rewrittenArgs = (innerData.args ?? []).map((arg, i) => {
-      if (arg === null) {
-        const varName = `__count_${countIdx++}__`;
-        countingVars.push(new LogicalVariable(varName));
-        countingVarTypes.set(varName, argTypes[i] ?? 'agent');
-        return `?${varName}`;
-      }
-      return arg;
-    });
-
-    return { innerData: { ...innerData, args: rewrittenArgs }, countingVars, countingVarTypes };
   }
 
   // The owner prefix must wrap the weak negation (not the other way around) so the
@@ -250,22 +221,48 @@ export class RuleLoader {
     throw new Error(`Predicate "${name}" (type ${type ?? 'unknown'}) cannot be used in a comparison`);
   }
 
-  buildAggregateInner(predicates) {
+  // fn distinguishes two shapes of aggregate:
+  //   'count'                — every predicate in the conjunction is a filter;
+  //                            the result is how many enumerated combinations
+  //                            satisfy all of them. No value predicate — a bare
+  //                            numeric predicate reference (not a comparison)
+  //                            has no defined meaning as a filter, so it's an
+  //                            error, not silently ignored.
+  //   'avg'/'sum'/'max'/'min' — exactly one predicate in the conjunction must be
+  //                            numeric (the value being aggregated); the rest
+  //                            are filters.
+  buildAggregateInner(predicates, fn) {
     if (!this.predicateSchema) {
       throw new Error('Aggregate predicates require a predicate schema');
     }
     const { rewrittenPredicates, countingVars, countingVarTypes } = this.rewriteAggregateArgs(predicates);
 
+    if (fn === 'count') {
+      const filterPredicates = rewrittenPredicates.map(pred => {
+        const effective  = unwrapPrivate(pred);
+        const schemaType = this.predicateSchema.getDefinition(effective.name)?.type;
+        if (effective.type === 'fact' && (schemaType === 'numeric' || schemaType === 'sensor-numeric')) {
+          throw new Error(`count|...| filters on whether predicates hold, not their value — "${effective.name}" is a bare numeric predicate reference with no comparison. Use a comparison (e.g. "${effective.name}(...) > N") instead.`);
+        }
+        return this.buildPredicate(pred);
+      });
+      return { filterPredicates, valuePred: null, countingVars, countingVarTypes };
+    }
+
     let valuePred = null;
     const filterPredicates = [];
 
     for (const pred of rewrittenPredicates) {
-      const schemaType = this.predicateSchema.getDefinition(pred.name)?.type;
+      const effective  = unwrapPrivate(pred);
+      const schemaType = this.predicateSchema.getDefinition(effective.name)?.type;
       if (schemaType === 'numeric' || schemaType === 'sensor-numeric') {
         if (valuePred !== null) {
-          throw new Error(`Aggregate conjunction has more than one numeric predicate: "${valuePred.name}" and "${pred.name}"`);
+          throw new Error(`Aggregate conjunction has more than one numeric predicate: "${valuePred.name}" and "${effective.name}"`);
         }
-        valuePred = { name: pred.name, args: this.resolveArgs(pred.args) };
+        if (pred.type === 'private') {
+          throw new Error(`Aggregate conjunction's numeric value predicate "${effective.name}" is private-store-owned (?owner.${effective.name}(...)) — aggregating a value out of a private store isn't supported yet. Only filter predicates (count's kind, or additional conjuncts alongside a world-store value predicate) may be private-owned.`);
+        }
+        valuePred = { name: effective.name, args: this.resolveArgs(effective.args) };
       } else {
         filterPredicates.push(this.buildPredicate(pred));
       }
@@ -280,13 +277,20 @@ export class RuleLoader {
 
   // Rewrites `_` wildcards in an aggregate conjunction to counting variables.
   // One variable is created per unique entity type, shared across all predicates,
-  // so `_` positions of the same entity type are implicitly joined.
+  // so `_` positions of the same entity type are implicitly joined — including
+  // between a private-owned predicate and a world/derived one, e.g.
+  // count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| joins on the
+  // same candidate agent in both conjuncts even though they're owned differently.
   rewriteAggregateArgs(predicates) {
     const typeToVar      = new Map();
     const countingVarTypes = new Map();
     let varIdx = 0;
 
-    const rewrittenPredicates = predicates.map(pred => {
+    const rewriteOne = (pred) => {
+      if (pred.type === 'private') {
+        return { ...pred, predicate: rewriteOne(pred.predicate) };
+      }
+
       const argTypes = (pred.name && this.predicateSchema?.hasDefinition(pred.name))
         ? (this.predicateSchema.getDefinition(pred.name).args ?? [])
         : [];
@@ -303,8 +307,9 @@ export class RuleLoader {
       });
 
       return { ...pred, args: rewrittenArgs };
-    });
+    };
 
+    const rewrittenPredicates = predicates.map(rewriteOne);
     return { rewrittenPredicates, countingVars: [...typeToVar.values()], countingVarTypes };
   }
 
@@ -320,7 +325,7 @@ export class RuleLoader {
       return { kind: 'numeric', name: rhs.name, args: this.resolveArgs(rhs.args) };
     }
     // kind === 'aggregate' — a bare aggregate expression used as a value source
-    const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(rhs.predicates);
+    const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(rhs.predicates, rhs.fn);
     const innerPredicate = new AggregatePredicate(rhs.fn, filterPredicates, valuePred, countingVars, countingVarTypes, null, null);
     return { kind: 'aggregate', predicate: innerPredicate };
   }
@@ -338,4 +343,11 @@ function flipOperator(op) {
     case '<=': return '>=';
     default:   return op; // '=' and '!=' are symmetric
   }
+}
+
+// Strips a private-owner wrapper to reach the underlying fact/tier predicate's
+// name and args, for schema lookups that need to classify what's being
+// referenced regardless of which store it's read from.
+function unwrapPrivate(pred) {
+  return pred.type === 'private' ? pred.predicate : pred;
 }

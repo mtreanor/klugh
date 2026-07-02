@@ -2,9 +2,14 @@ import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 import { toFactArg } from '../entityValue.js';
 
-// Computes an aggregate function (avg, sum, max, min) over a numeric predicate,
-// filtered by a conjunction of boolean predicates, and compares the result to a
-// right-hand side value expression.
+// Computes an aggregate function (count, avg, sum, max, min) over enumerated
+// entity combinations, filtered by a conjunction of boolean predicates, and
+// compares the result to a right-hand side value expression.
+//
+// 'count' has no valuePred (null) — every predicate in the conjunction is a
+// filter, and the result is how many combinations satisfy all of them.
+// 'avg'/'sum'/'max'/'min' aggregate a numeric value (valuePred) drawn from
+// each combination that passes the (remaining) filters.
 //
 // Counting variables (from `_` wildcards) are enumerated over entity lists; one
 // counting variable is created per unique entity type across the conjunction, so
@@ -17,9 +22,9 @@ import { toFactArg } from '../entityValue.js';
 export class AggregatePredicate extends Predicate {
   constructor(fn, filterPredicates, valuePred, countingVars, countingVarTypes, operator, rhs) {
     super();
-    this.fn               = fn;               // 'avg' | 'sum' | 'max' | 'min'
+    this.fn               = fn;               // 'count' | 'avg' | 'sum' | 'max' | 'min'
     this.filterPredicates = filterPredicates; // Predicate[]
-    this.valuePred        = valuePred;         // { name, args: (string|LogicalVariable)[] }
+    this.valuePred        = valuePred;         // { name, args: (string|LogicalVariable)[] } | null (count)
     this.countingVars     = countingVars;      // LogicalVariable[]
     this.countingVarTypes = countingVarTypes;  // Map<varName, entityType>
     this.operator         = operator;          // '>' | '>=' | '<' | '<=' | '=' | '!='
@@ -43,6 +48,7 @@ export class AggregatePredicate extends Predicate {
       return entityRegistry.get(type) ?? [];
     });
 
+    let matchCount = 0;
     const values = [];
     for (const combination of cartesian(entityLists)) {
       let extendedBinding = binding;
@@ -56,11 +62,17 @@ export class AggregatePredicate extends Predicate {
       }
       if (!passes) continue;
 
+      if (this.fn === 'count') {
+        matchCount++;
+        continue;
+      }
+
       const resolvedArgs = resolveArgs(this.valuePred.args, extendedBinding);
       const value        = evaluationContext.resolveNumericValue(this.valuePred.name, resolvedArgs);
       if (value !== null && value !== undefined) values.push(value);
     }
 
+    if (this.fn === 'count') return matchCount;
     return applyFn(this.fn, values);
   }
 
@@ -70,7 +82,7 @@ export class AggregatePredicate extends Predicate {
     const add  = v => { if (v instanceof LogicalVariable && !countingNames.has(v.name)) seen.set(v.name, v); };
 
     for (const pred of this.filterPredicates) for (const v of pred.getVariables()) add(v);
-    for (const arg of this.valuePred.args) add(arg);
+    if (this.valuePred) for (const arg of this.valuePred.args) add(arg);
 
     if (this.rhs?.kind === 'numeric') {
       for (const arg of this.rhs.args) add(arg);
@@ -88,9 +100,8 @@ export class AggregatePredicate extends Predicate {
   }
 
   toString() {
-    const valueStr  = `${this.valuePred.name}(${this.valuePred.args.map(a => a?.toString?.() ?? a).join(', ')})`;
     const filterStr = this.filterPredicates.map(p => p.toString()).join(' ^ ');
-    const inner     = filterStr ? `${valueStr} ^ ${filterStr}` : valueStr;
+    const inner     = this._joinInner(this._valueStr(), filterStr);
     const rhsStr    = this._stringifyRhs();
     return `${this.fn}|${inner}| ${this.operator} ${rhsStr}`;
   }
@@ -103,10 +114,22 @@ export class AggregatePredicate extends Predicate {
     return null;
   }
 
+  _valueStr(binding = null) {
+    if (!this.valuePred) return null;
+    const args = binding
+      ? this.valuePred.args.map(a => Predicate.renderArg(a, binding))
+      : this.valuePred.args.map(a => a?.toString?.() ?? a);
+    return `${this.valuePred.name}(${args.join(', ')})`;
+  }
+
+  _joinInner(valueStr, filterStr) {
+    if (valueStr && filterStr) return `${valueStr} ^ ${filterStr}`;
+    return valueStr ?? filterStr;
+  }
+
   _describeInner(binding) {
-    const valueStr  = `${this.valuePred.name}(${this.valuePred.args.map(a => Predicate.renderArg(a, binding)).join(', ')})`;
     const filterStr = this.filterPredicates.map(p => p.describe(binding)).join(' ^ ');
-    return filterStr ? `${valueStr} ^ ${filterStr}` : valueStr;
+    return this._joinInner(this._valueStr(binding), filterStr);
   }
 
   _describeRhs(binding) {

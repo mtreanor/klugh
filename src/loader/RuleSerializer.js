@@ -34,9 +34,6 @@ export class RuleSerializer {
     if (pred.type === 'at-tick') {
       return `${this.serializePredicate(pred.predicate)} [at: ${pred.tick}]`;
     }
-    if (pred.type === 'count') {
-      return `|${this.serializePredicate(pred.predicate)}| ${pred.operator} ${pred.threshold}`;
-    }
     if (pred.type === 'aggregate') {
       const inner = pred.predicates.map(p => this.serializePredicate(p)).join(' ^ ');
       return `${pred.fn}|${inner}| ${pred.operator} ${this.serializeAggregateRhs(pred.rhs)}`;

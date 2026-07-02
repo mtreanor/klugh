@@ -284,17 +284,21 @@ world
       assert.ok(dsl.includes('friendship(?SELF, ?Y) < -3'));
     });
 
-    it('serializes a count predicate with |...| notation', () => {
+    it('serializes an aggregate (fn: count) predicate with |...| notation', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [{
-          type:      'count',
-          predicate: { type: 'numeric-tier', name: 'friendship', tier: 'strong', args: ['?SELF', null] },
-          operator:  '>',
-          threshold: 4,
+          type:       'aggregate',
+          fn:         'count',
+          predicates: [{ type: 'numeric-tier', name: 'friendship', tier: 'strong', args: ['?SELF', null] }],
+          operator:   '>',
+          rhs:        { kind: 'literal', value: 4 },
         }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
       });
 
-      assert.ok(dsl.includes('|friendship.strong(?SELF, _)| > 4'));
+      // Bare |...| is sugar for count|...| at parse time; the serializer
+      // always emits the explicit form rather than special-casing round-trip
+      // back to bare — semantically equivalent either way.
+      assert.ok(dsl.includes('count|friendship.strong(?SELF, _)| > 4'));
     });
 
     it('serializes then parses hyphenated tag names correctly', () => {

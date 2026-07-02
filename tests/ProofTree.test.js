@@ -71,11 +71,11 @@ describe('Proof trees (engine.explain)', () => {
     assert.equal(event.detail, 'helping warms a friendship');
   });
 
-  it('expands a count premise into the counted facts', () => {
+  it('expands a count|...| premise into the matching facts', () => {
     const node = engine.explain('senior(alice)');
     assert.equal(node.via, 'rule');
-    const count = node.support.find(c => c.via === 'count');
-    assert.ok(count, 'expected a count justification');
+    const count = node.support.find(c => c.via === 'aggregate');
+    assert.ok(count, 'expected an aggregate justification');
     assert.equal(count.support.length, 2);
     assert.ok(count.support.every(c => c.statement.startsWith('respected(')));
   });

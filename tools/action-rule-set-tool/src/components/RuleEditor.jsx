@@ -84,7 +84,7 @@ export default function RuleEditor({
       <div className="editor-actions">
         {onCancel && <button className="btn ghost" onClick={onCancel}>Cancel</button>}
         <button className="btn primary" disabled={!valid || saving} onClick={save}>
-          {saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Add rule'}
+          {saving ? 'Saving…' : mode === 'edit' ? 'Update rule' : 'Add rule'}
         </button>
       </div>
     </div>

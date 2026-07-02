@@ -36,4 +36,8 @@ export const api = {
   addRule: (payload) => req('POST', '/api/rule', payload),
   editRule: (payload) => req('PUT', '/api/rule', payload),
   deleteRule: (payload) => req('DELETE', '/api/rule', payload),
+  validateAction: (payload) => req('POST', '/api/validate-action', payload).then(r => r.data),
+  addAction: (payload) => req('POST', '/api/action', payload),
+  editAction: (payload) => req('PUT', '/api/action', payload),
+  deleteAction: (payload) => req('DELETE', '/api/action', payload),
 };

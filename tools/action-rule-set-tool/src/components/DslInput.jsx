@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useInsert } from '../InsertContext.js';
 import { predicateTemplate } from '../predicateTemplate.js';
+import { scopeClass } from '../tmHighlight.js';
 
 // A text field (input or textarea) with schema-aware autocomplete for the klugh
 // DSL. It completes, at the caret:
@@ -13,14 +14,26 @@ import { predicateTemplate } from '../predicateTemplate.js';
 //   'replace' — set the whole field to the predicate (search box)
 //   'cursor'  — insert the predicate at the caret (rule body)
 // A shift-click always appends as a conjunction (or after a trailing `=>`).
+//
+// Passing `highlighter` overlays a syntax-highlighted <pre> behind the input/
+// textarea, whose text is made transparent so the highlighted copy shows
+// through — the classic textarea-highlight trick (e.g. react-simple-code-
+// editor). The overlay and field must share identical font/padding/border so
+// characters line up; scroll position is synced on every scroll.
+//
+// `autocomplete = false` keeps the highlight overlay but drops suggestions
+// and predicate-sidebar insert registration — for fields (like a role's
+// variable name) where predicate/tier completion doesn't make sense but
+// syntax coloring of `?SELF`-style tokens still helps.
 const VARIABLES = ['?SELF', '?OTHER', '?X', '?Y', '?Z', '?W'];
 
 export default function DslInput({
   value, onChange, predicates, entityNames = [],
   multiline = false, placeholder = '', rows = 3, className = '',
-  insertMode = 'cursor', primary = false,
+  insertMode = 'cursor', primary = false, highlighter = null, autocomplete = true,
 }) {
   const ref = useRef(null);
+  const highlightRef = useRef(null);
   const [suggestions, setSuggestions] = useState([]);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
@@ -44,10 +57,10 @@ export default function DslInput({
   }, [onChange, insertMode]);
 
   useEffect(() => {
-    if (!insertCtx) return undefined;
+    if (!insertCtx || !autocomplete) return undefined;
     if (primary) insertCtx.register(inserter);
     return () => insertCtx.clear(inserter);
-  }, [insertCtx, inserter, primary]);
+  }, [insertCtx, inserter, primary, autocomplete]);
 
   function computeSuggestions(text, caret) {
     const before = text.slice(0, caret);
@@ -121,26 +134,41 @@ export default function DslInput({
     } else if (e.key === 'Escape') { setOpen(false); }
   }
 
+  const showHighlight = !!highlighter;
+
+  function syncHighlightScroll(e) {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.target.scrollTop;
+      highlightRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  }
+
   const commonProps = {
     ref,
     value,
     placeholder,
-    className: `dsl-input ${className}`,
+    className: `dsl-input ${showHighlight ? 'dsl-input-highlighted' : ''} ${className}`,
     spellCheck: false,
     onChange: (e) => { onChange(e.target.value); },
-    onKeyUp: (e) => { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) refresh(); },
-    onClick: refresh,
-    onFocus: () => { insertCtx?.register(inserter); },
-    onKeyDown,
-    onBlur: () => setTimeout(() => setOpen(false), 120),
+    onKeyUp: autocomplete ? (e) => { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) refresh(); } : undefined,
+    onClick: autocomplete ? refresh : undefined,
+    onFocus: autocomplete ? () => { insertCtx?.register(inserter); } : undefined,
+    onKeyDown: autocomplete ? onKeyDown : undefined,
+    onBlur: autocomplete ? () => setTimeout(() => setOpen(false), 120) : undefined,
+    onScroll: showHighlight ? syncHighlightScroll : undefined,
   };
 
   return (
     <div className="dsl-wrap">
+      {showHighlight && (
+        <pre ref={highlightRef} className={`dsl-highlight-layer ${multiline ? '' : 'single-line'}`} aria-hidden="true">
+          <code>{highlightedNodes(highlighter, value)}</code>
+        </pre>
+      )}
       {multiline
         ? <textarea {...commonProps} rows={rows} />
         : <input {...commonProps} type="text" />}
-      {open && (
+      {autocomplete && open && (
         <ul className="dsl-suggest">
           {suggestions.map((s, i) => (
             <li
@@ -158,6 +186,20 @@ export default function DslInput({
       )}
     </div>
   );
+}
+
+// Render highlighted lines the same way HighlightedCode does.
+function highlightedNodes(highlighter, text) {
+  const lines = highlighter.highlight(text ?? '');
+  return lines.map((toks, i) => (
+    <React.Fragment key={i}>
+      {i > 0 && '\n'}
+      {toks.map((t, j) => {
+        const cls = scopeClass(t.scope);
+        return cls ? <span key={j} className={cls}>{t.text}</span> : <React.Fragment key={j}>{t.text}</React.Fragment>;
+      })}
+    </React.Fragment>
+  ));
 }
 
 // Compute the new field text when the sidebar inserts `template`.

@@ -94,6 +94,12 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--a
 .field-row .grow { flex: 1; }
 .editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+/* ── Roles editor (ActionEditor) ── */
+.roles-editor { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.role-row { display: flex; align-items: center; gap: 6px; }
+.role-var-wrap { width: 110px; }
+.role-type { width: 140px; font-family: var(--mono); }
+
 /* ── Banners ── */
 .banner { border-radius: 8px; padding: 8px 12px; font-size: 13px; }
 .banner.ok { background: #16301f; color: var(--ok); }
@@ -105,7 +111,30 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--a
 
 /* ── Autocomplete ── */
 .dsl-wrap { position: relative; }
-.dsl-input { width: 100%; }
+.dsl-input { width: 100%; line-height: 1.5; }
+
+/* Live syntax highlighting: the textarea sits on top with transparent text/
+   background (only its native caret and selection paint), and the highlighted
+   <pre> underneath — identical font/padding/border so glyphs line up exactly
+   — shows through. Scroll position is synced in DslInput's onScroll handler. */
+.dsl-highlight-layer {
+  position: absolute; inset: 0; margin: 0;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); color: var(--text);
+  font-family: var(--mono); font-size: 13px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; overflow: auto;
+  pointer-events: none;
+}
+.dsl-highlight-layer::-webkit-scrollbar { display: none; }
+.dsl-highlight-layer.single-line { white-space: pre; overflow-y: hidden; }
+/* input[type=text] in the base rule above is (0,1,1)-specific, same as
+   .dsl-input-highlighted alone would be if it also lost the tie — qualify
+   with the element type so this reliably wins for both <input> and <textarea>. */
+input.dsl-input-highlighted, textarea.dsl-input-highlighted {
+  position: relative; background: transparent; color: transparent; border-color: transparent;
+  caret-color: var(--text); font-family: var(--mono);
+}
+
 .dsl-suggest {
   position: absolute; z-index: 20; left: 0; right: 0; top: 100%;
   margin: 4px 0 0; padding: 4px; list-style: none;

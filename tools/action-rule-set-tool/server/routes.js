@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { loadScenarioContext, listScenarios, schemaForClient, loadRulesets } from './scenario.js';
+import { loadScenarioContext, listScenarios, schemaForClient, loadRulesets, loadActionsets } from './scenario.js';
 import { buildQueryMatchers, ruleDescriptors, matchAll } from './matcher.js';
-import { validateRule } from './validate.js';
+import { validateRule, validateAction } from './validate.js';
 import { appendRule, replaceRule, deleteRule } from './ruleFile.js';
+import { appendAction, replaceAction, deleteAction } from './actionFile.js';
 import { repoRoot } from './config.js';
 
 export const router = Router();
@@ -43,7 +44,9 @@ router.get('/scenario/:name', h((req, res) => {
     name: ctx.name,
     predicates: schemaForClient(ctx.schema),
     entityNames: [...ctx.entityNames],
+    entityTypeNames: [...ctx.entityTypeNames],
     rulesets: loadRulesets(ctx),
+    actionsets: loadActionsets(ctx),
   });
 }));
 
@@ -113,5 +116,49 @@ router.delete('/rule', h((req, res) => {
 function requireRulesetPath(ctx, ruleset) {
   const path = ctx.paths.rulesets[ruleset];
   if (!path) throw new Error(`Scenario "${ctx.name}" has no ruleset named "${ruleset}"`);
+  return path;
+}
+
+router.post('/validate-action', h((req, res) => {
+  const { scenario, name, comment, roles, info, preconditions, utility, content, effects, routesTo } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  res.json(validateAction({ ctx, name, comment, roles, info, preconditions, utility, content, effects, routesTo }));
+}));
+
+router.post('/action', h((req, res) => {
+  const { scenario, actionset, name, comment, roles, info, preconditions, utility, content, effects, routesTo } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const actionsetPath = requireActionsetPath(ctx, actionset);
+
+  const result = validateAction({ ctx, name, comment, roles, info, preconditions, utility, content, effects, routesTo });
+  if (!result.ok) return res.status(400).json({ error: 'Validation failed', ...result });
+
+  appendAction(actionsetPath, { name, comment, body: result.body });
+  res.json({ ok: true, warnings: result.warnings });
+}));
+
+router.put('/action', h((req, res) => {
+  const { scenario, actionset, originalName, name, comment, roles, info, preconditions, utility, content, effects, routesTo } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const actionsetPath = requireActionsetPath(ctx, actionset);
+
+  const result = validateAction({ ctx, name, comment, roles, info, preconditions, utility, content, effects, routesTo });
+  if (!result.ok) return res.status(400).json({ error: 'Validation failed', ...result });
+
+  replaceAction(actionsetPath, originalName, { name, comment, body: result.body });
+  res.json({ ok: true, warnings: result.warnings });
+}));
+
+router.delete('/action', h((req, res) => {
+  const { scenario, actionset, name } = req.body;
+  const ctx = loadScenarioContext(scenario);
+  const actionsetPath = requireActionsetPath(ctx, actionset);
+  deleteAction(actionsetPath, name);
+  res.json({ ok: true });
+}));
+
+function requireActionsetPath(ctx, actionset) {
+  const path = ctx.paths.actionsets[actionset];
+  if (!path) throw new Error(`Scenario "${ctx.name}" has no actionset named "${actionset}"`);
   return path;
 }

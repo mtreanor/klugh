@@ -2,10 +2,12 @@ import { readFileSync } from 'fs';
 import { PredicateSchema } from '../../../src/PredicateSchema.js';
 import { EntityNameValidator } from '../../../src/EntityNameValidator.js';
 import { RuleParser } from '../../../src/loader/RuleParser.js';
+import { ActionParser } from '../../../src/loader/ActionParser.js';
 import { loadProjectConfig, resolveScenarioPaths } from './config.js';
 import { parseRuleBlocks } from './ruleFile.js';
+import { parseActionBlocks, splitActionSections } from './actionFile.js';
 
-// Load a scenario's predicate schema, entity names, and a RuleParser bound to both.
+// Load a scenario's predicate schema, entity names, and parsers bound to both.
 // These are the shared inputs for autocomplete, parsing, matching, and validation.
 export function loadScenarioContext(name) {
   const config = loadProjectConfig();
@@ -17,13 +19,15 @@ export function loadScenarioContext(name) {
   const schema = new PredicateSchema(JSON.parse(readFileSync(paths.predicates, 'utf-8')));
 
   let entityNames = new Set();
+  let entityTypeNames = new Set();
   if (paths.entities) {
     const entitiesData = JSON.parse(readFileSync(paths.entities, 'utf-8'));
-    ({ entityNames } = EntityNameValidator.validate(entitiesData, schema));
+    ({ entityNames, typeNames: entityTypeNames } = EntityNameValidator.validate(entitiesData, schema));
   }
 
   const ruleParser = new RuleParser(schema, { entityNames });
-  return { name, scenario, paths, schema, entityNames, ruleParser };
+  const actionParser = new ActionParser(schema);
+  return { name, scenario, paths, schema, entityNames, entityTypeNames, ruleParser, actionParser };
 }
 
 // List every scenario in the project config, tagged with whether it has rulesets.
@@ -98,4 +102,53 @@ export function loadRulesets(ctx) {
     rulesets.push({ name: rsName, path, rules, fileError });
   }
   return rulesets;
+}
+
+// Parse one action block's body in isolation so a single malformed action
+// doesn't break the whole file. Returns { parsed } or { parseError }.
+export function parseActionBlock(actionParser, block) {
+  const source = `action ${JSON.stringify(block.name)}\n${block.bodyText}`;
+  try {
+    const { actions } = actionParser.parse(source);
+    return { parsed: actions[0] ?? null };
+  } catch (err) {
+    return { parseError: err.message };
+  }
+}
+
+// Load every action from a scenario's actionsets, as blocks enriched with
+// parse output and the raw section text the editor prefills on Edit.
+// Returns [{ name, path, actions: [...], fileError }].
+export function loadActionsets(ctx) {
+  const actionsets = [];
+  for (const [asName, path] of Object.entries(ctx.paths.actionsets)) {
+    let text = '';
+    let fileError = null;
+    try {
+      text = readFileSync(path, 'utf-8');
+    } catch (err) {
+      fileError = err.message;
+    }
+    const blocks = fileError ? [] : parseActionBlocks(text);
+    const actions = blocks.map((b, i) => {
+      const { parsed, parseError } = parseActionBlock(ctx.actionParser, b);
+      return {
+        id: `${asName}::${i}`,
+        actionset: asName,
+        name: b.name,
+        comment: b.comment,
+        bodyText: b.bodyText,
+        roleCount: parsed ? (parsed.roles?.length ?? 0) : null,
+        preconditionCount: parsed ? (parsed.preconditions?.length ?? 0) : null,
+        effectCount: parsed ? (parsed.effects?.length ?? 0) : null,
+        routesTo: parsed?.routesTo ?? null,
+        roles: parsed?.roles ?? [],
+        sections: splitActionSections(b.bodyText),
+        parsed,
+        parseError,
+      };
+    });
+    actionsets.push({ name: asName, path, actions, fileError });
+  }
+  return actionsets;
 }

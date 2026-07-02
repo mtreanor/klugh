@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DslInput from './DslInput.jsx';
 import RuleCard from './RuleCard.jsx';
-import RuleEditor from './RuleEditor.jsx';
 import { api } from '../api.js';
 import { useDebounced } from '../hooks.js';
 
 // Inspect / search rules across one or more rulesets. The search box takes DSL:
 // a rule matches if it structurally contains every typed predicate (co-reference
-// aware), variable names aside.
-export default function InspectTab({ scenario, data, highlighter, onChanged }) {
+// aware), variable names aside. Edit loads the rule into the Add rule tab
+// (see App.jsx's onEdit) rather than opening a popup.
+export default function InspectTab({ scenario, data, highlighter, onChanged, onEdit }) {
   const allRulesetNames = data.rulesets.map(rs => rs.name);
   const [selected, setSelected] = useState(allRulesetNames);
   const [query, setQuery] = useState('');
@@ -17,7 +17,6 @@ export default function InspectTab({ scenario, data, highlighter, onChanged }) {
   const [dir, setDir] = useState('asc');
   const [matchIds, setMatchIds] = useState(null); // null = show all
   const [queryError, setQueryError] = useState(null);
-  const [editing, setEditing] = useState(null);
 
   const debQuery = useDebounced(query, 250);
 
@@ -77,6 +76,8 @@ export default function InspectTab({ scenario, data, highlighter, onChanged }) {
     <div className="inspect">
       <div className="ruleset-filter">
         <span className="filter-label">Rulesets:</span>
+        <button className="btn tiny ghost" onClick={() => setSelected(allRulesetNames)}>All</button>
+        <button className="btn tiny ghost" onClick={() => setSelected([])}>None</button>
         {data.rulesets.map(rs => (
           <label key={rs.name} className="check">
             <input type="checkbox" checked={selected.includes(rs.name)} onChange={() => toggleRuleset(rs.name)} />
@@ -84,8 +85,6 @@ export default function InspectTab({ scenario, data, highlighter, onChanged }) {
             {rs.fileError && <span className="badge err">missing</span>}
           </label>
         ))}
-        <button className="btn tiny ghost" onClick={() => setSelected(allRulesetNames)}>All</button>
-        <button className="btn tiny ghost" onClick={() => setSelected([])}>None</button>
       </div>
 
       <div className="search-row">
@@ -126,25 +125,10 @@ export default function InspectTab({ scenario, data, highlighter, onChanged }) {
 
       <div className="rule-list">
         {rules.map(rule => (
-          <RuleCard key={rule.id} rule={rule} highlighter={highlighter} onEdit={setEditing} onDelete={del} />
+          <RuleCard key={rule.id} rule={rule} highlighter={highlighter} onEdit={onEdit} onDelete={del} />
         ))}
         {rules.length === 0 && <div className="empty">No rules to show.</div>}
       </div>
-
-      {editing && (
-        <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setEditing(null); }}>
-          <div className="modal">
-            <h3>Edit rule</h3>
-            <RuleEditor
-              scenario={scenario} rulesets={data.rulesets} predicates={data.predicates} entityNames={data.entityNames}
-              mode="edit"
-              initial={{ ruleset: editing.ruleset, name: editing.name, comment: editing.comment, body: editing.bodyText, originalName: editing.name }}
-              onSaved={() => { setEditing(null); onChanged(); }}
-              onCancel={() => setEditing(null)}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { RuleLoader } from '../../../src/loader/RuleLoader.js';
+import { ActionLoader } from '../../../src/loader/ActionLoader.js';
 import { RuleCycleDetector } from '../../../src/RuleCycleDetector.js';
 import { readFile } from './ruleFile.js';
 import { parseRuleBlocks } from './ruleFile.js';
+import { buildActionBody } from './actionFile.js';
 
 // Full validation of a candidate rule against a scenario:
 //   1. lex/parse the DSL             → syntax errors
@@ -85,4 +87,65 @@ function buildExistingRules(ctx, loader, path, excludeName) {
     }
   }
   return rules;
+}
+
+// Full validation of a candidate action against a scenario:
+//   1. assemble the editor's structured fields into DSL body text
+//   2. lex/parse the DSL             → syntax errors
+//   3. build against the schema      → unknown predicate / role type / bad utility source
+// Unbound private-store owners surface as warnings, same as rule validation.
+//
+// No cycle detection: RuleCycleDetector guards against non-terminating rule
+// fixpoints within a ruleset, but actions aren't iterated to a fixpoint — a
+// pipeline stage scores its actionset once and picks a winner — so there's no
+// equivalent hazard for an action's preconditions/effects to trigger.
+export function validateAction({ ctx, name, comment, roles, info, preconditions, utility, content, effects, routesTo }) {
+  const errors = [];
+  const warnings = [];
+
+  if (!name || !name.trim()) errors.push('Action name is required.');
+  // Role types are constrained to entity types actually declared in this
+  // scenario's entities.json — the DSL grammar accepts any identifier here,
+  // but an undeclared type is always an authoring mistake, not something the
+  // engine can act on. Rows with no type chosen yet are left to fail
+  // naturally downstream (an unbound variable) rather than flagged here.
+  const knownTypes = [...ctx.entityTypeNames].sort();
+  for (const role of roles ?? []) {
+    const type = role.type?.trim();
+    if (!type) continue;
+    if (!ctx.entityTypeNames.has(type)) {
+      errors.push(`Role ${role.variable || '?'} has type "${type}", which isn't a defined entity type in this scenario (${knownTypes.join(', ')}).`);
+    }
+  }
+  if (errors.length) return { ok: false, errors, warnings };
+
+  const loader = new ActionLoader(ctx.schema);
+  const body = buildActionBody({ roles, info, preconditions, utility, content, effects, routesTo });
+  const source = `action ${JSON.stringify(name)}\n${body}`;
+
+  let parsed;
+  try {
+    const result = ctx.actionParser.parse(source);
+    if (!result.actions || result.actions.length === 0) {
+      errors.push('Could not parse an action from the input.');
+      return { ok: false, errors, warnings };
+    }
+    parsed = result.actions[0];
+  } catch (err) {
+    errors.push(`Syntax error: ${err.message}`);
+    return { ok: false, errors, warnings };
+  }
+
+  const originalWarn = console.warn;
+  console.warn = (msg) => warnings.push(String(msg));
+  try {
+    loader.buildAction(parsed);
+  } catch (err) {
+    errors.push(err.message);
+    return { ok: false, errors, warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  return { ok: true, errors, warnings, name: parsed.name, body };
 }

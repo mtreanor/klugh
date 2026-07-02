@@ -64,7 +64,7 @@ export default defineConfig({
       {
         text: 'Tools',
         items: [
-          { text: 'Ruleset tool', link: '/ruleset-tool' },
+          { text: 'action-rule-set-tool', link: '/action-rule-set-tool' },
         ],
       },
     ],

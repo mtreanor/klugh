@@ -98,6 +98,8 @@ export default function TuneTab({ scenario, data, highlighter, onChanged }) {
               {rs.name} <span className="dim">({rs.rules.length})</span>
             </label>
           ))}
+          <button className="btn tiny ghost" onClick={() => setSelected(allRulesetNames)}>All</button>
+          <button className="btn tiny ghost" onClick={() => setSelected([])}>None</button>
         </div>
       )}
 

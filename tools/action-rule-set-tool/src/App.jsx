@@ -55,7 +55,7 @@ export default function App() {
     <InsertContext.Provider value={insertApi}>
       <div className="app">
         <header className="topbar">
-          <h1>klugh · ruleset-tool</h1>
+          <h1>klugh · action-rule-set-tool</h1>
           <label className="scenario-pick">
             Scenario
             <select value={scenario} onChange={e => setScenario(e.target.value)}>

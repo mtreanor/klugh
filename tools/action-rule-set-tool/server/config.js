@@ -3,7 +3,7 @@ import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 
-// tools/ruleset-tool/server → the klugh repo root is three levels up. This is
+// tools/action-rule-set-tool/server → the klugh repo root is three levels up. This is
 // used for klugh-shipped assets (the engine in src/, the TextMate grammar) and
 // is fixed regardless of where the project config lives.
 export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

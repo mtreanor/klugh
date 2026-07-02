@@ -84,6 +84,8 @@ export default function InspectTab({ scenario, data, highlighter, onChanged }) {
             {rs.fileError && <span className="badge err">missing</span>}
           </label>
         ))}
+        <button className="btn tiny ghost" onClick={() => setSelected(allRulesetNames)}>All</button>
+        <button className="btn tiny ghost" onClick={() => setSelected([])}>None</button>
       </div>
 
       <div className="search-row">

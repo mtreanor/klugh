@@ -1,9 +1,9 @@
-# Ruleset tool
+# action-rule-set-tool
 
-`tools/ruleset-tool` is a local web app for inspecting, searching, and editing rulesets. Run it with:
+`tools/action-rule-set-tool` is a local web app for inspecting, searching, and editing rulesets. Run it with:
 
 ```
-cd tools/ruleset-tool
+cd tools/action-rule-set-tool
 npm install
 npm run dev
 ```
@@ -22,7 +22,7 @@ The tool resolves its `project.config.json` in this order:
    KLUGH_CONFIG=/path/to/project.config.json npm run dev
    ```
 
-   To set it once without retyping, create a gitignored `tools/ruleset-tool/.env` containing `KLUGH_CONFIG=/abs/path/to/project.config.json`.
+   To set it once without retyping, create a gitignored `tools/action-rule-set-tool/.env` containing `KLUGH_CONFIG=/abs/path/to/project.config.json`.
 
 2. **The host repo's config**, auto-discovered when klugh is a **git submodule**. Put a `project.config.json` at your repo root and the tool finds it — no configuration needed.
 

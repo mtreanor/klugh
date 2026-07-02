@@ -1,4 +1,4 @@
-# ruleset-tool
+# action-rule-set-tool
 
 An authoring & visualization tool for klugh rulesets. It reads scenarios from the
 repo's `project.config.json`, lets you **inspect and structurally search** the
@@ -12,7 +12,7 @@ detection always match the engine — there is no second implementation to drift
 ## Running
 
 ```
-cd tools/ruleset-tool
+cd tools/action-rule-set-tool
 npm install
 npm run dev
 ```
@@ -43,7 +43,7 @@ Config resolution order:
    ```
    KLUGH_CONFIG=/path/to/other/project.config.json npm run dev
    ```
-   To set it once without retyping, create a gitignored `tools/ruleset-tool/.env`
+   To set it once without retyping, create a gitignored `tools/action-rule-set-tool/.env`
    with `KLUGH_CONFIG=/abs/path/to/project.config.json`.
 2. **The host repo's `project.config.json`**, auto-discovered when klugh is a
    submodule.

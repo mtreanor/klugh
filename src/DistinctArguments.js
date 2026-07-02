@@ -1,6 +1,5 @@
 import { NegationPredicate } from './predicates/NegationPredicate.js';
 import { TemporalChainPredicate } from './predicates/TemporalChainPredicate.js';
-import { CountPredicate } from './predicates/CountPredicate.js';
 
 function findEntityByName(name, entityRegistry) {
   for (const entities of entityRegistry.values()) {
@@ -45,9 +44,6 @@ function collectArgumentChecks(predicate) {
   }
   if (predicate instanceof TemporalChainPredicate) {
     return predicate.steps.map(step => ({ name: step.name, args: step.args }));
-  }
-  if (predicate instanceof CountPredicate) {
-    return collectArgumentChecks(predicate.innerPredicate);
   }
   if (predicate.name && predicate.args) {
     return [{ name: predicate.name, args: predicate.args }];

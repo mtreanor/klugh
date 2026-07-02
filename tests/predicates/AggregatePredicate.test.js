@@ -315,4 +315,147 @@ describe('AggregatePredicate', () => {
       assert.equal(vars[0].name, 'TARGET');
     });
   });
+
+  // fn: 'count' — valuePred is null; every predicate in the conjunction is a
+  // filter, and the result is how many enumerated combinations satisfy all of
+  // them. Migrated from the retired CountPredicate class, which this
+  // subsumes: same semantics for a single-filter conjunction, plus support
+  // for multiple filters (^) that CountPredicate never had.
+  describe("fn: 'count'", () => {
+    const SELF = new LogicalVariable('SELF');
+
+    function buildKnowsContext(facts, agents) {
+      const factStore = new FactStore();
+      for (const fact of facts) factStore.assert(fact);
+      const qh = new QueryHandlers();
+      qh.register('factStore', new FactStoreQueryHandler(factStore));
+      return new EvaluationContext(qh, { entityRegistry: new Map([['agent', agents]]) });
+    }
+
+    function makeCountPred(operator, threshold, filterPredicates = [new FactPredicate('knows', SELF, aggVar)]) {
+      return new AggregatePredicate('count', filterPredicates, null, [aggVar], aggVarTypes, operator, { kind: 'literal', value: threshold });
+    }
+
+    describe('operator >', () => {
+      it('is true when the count exceeds the threshold', () => {
+        const ctx = buildKnowsContext(
+          [new Fact('knows', 'alice', 'bob'), new Fact('knows', 'alice', 'carol'), new Fact('knows', 'alice', 'dave')],
+          [alice, bob, carol, dave],
+        );
+        const binding = new Binding().extend(SELF, alice);
+        assert.ok(makeCountPred('>', 2).evaluate(binding, ctx));
+      });
+
+      it('is false when the count equals the threshold', () => {
+        const ctx = buildKnowsContext(
+          [new Fact('knows', 'alice', 'bob'), new Fact('knows', 'alice', 'carol')],
+          [alice, bob, carol],
+        );
+        const binding = new Binding().extend(SELF, alice);
+        assert.ok(!makeCountPred('>', 2).evaluate(binding, ctx));
+      });
+
+      it('is false when the count is below the threshold', () => {
+        const ctx = buildKnowsContext([new Fact('knows', 'alice', 'bob')], [alice, bob, carol]);
+        const binding = new Binding().extend(SELF, alice);
+        assert.ok(!makeCountPred('>', 2).evaluate(binding, ctx));
+      });
+    });
+
+    describe('operators >= and <=', () => {
+      it('>= is true at and above the threshold, false below', () => {
+        const ctx = buildKnowsContext(
+          [new Fact('knows', 'alice', 'bob'), new Fact('knows', 'alice', 'carol')],
+          [alice, bob, carol, dave],
+        );
+        const binding = new Binding().extend(SELF, alice);
+        assert.ok(makeCountPred('>=', 1).evaluate(binding, ctx));
+        assert.ok(makeCountPred('>=', 2).evaluate(binding, ctx));
+        assert.ok(!makeCountPred('>=', 3).evaluate(binding, ctx));
+      });
+
+      it('<= is true at and below the threshold, false above', () => {
+        const ctx = buildKnowsContext(
+          [new Fact('knows', 'alice', 'bob'), new Fact('knows', 'alice', 'carol')],
+          [alice, bob, carol, dave],
+        );
+        const binding = new Binding().extend(SELF, alice);
+        assert.ok(makeCountPred('<=', 3).evaluate(binding, ctx));
+        assert.ok(makeCountPred('<=', 2).evaluate(binding, ctx));
+        assert.ok(!makeCountPred('<=', 1).evaluate(binding, ctx));
+      });
+    });
+
+    it('is true (0 >= 0) when nothing matches — count must not collapse to null like avg/sum do on empty', () => {
+      const ctx = buildKnowsContext([], [alice, bob, carol]);
+      const binding = new Binding().extend(SELF, alice);
+      assert.ok(makeCountPred('>=', 0).evaluate(binding, ctx));
+      assert.ok(!makeCountPred('>=', 1).evaluate(binding, ctx));
+    });
+
+    it('supports a multi-predicate conjunction — CountPredicate never could', () => {
+      // alice knows bob and carol; only bob is also "trusted". Count of
+      // groupmates alice both knows AND trusts should be 1, not 2.
+      const factStore = new FactStore();
+      factStore.assert(new Fact('knows', 'alice', 'bob'));
+      factStore.assert(new Fact('knows', 'alice', 'carol'));
+      factStore.assert(new Fact('trusted', 'alice', 'bob'));
+      const qh = new QueryHandlers();
+      qh.register('factStore', new FactStoreQueryHandler(factStore));
+      const ctx = new EvaluationContext(qh, { entityRegistry: new Map([['agent', [alice, bob, carol, dave]]]) });
+
+      const pred = makeCountPred('=', 1, [
+        new FactPredicate('knows', SELF, aggVar),
+        new FactPredicate('trusted', SELF, aggVar),
+      ]);
+      const binding = new Binding().extend(SELF, alice);
+      assert.ok(pred.evaluate(binding, ctx));
+    });
+
+    describe('getVariables()', () => {
+      it('returns outer-scope variables but not counting variables', () => {
+        const vars = makeCountPred('>', 2).getVariables();
+        assert.equal(vars.length, 1);
+        assert.equal(vars[0].name, 'SELF');
+      });
+
+      it('returns empty when no outer-scope variables are present', () => {
+        const pred = makeCountPred('>', 2, [new FactPredicate('knows', aggVar, aggVar)]);
+        assert.equal(pred.getVariables().length, 0);
+      });
+    });
+
+    describe('non-agent entity types', () => {
+      it('counts over a non-agent type when countingVarTypes specifies it', () => {
+        const factStore = new FactStore();
+        factStore.assert(new Fact('hasKnowledge', 'alice', 'karate'));
+        factStore.assert(new Fact('hasKnowledge', 'alice', 'philosophy'));
+
+        const karate     = { name: 'karate' };
+        const philosophy = { name: 'philosophy' };
+        const cooking    = { name: 'cooking' };
+        const knowledgeVar = new LogicalVariable('__count_0__');
+
+        const qh = new QueryHandlers();
+        qh.register('factStore', new FactStoreQueryHandler(factStore));
+        const entityRegistry = new Map([
+          ['agent',     [alice]],
+          ['knowledge', [karate, philosophy, cooking]],
+        ]);
+        const ctx = new EvaluationContext(qh, { entityRegistry });
+
+        const pred = new AggregatePredicate(
+          'count',
+          [new FactPredicate('hasKnowledge', SELF, knowledgeVar)],
+          null,
+          [knowledgeVar],
+          new Map([['__count_0__', 'knowledge']]),
+          '=',
+          { kind: 'literal', value: 2 },
+        );
+        const binding = new Binding().extend(SELF, alice);
+        assert.ok(pred.evaluate(binding, ctx));
+      });
+    });
+  });
 });

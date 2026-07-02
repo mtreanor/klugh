@@ -8,9 +8,12 @@ import { LogicalVariable } from '../../src/LogicalVariable.js';
 import { FactPredicate } from '../../src/predicates/FactPredicate.js';
 import { HistoricalWindowPredicate } from '../../src/predicates/HistoricalWindowPredicate.js';
 import { DerivedFactPredicate } from '../../src/predicates/DerivedFactPredicate.js';
+import { PrivatePredicate } from '../../src/predicates/PrivatePredicate.js';
 import { NegationPredicate } from '../../src/predicates/NegationPredicate.js';
-import { CountPredicate } from '../../src/predicates/CountPredicate.js';
+import { AggregatePredicate } from '../../src/predicates/AggregatePredicate.js';
 import { NumericComparisonPredicate } from '../../src/predicates/NumericComparisonPredicate.js';
+import { Engine } from '../../src/Engine.js';
+import { Fact } from '../../src/Fact.js';
 
 const loader = new RuleLoader();
 
@@ -288,24 +291,33 @@ describe('RuleLoader', () => {
       assert.equal(predicate.threshold, -3);
     });
 
-    it('builds a CountPredicate from type "count" with counting vars replacing nulls', () => {
-      const { rules } = loader.load({
+    it('builds an AggregatePredicate (fn: count) with counting vars replacing nulls', () => {
+      const schemaLoader = new RuleLoader(new PredicateSchema({
+        predicates: {
+          knows:      { type: 'boolean', args: ['agent', 'agent'] },
+          friendship: { type: 'numeric', args: ['agent', 'agent'], minValue: 0, maxValue: 10, default: 0 },
+        },
+      }));
+      const { rules } = schemaLoader.load({
         rules: [{
           name: 'R1',
           predicates: [{
-            type:      'count',
-            predicate: { type: 'fact', name: 'knows', args: ['?SELF', null] },
-            operator:  '>',
-            threshold: 3,
+            type:       'aggregate',
+            fn:         'count',
+            predicates: [{ type: 'fact', name: 'knows', args: ['?SELF', null] }],
+            operator:   '>',
+            rhs:        { kind: 'literal', value: 3 },
           }],
           effects: [{ type: 'adjust-numeric', name: 'friendship', args: ['?SELF', '?Y'], delta: 1.0 }],
         }],
       });
 
       const { predicate } = rules[0].predicateEntries[0];
-      assert.ok(predicate instanceof CountPredicate);
+      assert.ok(predicate instanceof AggregatePredicate);
+      assert.equal(predicate.fn, 'count');
+      assert.equal(predicate.valuePred, null);
       assert.equal(predicate.operator, '>');
-      assert.equal(predicate.threshold, 3);
+      assert.equal(predicate.rhs.value, 3);
       assert.equal(predicate.countingVars.length, 1);
       assert.equal(predicate.getVariables().length, 1);
       assert.equal(predicate.getVariables()[0].name, 'SELF');
@@ -403,6 +415,83 @@ describe('RuleLoader', () => {
       }));
       assert.ok(warnings.length > 0);
       assert.ok(warnings[0].includes('?Z'));
+    });
+  });
+
+  // Regression coverage for two real bugs found together: (1) a predicate
+  // inside a count/aggregate conjunction was always tagged 'fact' regardless
+  // of its actual schema type, so a *derived* predicate used inside |...|
+  // silently became a dead fact-store lookup instead of a real derivation
+  // (predates the private-prefix work — parseAggregateAtom never called
+  // resolveType); (2) rewriteAggregateArgs didn't know about the {type:
+  // 'private', predicate} wrapper, so a private-owned predicate's wildcard
+  // never got rewritten to a shared counting variable. Both needed fixing
+  // together for count|?SELF.pred(_) ^ derivedPred(?SELF, _)| to work at all.
+  describe('aggregate conjunctions with derived and private predicates', () => {
+    function buildEngine() {
+      const engine = new Engine({
+        predicates: { predicates: {
+          inGroup:               { type: 'boolean', args: ['agent', 'group'] },
+          sameGroup:              { type: 'derived', args: ['agent', 'agent'] },
+          embarrassedThemselves: { type: 'boolean', args: ['agent'] },
+          leaveFlag:              { type: 'boolean', args: ['agent'] },
+        }},
+        entities: { agent: { sabrina: {}, harvey: {}, clarissa: {}, sam: {} } },
+      });
+      engine.world.addEntity('group', { name: 'g1' });
+      engine.world.factStore.assert(new Fact('inGroup', 'sabrina', 'g1'));
+      engine.world.factStore.assert(new Fact('inGroup', 'harvey', 'g1'));
+      engine.world.factStore.assert(new Fact('inGroup', 'clarissa', 'g1'));
+
+      const sabrinaStore = engine.world.registerPrivateStore('sabrina');
+      sabrinaStore.assert(new Fact('embarrassedThemselves', 'harvey'));
+      sabrinaStore.assert(new Fact('embarrassedThemselves', 'clarissa'));
+      sabrinaStore.assert(new Fact('embarrassedThemselves', 'sam')); // not in g1 — must not count
+
+      engine.loadDefinitions(`
+        define "same group"
+          inGroup(?A, ?G)
+          ^ inGroup(?B, ?G)
+          => sameGroup(?A, ?B)
+      `, 'defs');
+
+      return engine;
+    }
+
+    it('builds a DerivedFactPredicate (not FactPredicate) for a derived predicate inside a conjunction', () => {
+      const engine = buildEngine();
+      engine.loadRules('rule "t" \n count|sameGroup(?SELF, _)| >= 1 \n => leaveFlag(?SELF)', 'r');
+      const pred = engine.rulesets.get('r')[0].predicateEntries[0].predicate;
+      assert.ok(pred.filterPredicates[0] instanceof DerivedFactPredicate,
+        'sameGroup(...) inside |...| must dispatch to DerivedFactPredicate, not a raw fact-store FactPredicate');
+    });
+
+    it('builds a PrivatePredicate for an owner-prefixed predicate inside a conjunction', () => {
+      const engine = buildEngine();
+      engine.loadRules('rule "t" \n count|?SELF.embarrassedThemselves(_)| >= 1 \n => leaveFlag(?SELF)', 'r');
+      const pred = engine.rulesets.get('r')[0].predicateEntries[0].predicate;
+      assert.ok(pred.filterPredicates[0] instanceof PrivatePredicate);
+    });
+
+    it('joins a private predicate and a derived predicate on the same wildcard, correctly excluding non-matches', () => {
+      const engine = buildEngine();
+      engine.loadRules(`
+        rule "at least two"
+          count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| >= 2
+          => leaveFlag(?SELF)
+      `, 'r-two');
+      engine.loadRules(`
+        rule "at least three"
+          count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| >= 3
+          => leaveFlag(?SELF)
+      `, 'r-three');
+
+      // sabrina judged 3 agents embarrassed, but only 2 (harvey, clarissa)
+      // are actually in her group — sam must not count toward the total.
+      const firedTwo   = engine.runRulesetSingle('r-two',   { startingBinding: { SELF: 'sabrina' } });
+      const firedThree = engine.runRulesetSingle('r-three', { startingBinding: { SELF: 'sabrina' } });
+      assert.equal(firedTwo.length,   1, 'threshold of 2 should be met (harvey + clarissa)');
+      assert.equal(firedThree.length, 0, 'threshold of 3 should NOT be met — sam is excluded by sameGroup');
     });
   });
 });

@@ -84,7 +84,7 @@ For variables with no schema type entry (e.g. string need values), the evaluator
 | `NumericTierPredicate` | `pred.tier(args)` | Numeric value falls within a named tier |
 | `NumericComparisonPredicate` | `pred(args) > N` | Direct numeric comparison |
 | `CurrentTimePredicate` | `currentTime in [a,b]` | Current time in range |
-| `CountPredicate` | `count(pred, var) >= N` | Count of matching facts |
+| `AggregatePredicate` | `fn|pred1(args) ^ pred2(args)| op N` | `fn` is `count`, `avg`, `sum`, `max`, or `min` over enumerated `_` wildcards, filtered by the conjunction. Bare `|...|` (no `fn`) is sugar for `count|...|`. `count` has no value predicate — every conjunct is a filter; `avg`/`sum`/`max`/`min` require exactly one numeric predicate in the conjunction as the value being aggregated. |
 | `TemporalChainPredicate` | multi-step temporal sequence | Chain of events in order |
 | `PrivatePredicate` | `?VAR.pred(args)` | Queries the private store of the bound entity |
 

@@ -111,7 +111,7 @@ Operands must be the same kind: numeric (`numeric`, `sensor-numeric`) or boolean
 
 ## Count
 
-`|predicate(args)| > N` counts how many entity combinations satisfy the inner predicate, then compares the count to a threshold. Supports `< N`, `= N`, `>= N` as well. Use `_` for the positions being counted over.
+`|conjunction| > N` counts how many entity combinations satisfy every predicate in the conjunction, then compares the count to a threshold. Supports `< N`, `= N`, `>= N`, `<= N`, `!= N` as well. Use `_` for the positions being counted over. Bare `|...|` is sugar for `count|...|` — see [Aggregate](#aggregate) below, whose conjunction/filtering/wildcard-sharing rules apply identically. `count` has no numeric value predicate; every predicate in the conjunction is a filter.
 
 ```klugh
 rule "popular when many agents feel warm toward SELF"
@@ -121,6 +121,10 @@ rule "popular when many agents feel warm toward SELF"
 rule "isolated when SELF knows fewer than two agents"
   |knows(?SELF, _)| < 2
   => cautious(?SELF, ?Y) += 1.0
+
+rule "close when SELF both knows and trusts someone"
+  count|knows(?SELF, _) ^ trusts(?SELF, _)| >= 1
+  => close(?SELF) += 1.0
 ```
 
 The type of each `_` position is inferred from the predicate schema, so non-agent entities (knowledge domains, items, etc.) are enumerated correctly.
@@ -129,7 +133,7 @@ The type of each `_` position is inferred from the predicate schema, so non-agen
 
 ## Aggregate
 
-`fn|pred(args)| op rhs` computes an aggregate function over a numeric predicate across enumerated entities, then compares the result. Functions: `avg`, `sum`, `max`, `min`. Operators: `>`, `>=`, `<`, `<=`, `=`, `!=`. Use `_` for positions being enumerated; the type is inferred from the schema.
+`fn|conjunction| op rhs` computes an aggregate function over enumerated entity combinations satisfying the conjunction, then compares the result. Functions: `count`, `avg`, `sum`, `max`, `min`. Operators: `>`, `>=`, `<`, `<=`, `=`, `!=`. Use `_` for positions being enumerated; the type is inferred from the schema. `count`'s conjunction is entirely filters (no value predicate — see [Count](#count) above); `avg`/`sum`/`max`/`min` require exactly one numeric predicate in the conjunction as the value being aggregated, with the rest acting as filters.
 
 ```klugh
 rule "well-regarded when the average warmth among coworkers is high"

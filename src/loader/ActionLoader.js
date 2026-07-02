@@ -99,7 +99,7 @@ export class ActionLoader {
         return new PredicateUtilitySource(data.name, this.resolveArgs(data.args), owner);
       }
       case 'predicate-aggregate': {
-        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.ruleLoader.buildAggregateInner(data.predicates);
+        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.ruleLoader.buildAggregateInner(data.predicates, data.fn);
         return new PredicateAggregateUtilitySource(data.fn, filterPredicates, valuePred, countingVars, countingVarTypes);
       }
       case 'product':

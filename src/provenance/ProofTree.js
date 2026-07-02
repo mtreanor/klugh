@@ -6,7 +6,7 @@ import { Fact } from '../Fact.js';
 export class ProofNode {
   constructor({ statement, via, tick = null, detail = null, support = [], present = true }) {
     this.statement = statement;
-    this.via       = via;        // 'given'|'rule'|'derived'|'action'|'numeric'|'count'|'temporal'|'sensor'|'absent'|'external'|'cycle'|...
+    this.via       = via;        // 'given'|'rule'|'derived'|'action'|'numeric'|'aggregate'|'match'|'temporal'|'sensor'|'absent'|'external'|'cycle'|...
     this.tick      = tick;
     this.detail    = detail;     // rule/action/define name, numeric value, etc.
     this.support   = support;
@@ -128,12 +128,32 @@ function nodeFromJustification(j, ctx, visited) {
       return new ProofNode({ statement: j.description, via, detail, support });
     }
 
-    case 'count':
     case 'temporal':
       return new ProofNode({
         statement: j.description, via: j.kind,
         support: (j.records ?? []).map(r =>
           nodeFromRecord(r, describeFact(r.fact.name, r.fact.args), ctx, visited)),
+      });
+
+    // count|...|, avg|...|, etc. — one child per matching entity combination.
+    // A single-filter conjunction (the common case) delegates straight to
+    // that filter's own justification, so e.g. count|respected(?SELF,_)|'s
+    // children read as "respected(alice, bob)" directly rather than being
+    // wrapped in an extra layer. A multi-predicate conjunction (^) wraps its
+    // filters' justifications together under one node per combination, since
+    // there's more than one reason that combination matched.
+    case 'aggregate':
+      return new ProofNode({
+        statement: j.description, via: 'aggregate',
+        detail: j.value != null ? `= ${j.value}` : null,
+        support: (j.records ?? []).map(r => {
+          if (r.filters.length === 1) return nodeFromJustification(r.filters[0], ctx, visited);
+          return new ProofNode({
+            statement: r.args.map(a => a?.name ?? a).join(', '),
+            via: 'match',
+            support: r.filters.map(f => nodeFromJustification(f, ctx, visited)),
+          });
+        }),
       });
 
     case 'absence':

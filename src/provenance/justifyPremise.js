@@ -7,7 +7,7 @@ import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredi
 import { ExplicitNegationPredicate } from '../predicates/ExplicitNegationPredicate.js';
 import { NegationPredicate } from '../predicates/NegationPredicate.js';
 import { WeakNegationPredicate } from '../predicates/WeakNegationPredicate.js';
-import { CountPredicate } from '../predicates/CountPredicate.js';
+import { AggregatePredicate } from '../predicates/AggregatePredicate.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
 import { PrivatePredicate } from '../predicates/PrivatePredicate.js';
@@ -27,7 +27,8 @@ import { SensorNumericComparisonPredicate } from '../predicates/SensorNumericCom
 //   'derived'           — a define-derived premise         → subProvenance (a sub-tree)
 //   'explicit-negation' — a present -pred disbelief        → record
 //   'absence'           — held because something is ABSENT → present:false, no record
-//   'count'             — |pred| satisfied                 → records (the counted facts)
+//   'aggregate'         — count|...|, avg|...|, etc.        → records (one per matching
+//                          combination: { args, filters: Justification[], value })
 //   'temporal'          — a `then` chain                   → records (one per step)
 //   'historical'        — a [history] check                → record
 //   'sensor'            — sensor predicate                 → record (SensorProvenance: name, args, result, detail, value)
@@ -115,8 +116,8 @@ function justify(predicate, binding, ctx) {
     return mk('absence', { present: false });
   }
 
-  if (predicate instanceof CountPredicate) {
-    return mk('count', { records: collectCountRecords(predicate, binding, ctx) });
+  if (predicate instanceof AggregatePredicate) {
+    return mk('aggregate', { records: collectAggregateRecords(predicate, binding, ctx), value: predicate.computeValue(binding, ctx) });
   }
 
   if (predicate instanceof TemporalChainPredicate) {
@@ -173,7 +174,11 @@ function rewrap(predicate, description, inner, tick = null) {
   });
 }
 
-function collectCountRecords(predicate, binding, ctx) {
+// One record per entity combination that satisfies every filter predicate —
+// each carries the justification for *why* it matched (one per filter, since
+// an aggregate's conjunction can hold several) and, for value-aggregating
+// functions (avg/sum/max/min), the numeric value that combination contributed.
+function collectAggregateRecords(predicate, binding, ctx) {
   const registry = ctx.entityRegistry;
   const lists = predicate.countingVars.map(v =>
     registry?.get(predicate.countingVarTypes.get(v.name) ?? 'agent') ?? []
@@ -182,10 +187,19 @@ function collectCountRecords(predicate, binding, ctx) {
   for (const combination of cartesian(lists)) {
     let extended = binding;
     predicate.countingVars.forEach((v, i) => { extended = extended.extend(v, combination[i]); });
-    if (!predicate.innerPredicate.evaluate(extended, ctx)) continue;
-    const j = justify(predicate.innerPredicate, extended, ctx);
-    if (j.record) records.push(j.record);
-    else if (j.records) records.push(...j.records);
+
+    let passes = true;
+    for (const filter of predicate.filterPredicates) {
+      if (!filter.evaluate(extended, ctx)) { passes = false; break; }
+    }
+    if (!passes) continue;
+
+    const args    = predicate.countingVars.map(v => toFactArg(extended.resolve(v)));
+    const filters = predicate.filterPredicates.map(filter => justify(filter, extended, ctx));
+    const value   = predicate.valuePred
+      ? (ctx.resolveNumericValue?.(predicate.valuePred.name, resolveArgs(predicate.valuePred.args, extended)) ?? null)
+      : null;
+    records.push({ args, filters, value });
   }
   return records;
 }

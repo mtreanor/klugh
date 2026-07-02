@@ -482,8 +482,8 @@ describe('RuleParser', () => {
     });
   });
 
-  describe('count predicates', () => {
-    it('parses |pred| > N as a count predicate', () => {
+  describe('count predicates (bare |...| — sugar for count|...|)', () => {
+    it('parses |pred| > N as an aggregate (fn: count) predicate', () => {
       const { rules } = parser.parse(`
         rule "R1"
           |friendship.strong(?SELF, _)| > 4
@@ -491,14 +491,15 @@ describe('RuleParser', () => {
       `);
 
       assert.deepEqual(rules[0].predicates[0], {
-        type:      'count',
-        predicate: { type: 'numeric-tier', name: 'friendship', tier: 'strong', args: ['?SELF', null] },
-        operator:  '>',
-        threshold: 4,
+        type:       'aggregate',
+        fn:         'count',
+        predicates: [{ type: 'numeric-tier', name: 'friendship', tier: 'strong', args: ['?SELF', null] }],
+        operator:   '>',
+        rhs:        { kind: 'literal', value: 4 },
       });
     });
 
-    it('parses |pred| < N as a count predicate', () => {
+    it('parses |pred| < N as an aggregate (fn: count) predicate', () => {
       const { rules } = parser.parse(`
         rule "R1"
           |knows(?SELF, _)| < 2
@@ -506,14 +507,15 @@ describe('RuleParser', () => {
       `);
 
       assert.deepEqual(rules[0].predicates[0], {
-        type:      'count',
-        predicate: { type: 'fact', name: 'knows', args: ['?SELF', null] },
-        operator:  '<',
-        threshold: 2,
+        type:       'aggregate',
+        fn:         'count',
+        predicates: [{ type: 'fact', name: 'knows', args: ['?SELF', null] }],
+        operator:   '<',
+        rhs:        { kind: 'literal', value: 2 },
       });
     });
 
-    it('parses |pred| = N as a count predicate', () => {
+    it('parses |pred| = N as an aggregate (fn: count) predicate', () => {
       const { rules } = parser.parse(`
         rule "R1"
           |knows(?SELF, _)| = 1
@@ -521,7 +523,19 @@ describe('RuleParser', () => {
       `);
 
       assert.equal(rules[0].predicates[0].operator, '=');
-      assert.equal(rules[0].predicates[0].threshold, 1);
+      assert.equal(rules[0].predicates[0].rhs.value, 1);
+    });
+
+    it('parses a conjunction inside bare |...| the same as count|...|', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          |knows(?SELF, _) ^ trusted(?SELF, _)| >= 1
+          => close(?SELF) += 1.0
+      `);
+
+      assert.equal(rules[0].predicates[0].type, 'aggregate');
+      assert.equal(rules[0].predicates[0].fn, 'count');
+      assert.equal(rules[0].predicates[0].predicates.length, 2);
     });
   });
 

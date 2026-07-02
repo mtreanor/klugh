@@ -1,6 +1,6 @@
 import { Lexer, DSLParser } from './DSLParser.js';
 
-const AGGREGATORS = new Set(['sum', 'avg', 'min', 'max']);
+const AGGREGATORS = new Set(['sum', 'avg', 'min', 'max', 'count']);
 const RESERVED_SOURCES = new Set(['random']);
 
 class ActionDSLParser extends DSLParser {

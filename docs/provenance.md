@@ -180,7 +180,7 @@ Each `ProofNode` has:
 | Field | Meaning |
 |-------|---------|
 | `statement` | the fact, rendered |
-| `via` | how it holds: `given`, `rule`, `derived`, `action`, `numeric`, `count`, `temporal`, `sensor`, `absent`, `multiple`, `cycle` |
+| `via` | how it holds: `given`, `rule`, `derived`, `action`, `numeric`, `aggregate`, `match`, `temporal`, `sensor`, `absent`, `multiple`, `cycle` |
 | `tick` | when it was asserted |
 | `detail` | rule/define name, action name, numeric value… |
 | `support` | child `ProofNode`s — the premises, recursively |
@@ -191,7 +191,7 @@ The tree spans every premise form, not just plain facts:
 - **negation-as-failure** (`not pred`) becomes an *absence* leaf (`present: false`) — a positive fact justified partly by what is missing
 - a **derived** premise (`define`) expands into its own derivation
 - a **numeric** premise/effect expands into the contributing `given`/`adjusted` events, each with its own provenance
-- a **count** (`|pred| >= N`) lists the facts it counted; a **`then` chain** lists each step
+- an **aggregate** (`|pred| >= N`, `count|...|`, `avg|...|`, etc.) lists the entity combinations that matched — a single-predicate conjunction lists the matching facts directly, a multi-predicate one (`^`) wraps each combination's several supporting facts under a `match` node; a **`then` chain** lists each step
 - **explicit disbelief** (`-pred`) points at the disbelief record; **private** (`?owner.pred`) resolves against the owner's store
 
 `why` and `explain` are the pair: `why(fact)` is the shallow one-level primitive (the assertion events and their provenance); `explain(fact)` is the full recursive tree. Both work for boolean and numeric facts. Capturing the premise links is on by default — it happens as rules fire.

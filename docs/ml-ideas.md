@@ -45,7 +45,7 @@ Free supervised/RL signal, and using it here keeps logic soundness fully intact
 - **Inductive logic programming:** mine candidate `define` blocks or rules that
   predict observed facts. Differentiable ILP / neural theorem provers (∂ILP, NTPs)
   propose rules that klugh then validates and runs symbolically.
-- **Temporal angle:** `then` / `[history: N]` machinery lets you frame it as "learn
+- **Temporal angle:** `then` / `[asserted-during: N]` machinery lets you frame it as "learn
   rules whose RHS predicts next-tick facts from prior-tick facts." The 30-tick stress
   history is a natural benchmark.
 

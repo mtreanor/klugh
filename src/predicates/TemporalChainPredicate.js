@@ -66,7 +66,7 @@ export class TemporalChainPredicate extends Predicate {
       const argsStr = step.args.map(a => Predicate.renderArg(a, binding)).join(', ');
       const pred    = `${step.name}(${argsStr})`;
       if (i === 0) {
-        return step.within !== null ? `${pred} [history: ${step.within}]` : pred;
+        return step.within !== null ? `${pred} [asserted-during: ${step.within}]` : pred;
       }
       const gap = step.within !== null ? `[${step.within}]` : '';
       return `then${gap} ${pred}`;
@@ -78,7 +78,7 @@ export class TemporalChainPredicate extends Predicate {
       const argsStr = step.args.map(a => a?.toString() ?? '_').join(', ');
       const pred    = `${step.name}(${argsStr})`;
       if (i === 0) {
-        return step.within !== null ? `${pred} [history: ${step.within}]` : pred;
+        return step.within !== null ? `${pred} [asserted-during: ${step.within}]` : pred;
       }
       const gap = step.within !== null ? `[${step.within}]` : '';
       return `then${gap} ${pred}`;

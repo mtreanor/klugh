@@ -163,8 +163,8 @@ describe('RuleCycleDetector', () => {
     assert.ok(cycle.includes('R1'));
   });
 
-  it('detects a self-cycle hidden inside an [at:] tick wrapper', () => {
-    // R1 reads `p [at: -5]` and asserts `p`. AtTickPredicate shifts the tick
+  it('detects a self-cycle hidden inside an [tick:] tick wrapper', () => {
+    // R1 reads `p [tick: -5]` and asserts `p`. AtTickPredicate shifts the tick
     // but reads the same fact in the same store, so name-based cycle detection
     // must still descend into its wrapped `.inner` predicate and catch the loop.
     const wrapped = new AtTickPredicate(new FactPredicate('p', X, Y), -5);

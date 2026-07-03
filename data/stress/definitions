@@ -17,8 +17,8 @@ define "close allies — mutual devotion"
   => closeAllies(?X, ?Y)
 
 define "close allies — proven by deeds"
-  helped(?X, ?Y) [history]
-  ^ helped(?Y, ?X) [history]
+  helped(?X, ?Y) [ever]
+  ^ helped(?Y, ?X) [ever]
   ^ trust(?X, ?Y) >= 60
   => closeAllies(?X, ?Y)
 
@@ -53,7 +53,7 @@ define "can console — need meets provision"
   => canConsole(?X, ?Y)
 
 define "old wound — unforgiven betrayal"
-  betrayed(?Y, ?X) [history]
+  betrayed(?Y, ?X) [ever]
   ^ not forgave(?X, ?Y)
   => oldWound(?X, ?Y)
 

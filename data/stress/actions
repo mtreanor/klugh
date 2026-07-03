@@ -6,7 +6,7 @@
 #
 # Precondition features covered:
 #   boolean fact, NAF (not), numeric comparison, numeric tier,
-#   count (|...|), history ([history]), temporal chain (then),
+#   count (|...|), event history ([ever]), temporal chain (then),
 #   derived predicate, variable-owner private store (?VAR.pred).
 #
 # Effects covered:
@@ -79,7 +79,7 @@ action "seek forgiveness"
     tag(?this_action, prosocial)
     tag(?this_action, reconciliation)
   preconditions
-    betrayed(?SELF, ?Y) [history]
+    betrayed(?SELF, ?Y) [ever]
     ^ not apologized(?SELF, ?Y)
   utility
     trust(?SELF, ?Y)
@@ -150,7 +150,7 @@ action "challenge an insult"
     tag(?this_action, antisocial)
     tag(?this_action, aggressive)
   preconditions
-    insulted(?Y, ?SELF) [history]
+    insulted(?Y, ?SELF) [ever]
     ^ knows(?SELF, ?Y)
   utility
     rule "witnesses"

@@ -1,10 +1,10 @@
 define "ready to forgive — change of heart"
   ?Y.perceivedChange(?SELF) >= 15
-  ^ helped(?SELF, ?Y) [history: 10]
+  ^ helped(?SELF, ?Y) [asserted-during: 10]
   => readyToForgive(?Y, ?SELF)
 
 define "strained pair — cold after conflict"
-  hadConflict(?Y, ?X) [history: 20]
+  hadConflict(?Y, ?X) [asserted-during: 20]
   ^ friendship.cold(?Y, ?X)
   ^ not trusts(?Y, ?X)
   => strainedPair(?X, ?Y)

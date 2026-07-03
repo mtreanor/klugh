@@ -18,29 +18,49 @@ hasKnowledge(?Y, "karate")
 
 ---
 
-## Historical
+## Historical (event checks)
 
-Adding `[history]` makes a predicate true if the fact was ever asserted, even if later retracted.
+`[ever]` makes a predicate true if the fact was ever *asserted* at or before now, even if later retracted. It is an **event** check — it asks whether an assertion happened, not whether the fact is currently, or was continuously, true.
 
 ```klugh
 rule "guilt when SELF has previously exploited Y"
   knows(?SELF, ?Y)
-  ^ exploited(?SELF, ?Y) [history]
+  ^ exploited(?SELF, ?Y) [ever]
   => respectful(?SELF, ?Y) += 5.0
 ```
 
----
-
-## Historical window
-
-`[history: N]` restricts the historical check to the last N ticks.
+`[asserted-during: N]` is the bounded form: true if the fact was asserted at some point in the last N ticks.
 
 ```klugh
 rule "remorse sharpens when exploitation was recent"
   knows(?SELF, ?Y)
-  ^ exploited(?SELF, ?Y) [history: 3]
+  ^ exploited(?SELF, ?Y) [asserted-during: 3]
   => respectful(?SELF, ?Y) += 2.0
 ```
+
+Because these check assertion *events*, a fact asserted once long ago and never retracted falls outside a short `[asserted-during: N]` window even though it has stayed true the whole time. Use a state check (below) when you mean "was it true", not "was it (re-)asserted".
+
+---
+
+## Point-in-time state
+
+`[tick: N]` evaluates the predicate as of an absolute tick N — was the fact *true* then, per the last assert/retract event at or before N. Negative ticks address history seeded before tick 0.
+
+```klugh
+rule "an ancient acquaintance still colours things"
+  knows(?X, ?Y) [tick: -25]
+  => tension(?Y, ?X) += 2
+```
+
+`[ago: N]` is the same check relative to now: it resolves to `currentTick - N` at evaluation time.
+
+```klugh
+rule "were we friends five ticks ago"
+  friends(?X, ?Y) [ago: 5]
+  => reminisce(?X, ?Y) += 1
+```
+
+Unlike the event checks above, these are **state** checks: they report whether the fact was true at that point, regardless of when it was asserted.
 
 ---
 
@@ -179,15 +199,15 @@ rule "exploitation followed by respect, and history is honoured now"
   => considerate(?SELF, ?Y) += 3.0
 ```
 
-The first step of a chain can carry a `[history: N]` window to restrict how far back the initial event is looked for:
+The first step of a chain can carry an `[asserted-during: N]` window to restrict how far back the initial event is looked for:
 
 ```klugh
 rule "recent betrayal followed by apology"
-  betrayed(?X, ?Y) [history: 10] then apologized(?X, ?Y)
+  betrayed(?X, ?Y) [asserted-during: 10] then apologized(?X, ?Y)
   => goodwill(?Y, ?X) += 3
 ```
 
-Without `[history: N]`, the first step matches any assertion in the full history.
+Without `[asserted-during: N]`, the first step matches any assertion in the full history.
 
 `then` binds tighter than `^`. A chain like `A then B ^ C` means `(A then B) ^ C`.
 
@@ -202,7 +222,7 @@ Temporal chains with private-store predicates are not supported.
 ```klugh
 rule "complex judgment"
   knows(?SELF, ?Y) [importance: 2.0]
-  ^ exploited(?SELF, ?Y) [history]
+  ^ exploited(?SELF, ?Y) [ever]
   ^ friendship.strong(?SELF, ?Y) [importance: 0.5]
   => respectful(?SELF, ?Y) += 4.0
 ```

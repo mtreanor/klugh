@@ -184,12 +184,12 @@ The coherence of this definition across all four Belnap values:
 
 Historical forms check the event log rather than current store state. All historical checks operate over positive assertion events only — disbelief is not tracked historically.
 
-**Unbounded history** `p(ā) [history]`:
+**Unbounded history** `p(ā) [ever]`:
 > satisfied iff ∃ event (asserted, t') in rec(p, σ(ā), +) with t' ≤ t
 
 This is true if a positive assertion was ever recorded at or before t, regardless of any subsequent retraction or concurrent disbelief.
 
-**Windowed history** `p(ā) [history: N]`:
+**Windowed history** `p(ā) [asserted-during: N]`:
 > satisfied iff ∃ event (asserted, t') in rec(p, σ(ā), +) with t − N ≤ t' ≤ t
 
 **Temporal chain** `p₁(ā₁) then p₂(ā₂)`:
@@ -398,8 +398,8 @@ Multiple events may share the same tick. This is intentional: within a single `w
 
 The evaluation context carries a `currentTick` that governs all boolean fact checks. To evaluate the world as it was at tick T, call `evaluationContext.withTick(T)`. All boolean fact queries, negation checks, and historical predicates on the resulting context will reflect the world state at tick T.
 
-**Per-predicate time annotation** (`[at: T]` on a LHS predicate) evaluates that individual predicate at tick T while the rest of the conjunction evaluates at the context's `currentTick`. This lets a single rule body reason across multiple points in time.
+**Per-predicate time annotation** (`[tick: T]` on a LHS predicate) evaluates that individual predicate at the absolute tick T while the rest of the conjunction evaluates at the context's `currentTick`. This lets a single rule body reason across multiple points in time. The relative form `[ago: N]` evaluates the predicate at `currentTick − N`, resolved per evaluation.
 
 ### Initial facts and backdating
 
-Facts loaded before any `world.apply()` call are asserted at tick 0 by default. Backdating (`[at: N]`) places a fact at an arbitrary tick, establishing prior history without replaying a simulation. Negative ticks are valid and represent history before tick 0.
+Facts loaded before any `world.apply()` call are asserted at tick 0 by default. Backdating (`[tick: N]`) places a fact at an arbitrary tick, establishing prior history without replaying a simulation. Negative ticks are valid and represent history before tick 0.

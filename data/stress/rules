@@ -99,50 +99,50 @@ rule "B8 — grudge expressly dismissed"
 # ── C: history ──────────────────────────────────────────────────────────────
 
 rule "C1 — remembered betrayal"
-  betrayed(?X, ?Y) [history]
+  betrayed(?X, ?Y) [ever]
   ^ knows(?X, ?Y)
   => tension(?Y, ?X) += 4
 
 rule "C2 — fresh gratitude"
-  helped(?X, ?Y) [history: 3]
+  helped(?X, ?Y) [asserted-during: 3]
   => goodwill(?Y, ?X) += 5
 
 rule "C3 — kindness is never forgotten"
-  helped(?X, ?Y) [history]
+  helped(?X, ?Y) [ever]
   => goodwill(?Y, ?X) += 1
 
 rule "C4 — door once open, now barred"
-  wantsVisitors(?X) [history]
+  wantsVisitors(?X) [ever]
   ^ -wantsVisitors(?X)
   ^ knows(?Y, ?X)
   => tension(?Y, ?X) += 1
 
 rule "C5 — ancient acquaintance"
-  knows(?X, ?Y) [at: -25]
-  ^ betrayed(?X, ?Y) [history]
+  knows(?X, ?Y) [tick: -25]
+  ^ betrayed(?X, ?Y) [ever]
   => tension(?Y, ?X) += 2
 
 rule "C6 — helping warmed the helper"
-  helped(?X, ?Y) [history]
+  helped(?X, ?Y) [ever]
   ^ knows(?X, ?Y)
   => goodwill(?X, ?Y) += 0.5
 
 rule "C7 — devotion remembered, now cooled"
-  trust.devoted(?X, ?Y) [history]
+  trust.devoted(?X, ?Y) [ever]
   ^ trust(?X, ?Y) < 80
   => tension(?X, ?Y) += 1
 
 rule "C8 — recent help spreads cheer"
-  helped(?X, ?Y) [history: 5]
+  helped(?X, ?Y) [asserted-during: 5]
   => goodwill(?X, ?Y) += 2
 
 rule "C9 — betrayal within living memory"
-  betrayed(?X, ?Y) [history: 25]
+  betrayed(?X, ?Y) [asserted-during: 25]
   => tension(?Y, ?X) += 3
 
 rule "C10 — weighted reckoning"
   knows(?X, ?Y) [importance: 2]
-  ^ betrayed(?X, ?Y) [history] [importance: 0.5]
+  ^ betrayed(?X, ?Y) [ever] [importance: 0.5]
   => goodwill(?X, ?Y) += 4
 
 # ── D: temporal chains ──────────────────────────────────────────────────────
@@ -297,7 +297,7 @@ rule "G5 — doubt never voiced"
   => goodwill(?X, ?Y) += 0.5
 
 rule "G6 — betrayal plants suspicion"
-  betrayed(?X, ?Y) [history]
+  betrayed(?X, ?Y) [ever]
   => ?Y.suspects(?Y, ?X) [strength: 0.6]
 
 rule "G7 — newcomers admire the locals"
@@ -413,7 +413,7 @@ rule "I6 — near enough to call on"
 rule "J1 — a friend proven and kept"
   knows(?X, ?Y) [importance: 2]
   ^ closeAllies(?X, ?Y)
-  ^ helped(?X, ?Y) [history]
+  ^ helped(?X, ?Y) [ever]
   => goodwill(?X, ?Y) += 4
 
 rule "J2 — wanderer's burden"
@@ -483,7 +483,7 @@ rule "L3 — market hustle"
   => prosperity(?X) += 1
 
 rule "L4 — old betrayals make new gossip"
-  betrayed(?X, ?Y) [history: 25]
+  betrayed(?X, ?Y) [asserted-during: 25]
   ^ knows(?Z, ?X)
   => gossipedAbout(?Z, ?X) [strength: 0.6]
 
@@ -497,7 +497,7 @@ rule "L6 — gossip erodes trust"
   => trust(?Y, ?X) -= 2
 
 rule "L7 — a kindness reopens the door"
-  helped(?Y, ?X) [history: 2]
+  helped(?Y, ?X) [asserted-during: 2]
   => not -wantsVisitors(?X)
 
 rule "L8 — the uninvolved drift"

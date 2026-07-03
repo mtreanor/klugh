@@ -11,7 +11,7 @@ world
   knows(mara, una)
   knows(mara, yara)
   knows(mara, zeke)
-  knows(oren, silas) [at: -31]
+  knows(oren, silas) [tick: -31]
   knows(oren, petra)
   knows(oren, wren)
   knows(petra, una)
@@ -26,24 +26,24 @@ world
   knows(yara, una)
 
   # ── deep history (negative ticks = before the simulation started) ──
-  betrayed(oren, silas) [at: -30]
-  betrayed(oren, mara) [at: -20] [strength: 0.9]
-  apologized(oren, mara) [at: -15]
-  forgave(mara, oren) [at: -10]
-  helped(mara, talia) [at: -12]
-  helped(talia, mara) [at: -9]
-  helped(mara, una) [at: -2]
-  helped(mara, zeke) [at: -1]
-  helped(yara, silas) [at: -1]
-  insulted(wren, viggo) [at: -6]
-  insulted(viggo, wren) [at: -5]
-  gossipedAbout(petra, una) [at: -4]
-  gossipedAbout(wren, una) [at: -3]
-  gossipedAbout(petra, zeke) [at: -2]
+  betrayed(oren, silas) [tick: -30]
+  betrayed(oren, mara) [tick: -20] [strength: 0.9]
+  apologized(oren, mara) [tick: -15]
+  forgave(mara, oren) [tick: -10]
+  helped(mara, talia) [tick: -12]
+  helped(talia, mara) [tick: -9]
+  helped(mara, una) [tick: -2]
+  helped(mara, zeke) [tick: -1]
+  helped(yara, silas) [tick: -1]
+  insulted(wren, viggo) [tick: -6]
+  insulted(viggo, wren) [tick: -5]
+  gossipedAbout(petra, una) [tick: -4]
+  gossipedAbout(wren, una) [tick: -3]
+  gossipedAbout(petra, zeke) [tick: -2]
 
   # silas once welcomed visitors, no longer does, and has said so:
   # historically true, currently retracted, with explicit disbelief on record.
-  wantsVisitors(silas) [at: -8]
+  wantsVisitors(silas) [tick: -8]
   not wantsVisitors(silas)
   -wantsVisitors(silas)
 

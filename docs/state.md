@@ -11,7 +11,7 @@ world
   knows(alice, carol)
   hasNeed(alice, "companionship")
   friendship(alice, bob) = 85
-  exploited(alice, carol) [at: -5]
+  exploited(alice, carol) [tick: -5]
   -wantsContact(alice)
 
 private alice
@@ -77,15 +77,15 @@ Strength applies to assertions and `=` value sets, not to `+=`/`-=` adjustments 
 
 ## Backdating
 
-A fact can be backdated to a specific tick using `[at: N]`. Negative ticks represent history before the simulation started. Backdating is how you establish prior events that rules can look back on.
+A fact can be backdated to a specific tick using `[tick: N]`. Negative ticks represent history before the simulation started. Backdating is how you establish prior events that rules can look back on.
 
 ```klugh
 world
-  exploited(alice, carol) [at: -5]
-  hadConflict(alice, carol) [at: -1]
+  exploited(alice, carol) [tick: -5]
+  hadConflict(alice, carol) [tick: -1]
 ```
 
-`[at: N]` and `[strength: N]` are independent annotations that stack in any order: `exploited(alice, bob) [at: -30] [strength: 0.75]` and `exploited(alice, bob) [strength: 0.75] [at: -30]` are equivalent.
+`[tick: N]` and `[strength: N]` are independent annotations that stack in any order: `exploited(alice, bob) [tick: -30] [strength: 0.75]` and `exploited(alice, bob) [strength: 0.75] [tick: -30]` are equivalent.
 
 ---
 

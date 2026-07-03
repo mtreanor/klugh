@@ -294,21 +294,32 @@ export class DSLParser {
     let historyFound = false;
     let window = null;
     let atTick = null;
+    let agoOffset = null;
 
     // Each modifier is its own bracket; brackets stack in any order, no commas.
     while (this.check('LBRACKET')) {
       this.advance(); // consume [
       const keyTok = this.expect('IDENT');
       const key = keyTok.value;
-      if (key === 'history') {
+      if (key === 'ever') {
+        // Unbounded event check: was this ever asserted at or before now.
         historyFound = true;
-        if (this.check('COLON')) { this.advance(); window = this.expect('NUMBER').value; }
+      } else if (key === 'asserted-during') {
+        // Bounded event check: was this asserted within the last N ticks.
+        historyFound = true;
+        this.expect('COLON');
+        window = this.expect('NUMBER').value;
       } else if (key === 'importance') {
         this.expect('COLON');
         importance = this.expect('NUMBER').value;
-      } else if (key === 'at') {
+      } else if (key === 'tick') {
+        // Absolute-tick state check: was this true at tick N.
         this.expect('COLON');
         atTick = this.expect('NUMBER').value;
+      } else if (key === 'ago') {
+        // Relative-tick state check: was this true N ticks before now.
+        this.expect('COLON');
+        agoOffset = this.expect('NUMBER').value;
       } else {
         throw new Error(`Unknown modifier '${key}' at line ${keyTok.line}`);
       }
@@ -323,6 +334,8 @@ export class DSLParser {
       if (window !== null) finalPred.window = window;
     } else if (atTick !== null) {
       finalPred = { type: 'at-tick', predicate: finalPred, tick: atTick };
+    } else if (agoOffset !== null) {
+      finalPred = { type: 'at-tick', predicate: finalPred, tick: agoOffset, relative: true };
     }
 
     if (pred.type === 'private') {
@@ -554,7 +567,7 @@ export class DSLParser {
     return owner;
   }
 
-  // Trailing assertion annotations: [strength: N] always; [at: N] only in state files.
+  // Trailing assertion annotations: [strength: N] always; [tick: N] only in state files.
   // Brackets stack in any order, one key each, no commas.
   applyStateModifiers(op, { allowTick }) {
     const result = { ...op };
@@ -570,7 +583,7 @@ export class DSLParser {
         }
         this.expect('COLON');
         result.strength = this.expect('NUMBER').value;
-      } else if (key === 'at' && allowTick) {
+      } else if (key === 'tick' && allowTick) {
         this.expect('COLON');
         result.tick = this.expect('NUMBER').value;
       } else if (key === 'name' && op.type === 'new-entity') {

@@ -32,7 +32,8 @@ export class RuleSerializer {
       return this.ownerPrefix(pred) + this.serializePredicate(pred.predicate);
     }
     if (pred.type === 'at-tick') {
-      return `${this.serializePredicate(pred.predicate)} [at: ${pred.tick}]`;
+      const modifier = pred.relative ? `[ago: ${pred.tick}]` : `[tick: ${pred.tick}]`;
+      return `${this.serializePredicate(pred.predicate)} ${modifier}`;
     }
     if (pred.type === 'aggregate') {
       const inner = pred.predicates.map(p => this.serializePredicate(p)).join(' ^ ');
@@ -64,7 +65,7 @@ export class RuleSerializer {
       return `not -${this.serializePredicate(pred.predicate)}`;
     }
     if (pred.type === 'historical' || pred.type === 'historical-window') {
-      const modifier = pred.window !== undefined ? `[history: ${pred.window}]` : '[history]';
+      const modifier = pred.window !== undefined ? `[asserted-during: ${pred.window}]` : '[ever]';
       const base = pred.tier ? `${pred.name}.${pred.tier}` : pred.name;
       return `${base}(${this.serializeArgs(pred.args)}) ${modifier}`;
     }
@@ -147,11 +148,11 @@ export class RuleSerializer {
   serializeWorldState(entries) {
     // Reuse serializeRuleEffect so world-state and rule-effect serialization
     // share one code path and cannot drift (it handles assert/retract/adjust/
-    // set-numeric, owner prefixes, negation, and strength). Backdating ([at: N])
+    // set-numeric, owner prefixes, negation, and strength). Backdating ([tick: N])
     // is the only state-only annotation, appended here.
     const lines = ['world'];
     for (const entry of entries) {
-      const at = entry.tick !== undefined ? ` [at: ${entry.tick}]` : '';
+      const at = entry.tick !== undefined ? ` [tick: ${entry.tick}]` : '';
       lines.push('  ' + this.serializeRuleEffect(entry) + at);
     }
     return lines.join('\n');

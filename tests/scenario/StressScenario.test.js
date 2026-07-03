@@ -161,7 +161,7 @@ describe('Stress scenario', () => {
       const { engine } = buildWorld();
       // wantsVisitors(silas): asserted at -8, retracted, explicit disbelief added.
       assert.equal(q(engine, 'wantsVisitors(silas)'), 0);
-      assert.equal(q(engine, 'wantsVisitors(silas) [history]'), 1);
+      assert.equal(q(engine, 'wantsVisitors(silas) [ever]'), 1);
       assert.equal(q(engine, '-wantsVisitors(silas)'), 1);
       assert.equal(q(engine, 'not wantsVisitors(silas)'), 1);
       assert.equal(q(engine, '~wantsVisitors(silas)'), 1);
@@ -209,7 +209,7 @@ describe('Stress scenario', () => {
       // zeke: feels(anxious) then feels(hopeful) at load — hopeful supersedes.
       assert.equal(q(engine, 'feels(zeke, hopeful)'), 1);
       assert.equal(q(engine, 'feels(zeke, anxious)'), 0);
-      assert.equal(q(engine, 'feels(zeke, anxious) [history]'), 1);
+      assert.equal(q(engine, 'feels(zeke, anxious) [ever]'), 1);
       // Exactly one mood is active for the key.
       assert.equal(q(engine, 'feels(zeke, ?M)'), 1);
     });
@@ -219,7 +219,7 @@ describe('Stress scenario', () => {
       engine.assert('feels(mara, grieving)');
       assert.equal(q(engine, 'feels(mara, grieving)'), 1);
       assert.equal(q(engine, 'feels(mara, content)'), 0);
-      assert.equal(q(engine, 'feels(mara, content) [history]'), 1);
+      assert.equal(q(engine, 'feels(mara, content) [ever]'), 1);
     });
 
     it('negated asserts do not own the slot, so disbeliefs accumulate', () => {
@@ -243,22 +243,22 @@ describe('Stress scenario', () => {
   describe('query forms', () => {
     it('evaluates at-tick against past world state', () => {
       const { engine } = buildWorld();
-      assert.equal(q(engine, 'knows(oren, silas) [at: -25]'), 1);
-      assert.equal(q(engine, 'knows(mara, petra) [at: -25]'), 0); // asserted at 0
+      assert.equal(q(engine, 'knows(oren, silas) [tick: -25]'), 1);
+      assert.equal(q(engine, 'knows(mara, petra) [tick: -25]'), 0); // asserted at 0
     });
 
     it('bounds historical checks by window', () => {
       const { engine } = buildWorld();
-      assert.equal(q(engine, 'helped(mara, una) [history: 3]'), 1);   // -2
-      assert.equal(q(engine, 'helped(mara, talia) [history: 3]'), 0); // -12
-      assert.equal(q(engine, 'betrayed(oren, mara) [history: 25]'), 1);  // -20
-      assert.equal(q(engine, 'betrayed(oren, silas) [history: 25]'), 0); // -30
+      assert.equal(q(engine, 'helped(mara, una) [asserted-during: 3]'), 1);   // -2
+      assert.equal(q(engine, 'helped(mara, talia) [asserted-during: 3]'), 0); // -12
+      assert.equal(q(engine, 'betrayed(oren, mara) [asserted-during: 25]'), 1);  // -20
+      assert.equal(q(engine, 'betrayed(oren, silas) [asserted-during: 25]'), 0); // -30
     });
 
     it('checks numeric tiers historically', () => {
       const { engine } = buildWorld();
       assert.equal(q(engine, 'trust.devoted(yara, mara)'), 0);            // now 58
-      assert.equal(q(engine, 'trust.devoted(yara, mara) [history]'), 1);  // once 88
+      assert.equal(q(engine, 'trust.devoted(yara, mara) [ever]'), 1);  // once 88
     });
 
     it('honors temporal chain order and windows', () => {
@@ -794,7 +794,7 @@ describe('Stress scenario', () => {
         assert.equal(q(engine, 'tag("share a kind word", prosocial)'), 0);
         assert.equal(q(engine, 'tag("share a kind word", antisocial)'), 1);
         // Provenance: the temporal log still shows it WAS prosocial.
-        assert.equal(q(engine, 'tag("share a kind word", prosocial) [history]'), 1);
+        assert.equal(q(engine, 'tag("share a kind word", prosocial) [ever]'), 1);
       });
 
       it('restores the trait with a later rehabilitating action', () => {

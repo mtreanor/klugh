@@ -19,7 +19,7 @@ function* walkScoped(predicate, scope) {
   // AtTickPredicate (and future tick-binding wrappers) store their wrapped
   // predicate as `.inner`, evaluated at a shifted tick but the same store, so
   // it descends under the current scope. Without this, a rule condition like
-  // `pred(?x) [at: -25]` is invisible to cycle detection.
+  // `pred(?x) [tick: -25]` is invisible to cycle detection.
   if (predicate.inner)          yield* walkScoped(predicate.inner, scope);
 }
 

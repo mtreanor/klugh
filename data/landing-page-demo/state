@@ -9,9 +9,9 @@ world
   knows(carol, alice)
   knows(carol, bob)
 
-  hadConflict(carol, alice) [at: -8]
-  helped(alice, bob)        [at: -4]
-  helped(alice, carol)      [at: -5]
+  hadConflict(carol, alice) [tick: -8]
+  helped(alice, bob)        [tick: -4]
+  helped(alice, carol)      [tick: -5]
 
   friendship(carol, alice) = 25
   friendship(alice, carol) = 40

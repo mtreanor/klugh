@@ -37,7 +37,7 @@ The hard part. A mathematical definition of what a *world state* is and what it 
 
 - What does it mean for `pred` and `-pred` to coexist?
 - How do the contradiction policies relate to that formally?
-- What does `[history]` mean over a sequence of states?
+- What does `[ever]` mean over a sequence of states?
 - What is the formal account of `satisfactionScore`?
 
 ### Proof theory
@@ -106,7 +106,7 @@ The complete formal semantics is in [semantics.md](semantics.md).
 
 Key semantic decisions made during development of the formal treatment:
 
-- **`[history]` over Both**: checks positive assertion events only; concurrent disbelief at the same tick is ignored.
+- **`[ever]` over Both**: checks positive assertion events only; concurrent disbelief at the same tick is ignored.
 - **`~pred`**: defined as `(not pred) ∨ (-pred)` in the metalanguage; not a primitive operator.
 - **Two-layer architecture**: Layer 1 (Belnap four-valued) handles boolean conditions; Layer 2 (arithmetic) handles numeric accumulation. The layers do not interfere.
 - **satisfactionScore**: a scaling factor on Layer 2 contributions, not a Belnap-valued conjunction.

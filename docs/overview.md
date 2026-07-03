@@ -48,8 +48,8 @@ These predicate forms are valid in rule LHS conjunctions, queries, `define` defi
 | Explicit negation | `-trusts(?SELF, ?Y)` |
 | Negation as failure | `not hostile(?SELF, ?Y)` |
 | Weak negation | `~perceivedThreat(?SELF, ?Y)` |
-| Historical | `exploited(?SELF, ?Y) [history]` |
-| Historical window | `exploited(?SELF, ?Y) [history: 3]` |
+| Historical | `exploited(?SELF, ?Y) [ever]` |
+| Historical window | `exploited(?SELF, ?Y) [asserted-during: 3]` |
 | Numeric tier | `friendship.strong(?SELF, ?Y)` |
 | Numeric comparison | `bond(?SELF, ?Y) >= 40` |
 | Count | `\|knows(?SELF, _)\| >= 3` |
@@ -69,7 +69,7 @@ Facts are declared in a `state` file. The `world` block is the shared store; `pr
 world
   knows(alice, bob)
   friendship(alice, bob) = 85
-  exploited(alice, carol) [at: -5]   // backdated
+  exploited(alice, carol) [tick: -5]   // backdated
   -trusts(alice, carol)              // explicit disbelief
 
 private alice
@@ -98,7 +98,7 @@ Rules fire when their LHS conjunction is satisfied. On the RHS, state operations
 ```klugh
 rule "guilt lingers after exploitation"
   knows(?SELF, ?Y)
-  ^ exploited(?SELF, ?Y) [history]
+  ^ exploited(?SELF, ?Y) [ever]
   ^ friendship.strong(?SELF, ?Y) [importance: 0.5]
   => respectful(?SELF, ?Y) += 4.0
 ```

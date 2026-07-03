@@ -81,10 +81,10 @@ describe('RuleParser', () => {
       });
     });
 
-    it('parses [history] as a historical-window predicate with no window', () => {
+    it('parses [ever] as a historical-window predicate with no window', () => {
       const { rules } = parser.parse(`
         rule "R1"
-          hadConflict(?SELF, ?Y) [history]
+          hadConflict(?SELF, ?Y) [ever]
           => cautious(?SELF, ?Y) += 2.0
       `);
 
@@ -138,10 +138,10 @@ describe('RuleParser', () => {
   });
 
   describe('rules — history and temporal predicates', () => {
-    it('parses [history] as a historical-window predicate with no window', () => {
+    it('parses [ever] as a historical-window predicate with no window', () => {
       const { rules } = parser.parse(`
         rule "R1"
-          knows(?SELF, ?Y) [history]
+          knows(?SELF, ?Y) [ever]
           => test(?SELF, ?Y) += 1.0
       `);
 
@@ -150,10 +150,10 @@ describe('RuleParser', () => {
       });
     });
 
-    it('parses [history: N] as a historical-window predicate with a window', () => {
+    it('parses [asserted-during: N] as a historical-window predicate with a window', () => {
       const { rules } = parser.parse(`
         rule "R1"
-          knows(?SELF, ?Y) [history: 5]
+          knows(?SELF, ?Y) [asserted-during: 5]
           => test(?SELF, ?Y) += 1.0
       `);
 
@@ -162,10 +162,38 @@ describe('RuleParser', () => {
       });
     });
 
-    it('parses stacked [history] [importance: N] setting both modifiers', () => {
+    it('parses [tick: N] as an absolute at-tick rule condition', () => {
       const { rules } = parser.parse(`
         rule "R1"
-          knows(?SELF, ?Y) [history] [importance: 2]
+          knows(?SELF, ?Y) [tick: -3]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      const p = rules[0].predicates[0];
+      assert.equal(p.type, 'at-tick');
+      assert.equal(p.tick, -3);
+      assert.ok(!p.relative);
+      assert.equal(p.predicate.name, 'knows');
+    });
+
+    it('parses [ago: N] as a relative at-tick rule condition', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [ago: 5]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      const p = rules[0].predicates[0];
+      assert.equal(p.type, 'at-tick');
+      assert.equal(p.tick, 5);
+      assert.equal(p.relative, true);
+      assert.equal(p.predicate.name, 'knows');
+    });
+
+    it('parses stacked [ever] [importance: N] setting both modifiers', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [ever] [importance: 2]
           => test(?SELF, ?Y) += 1.0
       `);
 
@@ -219,10 +247,10 @@ describe('RuleParser', () => {
       assert.equal(rules[0].predicates[0].steps[2].within, 3);
     });
 
-    it('parses [history:N] on the first step of a temporal chain', () => {
+    it('parses [asserted-during: N] on the first step of a temporal chain', () => {
       const { rules } = parser.parse(`
         rule "R1"
-          knows(?SELF, ?Y) [history: 5] then hadConflict(?SELF, ?Y)
+          knows(?SELF, ?Y) [asserted-during: 5] then hadConflict(?SELF, ?Y)
           => test(?SELF, ?Y) += 1.0
       `);
 
@@ -389,8 +417,8 @@ describe('RuleParser', () => {
       });
     });
 
-    it('parses name(args) [at: N] as a timed assert', () => {
-      const { worldState } = parser.parseState('world\n  hadConflict(alice, carol) [at: 0]');
+    it('parses name(args) [tick: N] as a timed assert', () => {
+      const { worldState } = parser.parseState('world\n  hadConflict(alice, carol) [tick: 0]');
       assert.deepEqual(worldState[0], {
         type: 'assert', name: 'hadConflict', args: ['alice', 'carol'], tick: 0,
         ownerVar: null, ownerEntity: null, strength: 1.0,
@@ -411,8 +439,8 @@ describe('RuleParser', () => {
     });
 
     it('parses strength and backdate brackets in either order', () => {
-      const before = parser.parseState('world\n  hadConflict(alice, carol) [strength: 0.75] [at: -30]').worldState[0];
-      const after  = parser.parseState('world\n  hadConflict(alice, carol) [at: -30] [strength: 0.75]').worldState[0];
+      const before = parser.parseState('world\n  hadConflict(alice, carol) [strength: 0.75] [tick: -30]').worldState[0];
+      const after  = parser.parseState('world\n  hadConflict(alice, carol) [tick: -30] [strength: 0.75]').worldState[0];
       assert.equal(before.tick, -30);
       assert.equal(before.strength, 0.75);
       assert.deepEqual(after, before);

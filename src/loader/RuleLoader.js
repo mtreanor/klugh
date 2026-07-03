@@ -168,7 +168,7 @@ export class RuleLoader {
         return new AggregatePredicate(data.right.fn, filterPredicates, valuePred, countingVars, countingVarTypes, flippedOp, rhs);
       }
       case 'at-tick':
-        return new AtTickPredicate(this.buildPredicate(data.predicate), data.tick);
+        return new AtTickPredicate(this.buildPredicate(data.predicate), data.tick, data.relative ?? false);
       case 'temporal-chain': {
         const steps = data.steps.map(step => {
           if (this.predicateSchema && !this.predicateSchema.hasDefinition(step.name)) {

@@ -30,7 +30,7 @@ import { SensorNumericComparisonPredicate } from '../predicates/SensorNumericCom
 //   'aggregate'         — count|...|, avg|...|, etc.        → records (one per matching
 //                          combination: { args, filters: Justification[], value })
 //   'temporal'          — a `then` chain                   → records (one per step)
-//   'historical'        — a [history] check                → record
+//   'historical'        — an [ever]/[asserted-during] check → record
 //   'sensor'            — sensor predicate                 → record (SensorProvenance: name, args, result, detail, value)
 //   'unknown'           — unmodelled predicate type         → no record
 export class Justification {
@@ -140,10 +140,12 @@ function justify(predicate, binding, ctx) {
     return mk('private');
   }
 
-  // pred [at: N] — justify the inner predicate as of that tick.
+  // pred [tick: N] / pred [ago: N] — justify the inner predicate as of the
+  // resolved tick ([ago:] resolves against the current tick).
   if (predicate instanceof AtTickPredicate) {
-    const j = justify(predicate.inner, binding, ctx.withTick(predicate.tick));
-    return rewrap(predicate, description, j, predicate.tick);
+    const tick = predicate.effectiveTick(ctx);
+    const j = justify(predicate.inner, binding, ctx.withTick(tick));
+    return rewrap(predicate, description, j, tick);
   }
 
   if (predicate instanceof SensorPredicate ||

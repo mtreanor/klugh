@@ -54,12 +54,12 @@ describe('RuleSerializer', () => {
       assert.ok(dsl.includes('canHaveNeedMet(?SELF, ?Y)'));
     });
 
-    it('serializes a historical predicate with [history]', () => {
+    it('serializes a historical predicate with [ever]', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [pred('historical', 'hadConflict', ['?SELF', '?Y'])], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
       });
 
-      assert.ok(dsl.includes('hadConflict(?SELF, ?Y) [history]'));
+      assert.ok(dsl.includes('hadConflict(?SELF, ?Y) [ever]'));
     });
 
     it('serializes a negation (NAF) as "not pred"', () => {
@@ -126,12 +126,20 @@ describe('RuleSerializer', () => {
       assert.ok(dsl.includes('mara.trust.devoted(mara, ?Y)'));
     });
 
-    it('serializes an at-tick predicate with [at: N]', () => {
+    it('serializes an at-tick predicate with [tick: N]', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [{ type: 'at-tick', predicate: pred('fact', 'exploited', ['?X', '?Y']), tick: -5 }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
       });
 
-      assert.ok(dsl.includes('exploited(?X, ?Y) [at: -5]'));
+      assert.ok(dsl.includes('exploited(?X, ?Y) [tick: -5]'));
+    });
+
+    it('serializes a relative at-tick predicate with [ago: N]', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [{ type: 'at-tick', predicate: pred('fact', 'exploited', ['?X', '?Y']), tick: 5, relative: true }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+
+      assert.ok(dsl.includes('exploited(?X, ?Y) [ago: 5]'));
     });
 
     it('serializes multiple predicates with ^ between them', () => {
@@ -147,20 +155,20 @@ describe('RuleSerializer', () => {
   });
 
   describe('history and temporal predicates', () => {
-    it('serializes a historical-window predicate without a window as [history]', () => {
+    it('serializes a historical-window predicate without a window as [ever]', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [{ type: 'historical-window', name: 'knows', args: ['?SELF', '?Y'] }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
       });
 
-      assert.ok(dsl.includes('knows(?SELF, ?Y) [history]'));
+      assert.ok(dsl.includes('knows(?SELF, ?Y) [ever]'));
     });
 
-    it('serializes a historical-window predicate with a window as [history: N]', () => {
+    it('serializes a historical-window predicate with a window as [asserted-during: N]', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [{ type: 'historical-window', name: 'knows', args: ['?SELF', '?Y'], window: 5 }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
       });
 
-      assert.ok(dsl.includes('knows(?SELF, ?Y) [history: 5]'));
+      assert.ok(dsl.includes('knows(?SELF, ?Y) [asserted-during: 5]'));
     });
 
     it('serializes a two-step temporal chain with then', () => {
@@ -232,7 +240,7 @@ describe('RuleSerializer', () => {
       const original = `
 rule "R1"
   knows(?SELF, ?Y)
-  ^ hadConflict(?SELF, ?Y) [history]
+  ^ hadConflict(?SELF, ?Y) [ever]
   => cautious(?SELF, ?Y) += 2.0`.trim();
 
       const json1 = parser.parse(original);
@@ -245,7 +253,7 @@ rule "R1"
     it('round-trips world-state strength and backdating', () => {
       const original = `
 world
-  exploited(alice, carol) [at: -5] [strength: 0.75]
+  exploited(alice, carol) [tick: -5] [strength: 0.75]
   trust(yara, silas) = 70 [strength: 0.8]`.trim();
 
       const json1 = parser.parseState(original);
@@ -259,14 +267,14 @@ world
       const original = `
 world
   -trusts(alice, carol)
-  friendship(bob, alice) = 85 [at: -3]`.trim();
+  friendship(bob, alice) = 85 [tick: -3]`.trim();
 
       const json1 = parser.parseState(original);
       const dsl   = serializer.serialize({ rules: [], worldState: json1.worldState });
       const json2 = parser.parseState(dsl);
 
       assert.ok(dsl.includes('-trusts(alice, carol)'));
-      assert.ok(dsl.includes('friendship(bob, alice) = 85 [at: -3]'));
+      assert.ok(dsl.includes('friendship(bob, alice) = 85 [tick: -3]'));
       assert.deepEqual(json2.worldState, json1.worldState);
     });
 

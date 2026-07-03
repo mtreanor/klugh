@@ -49,7 +49,7 @@ define "close contact — near and acquainted"
 **Requirements:**
 
 - The conclusion must be a predicate declared as `"type": "derived"` in the schema. Load fails if the conclusion is any other type.
-- The conclusion is a plain predicate call — no importance modifier, no `[history]`. Owner prefixes are supported: `=> ?X.canPair(?X, ?Y)` creates a private-conclusion definition that is only invoked when querying that predicate via `?X.canPair(...)`. World-level and private-conclusion definitions for the same predicate are stored and looked up separately.
+- The conclusion is a plain predicate call — no importance modifier, no `[ever]`. Owner prefixes are supported: `=> ?X.canPair(?X, ?Y)` creates a private-conclusion definition that is only invoked when querying that predicate via `?X.canPair(...)`. World-level and private-conclusion definitions for the same predicate are stored and looked up separately.
 - Any premise that needs to query a private store must carry an explicit owner prefix (`?X.pred(args)`); no store scope is inherited from the caller.
 - Premises support every predicate form documented in [Query forms](query-forms.md), including sensor predicates.
 - Multiple definitions may share the same conclusion (multi-head). The predicate is true if **any** matching definition can be proved.

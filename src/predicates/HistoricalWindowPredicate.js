@@ -37,14 +37,14 @@ export class HistoricalWindowPredicate extends Predicate {
 
   describe(binding) {
     const argsStr = this.args.map(a => Predicate.renderArg(a, binding)).join(', ');
-    const modifier = this.window === null ? '[history]' : `[history: ${this.window}]`;
+    const modifier = this.window === null ? '[ever]' : `[asserted-during: ${this.window}]`;
     const base = this.tier ? `${this.name}.${this.tier}` : this.name;
     return `${base}(${argsStr}) ${modifier}`;
   }
 
   toString() {
     const argsStr = this.args.map(a => a?.toString() ?? '_').join(', ');
-    const modifier = this.window === null ? '[history]' : `[history: ${this.window}]`;
+    const modifier = this.window === null ? '[ever]' : `[asserted-during: ${this.window}]`;
     const base = this.tier ? `${this.name}.${this.tier}` : this.name;
     return `${base}(${argsStr}) ${modifier}`;
   }

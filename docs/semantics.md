@@ -197,6 +197,11 @@ This is true if a positive assertion was ever recorded at or before t, regardles
 
 Activity is reconstructed from the event log (an assert opens an interval; the next retract closes it; a still-open interval extends to t). Unlike `[asserted-during: N]`, a fact asserted before the window and never retracted satisfies this — it was continuously true across the window even though no assertion event falls inside it.
 
+**Event enumeration** `p(ā) [when: ?t']` binds a tick variable rather than yielding a truth value:
+> for each event (asserted, t'') in rec(p, σ(ā), +) with t'' ≤ t, produces a binding with ?t' = t''
+
+The tick variable is a *dependent* enumeration source — its candidates come from the fact's assertion events, so σ(ā) must be resolved first (the engine enumerates tick variables after the variables they depend on; tick variables are always sinks, so this ordering always exists). Once ?t' is bound (by this predicate, by reuse across two `[when:]` predicates, or by a filter such as `?t' = N`), the predicate reduces to a point check: was `p(ā)` asserted at exactly that tick.
+
 **Temporal chain** `p₁(ā₁) then p₂(ā₂)`:
 > satisfied iff ∃ t₁ < t₂ ≤ t such that (asserted, t₁) ∈ rec(p₁, σ(ā₁), +) and (asserted, t₂) ∈ rec(p₂, σ(ā₂), +)
 

@@ -10,6 +10,8 @@ import { WeakNegationPredicate } from '../predicates/WeakNegationPredicate.js';
 import { AggregatePredicate } from '../predicates/AggregatePredicate.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
+import { DuringPredicate } from '../predicates/DuringPredicate.js';
+import { WhenPredicate } from '../predicates/WhenPredicate.js';
 import { PrivatePredicate } from '../predicates/PrivatePredicate.js';
 import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
@@ -130,6 +132,19 @@ function justify(predicate, binding, ctx) {
       return mk('historical', { record: ctx.getHandler('numeric')?.getRecord?.(predicate.name, args) ?? null });
     }
     return mk('historical', { record: lookupRecord(ctx, predicate.name, args, false) });
+  }
+
+  // pred [during: N] — state-range check; supported by the fact's record.
+  if (predicate instanceof DuringPredicate) {
+    const args = resolveArgs(predicate.args, binding);
+    return mk('historical', { record: lookupRecord(ctx, predicate.name, args, false) });
+  }
+
+  // pred [when: ?t] — the tick variable is bound by enumeration; the support is
+  // the fact's record, tagged with the specific assertion tick it matched.
+  if (predicate instanceof WhenPredicate) {
+    const args = resolveArgs(predicate.args, binding);
+    return mk('historical', { record: lookupRecord(ctx, predicate.name, args, false), tick: binding.resolve(predicate.tickVar) });
   }
 
   // ?owner.pred — justify the inner predicate against the owner's private store.

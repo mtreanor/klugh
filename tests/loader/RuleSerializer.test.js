@@ -179,6 +179,14 @@ describe('RuleSerializer', () => {
       assert.ok(dsl.includes('knows(?SELF, ?Y) [during: 5]'));
     });
 
+    it('serializes a when predicate as [when: ?t]', () => {
+      const dsl = serializer.serialize({
+        rules: [rule('R1', [{ type: 'when', name: 'knows', args: ['?SELF', '?Y'], tickVar: '?T' }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+
+      assert.ok(dsl.includes('knows(?SELF, ?Y) [when: ?T]'));
+    });
+
     it('serializes a two-step temporal chain with then', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [{

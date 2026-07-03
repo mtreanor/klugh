@@ -263,6 +263,14 @@ describe('Stress scenario', () => {
       assert.equal(q(engine, 'knows(oren, silas) [asserted-during: 3]'), 0); // event: nothing asserted since -3
     });
 
+    it('enumerates assertion ticks with [when: ?t]', () => {
+      const { engine } = buildWorld();
+      // One assertion event (seeded @-31) → one binding of ?t.
+      assert.equal(q(engine, 'knows(oren, silas) [when: ?t]'), 1);
+      // A fact never asserted enumerates nothing.
+      assert.equal(q(engine, 'knows(mara, wren) [when: ?t]'), 0);
+    });
+
     it('checks numeric tiers historically', () => {
       const { engine } = buildWorld();
       assert.equal(q(engine, 'trust.devoted(yara, mara)'), 0);            // now 58

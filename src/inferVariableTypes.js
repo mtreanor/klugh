@@ -33,6 +33,9 @@ function scanPredicateForTypes(pred, schema, types) {
   // NegationPredicate has no .name — variables must already be bound by positive predicates
   if (!pred.name) return;
   assignTypesFromArgs(pred.name, pred.args, schema, types);
+  // WhenPredicate ([when: ?t]) binds a dedicated tick variable, enumerated from
+  // the fact's assertion events rather than the entity registry.
+  if (pred.tickVar) types.set(pred.tickVar.name, 'tick');
 }
 
 function assignTypesFromArgs(predicateName, args, schema, types) {

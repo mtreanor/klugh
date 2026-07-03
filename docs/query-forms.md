@@ -78,6 +78,23 @@ This is the one form that separates cleanly from `[asserted-during: N]`. A fact 
 
 ---
 
+## Binding when it happened
+
+`[when: ?t]` binds `?t` to *every* tick at which the fact became true — one binding per assertion event (reassertions after a retraction included), not one per tick it was continuously active. Only events at or before the current tick are visible.
+
+```klugh
+rule "two friendships that began on the same tick"
+  friendsWith(?X, ?Y) [when: ?t]
+  ^ friendsWith(?X, ?Z) [when: ?t]
+  => coincidence(?X, ?Y, ?Z) += 1
+```
+
+The tick variable is enumerated from the fact's own assertion history, so the fact's other arguments must be bound first — the engine handles that ordering automatically. Once `?t` is bound (by the first `[when:]` above, reused on the second as a same-tick check, or filtered with `?t = N`), the predicate becomes a point check: was the fact asserted at that exact tick?
+
+Enumerating discrete events — rather than every tick the fact was true — is what lets you count how many times a relationship flipped on, which a monotone counter or a plain `[ever]` check cannot distinguish from "true once, for a long time". Counting `[when:]` events *inside* an aggregate (`count|… [when: _t]|`) additionally needs named wildcards — see the aggregate reference.
+
+---
+
 ## Numeric tier
 
 `predicate.tier(args)` is true when the predicate's current value falls within the named tier's range. Tiers are declared in the schema.

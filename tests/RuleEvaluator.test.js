@@ -10,6 +10,7 @@ import { Rule } from '../src/Rule.js';
 import { StateOperation } from '../src/stateOperations/StateOperation.js';
 import { FactPredicate } from '../src/predicates/FactPredicate.js';
 import { NegationPredicate } from '../src/predicates/NegationPredicate.js';
+import { WhenPredicate } from '../src/predicates/WhenPredicate.js';
 import { LogicalVariable } from '../src/LogicalVariable.js';
 import { Fact } from '../src/Fact.js';
 
@@ -236,6 +237,62 @@ describe('RuleEvaluator', () => {
         [rule], new Map([['agent', [alice, bob]]]), evaluationContext, startingBinding
       );
       assert.equal(activeRules.get(rule).length, 1);
+    });
+  });
+
+  describe('[when: ?t] event enumeration', () => {
+    const T = new LogicalVariable('T');
+    const alice = { name: 'alice' };
+    const bob   = { name: 'bob' };
+    const schemaStub = {
+      hasDefinition: (n) => n === 'friends' || n === 'knows',
+      getDefinition: () => ({ args: ['agent', 'agent'] }),
+      isSymmetric: () => false,
+      keyPositions: () => null,
+    };
+
+    // A context whose currentTick is `now`, over a fact store built by `seed`.
+    function tickContext(now, seed) {
+      const factStore = new FactStore();
+      seed(factStore);
+      const queryHandlers = new QueryHandlers();
+      queryHandlers.register('factStore', new FactStoreQueryHandler(factStore));
+      return new EvaluationContext(queryHandlers, { tickTracker: { currentTick: now } });
+    }
+
+    it('binds the tick variable to each assertion event', () => {
+      const ctx = tickContext(10, (store) => {
+        store.currentTick = 1; store.assert(new Fact('friends', 'alice', 'bob'));
+        store.currentTick = 3; store.retract(new Fact('friends', 'alice', 'bob'));
+        store.currentTick = 5; store.assert(new Fact('friends', 'alice', 'bob')); // re-asserted
+      });
+      const rule = new Rule('R1', [new WhenPredicate('friends', [X, Y], T)], mockConsequent);
+      const active = new RuleEvaluator().evaluate([rule], new Map([['agent', [alice, bob]]]), ctx, new Binding(), schemaStub);
+
+      const apps  = active.get(rule);
+      const ticks = apps.map(a => a.binding.resolve(T)).sort((a, b) => a - b);
+      assert.deepEqual(ticks, [1, 5]); // two assertion events; the retraction produces none
+      assert.equal(apps[0].binding.resolve(X), alice);
+      assert.equal(apps[0].binding.resolve(Y), bob);
+    });
+
+    it('does not enumerate assertion events after the evaluation tick', () => {
+      const ctx = tickContext(4, (store) => {
+        store.currentTick = 2; store.assert(new Fact('friends', 'alice', 'bob'));
+        store.currentTick = 8; store.assert(new Fact('friends', 'alice', 'bob')); // future — invisible at tick 4
+      });
+      const rule = new Rule('R1', [new WhenPredicate('friends', [X, Y], T)], mockConsequent);
+      const active = new RuleEvaluator().evaluate([rule], new Map([['agent', [alice, bob]]]), ctx, new Binding(), schemaStub);
+
+      const ticks = active.get(rule).map(a => a.binding.resolve(T));
+      assert.deepEqual(ticks, [2]);
+    });
+
+    it('produces no applications when the fact was never asserted', () => {
+      const ctx = tickContext(10, () => {});
+      const rule = new Rule('R1', [new WhenPredicate('friends', [X, Y], T)], mockConsequent);
+      const active = new RuleEvaluator().evaluate([rule], new Map([['agent', [alice, bob]]]), ctx, new Binding(), schemaStub);
+      assert.ok(!active.has(rule));
     });
   });
 });

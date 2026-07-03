@@ -11,6 +11,7 @@ import { WeakNegationPredicate } from '../predicates/WeakNegationPredicate.js';
 import { NumericTierPredicate } from '../predicates/NumericTierPredicate.js';
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
 import { DuringPredicate } from '../predicates/DuringPredicate.js';
+import { WhenPredicate } from '../predicates/WhenPredicate.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
 import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
@@ -108,6 +109,8 @@ export class RuleLoader {
         return new HistoricalWindowPredicate(data.name, this.resolveArgs(data.args), data.window ?? null, data.tier ?? null);
       case 'during':
         return new DuringPredicate(data.name, this.resolveArgs(data.args), data.window);
+      case 'when':
+        return new WhenPredicate(data.name, this.resolveArgs(data.args), this.resolveArgs([data.tickVar])[0]);
       case 'derived':
         return new DerivedFactPredicate(data.name, ...this.resolveArgs(data.args));
       case 'negation':

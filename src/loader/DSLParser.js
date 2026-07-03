@@ -296,6 +296,7 @@ export class DSLParser {
     let atTick = null;
     let agoOffset = null;
     let duringWindow = null;
+    let whenVar = null;
 
     // Each modifier is its own bracket; brackets stack in any order, no commas.
     while (this.check('LBRACKET')) {
@@ -314,6 +315,10 @@ export class DSLParser {
         // Bounded state check: was this true at any point in the last N ticks.
         this.expect('COLON');
         duringWindow = this.expect('NUMBER').value;
+      } else if (key === 'when') {
+        // Event enumeration: bind the given variable to each assertion tick.
+        this.expect('COLON');
+        whenVar = '?' + this.expect('VARIABLE').value;
       } else if (key === 'importance') {
         this.expect('COLON');
         importance = this.expect('NUMBER').value;
@@ -340,6 +345,9 @@ export class DSLParser {
     } else if (duringWindow !== null) {
       const inner = finalPred;
       finalPred = { type: 'during', name: inner.name, args: inner.args, window: duringWindow };
+    } else if (whenVar !== null) {
+      const inner = finalPred;
+      finalPred = { type: 'when', name: inner.name, args: inner.args, tickVar: whenVar };
     } else if (atTick !== null) {
       finalPred = { type: 'at-tick', predicate: finalPred, tick: atTick };
     } else if (agoOffset !== null) {

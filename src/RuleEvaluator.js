@@ -26,7 +26,21 @@ export class RuleEvaluator {
   buildRuleApplications(rule, entityRegistry, evaluationContext, startingBinding, schema) {
     const variables          = rule.collectVariables();
     const variableTypes      = this.inferVariableTypes(rule, schema);
-    const variablesToEnumerate = variables.filter(v => !startingBinding.isBound(v));
+    let   variablesToEnumerate = variables.filter(v => !startingBinding.isBound(v));
+
+    // Tick variables ([when: ?t]) are dependent: their candidate ticks come from
+    // getAssertionTicks(name, resolvedArgs), so the predicate's other args must be
+    // enumerated first. Tick variables are always enumeration sinks (nothing
+    // depends on them), so a stable partition that moves them to the end is a
+    // valid topological order — no full sort is needed. Gated on their presence
+    // so rules without a tick variable take the original path unchanged.
+    const hasTickVar = variablesToEnumerate.some(v => variableTypes.get(v.name) === 'tick');
+    if (hasTickVar) {
+      variablesToEnumerate = [
+        ...variablesToEnumerate.filter(v => variableTypes.get(v.name) !== 'tick'),
+        ...variablesToEnumerate.filter(v => variableTypes.get(v.name) === 'tick'),
+      ];
+    }
 
     // Variables inside a negation (not / - / ~) must be bound by a positive
     // predicate or by the starting binding — they are never enumerated. A rule
@@ -71,6 +85,19 @@ export class RuleEvaluator {
 
     const [head, ...tail] = variables;
     const type     = variableTypes.get(head.name) ?? 'agent';
+
+    // Tick variables draw their candidates from the fact's assertion events, not
+    // the entity registry, and depend on the fact's other args already being
+    // bound (guaranteed by the tick-last ordering in buildRuleApplications).
+    if (type === 'tick') {
+      const bindings = [];
+      for (const tick of this.tickCandidates(head, predicateEntries, startingBinding, evaluationContext)) {
+        const extended = startingBinding.extend(head, tick);
+        bindings.push(...this.generateAllBindings(tail, variableTypes, entityRegistry, extended, evaluationContext, predicateEntries));
+      }
+      return bindings;
+    }
+
     let   entities = entityRegistry.get(type) ?? [];
 
     if (entities.length === 0 && evaluationContext && predicateEntries) {
@@ -85,6 +112,22 @@ export class RuleEvaluator {
       bindings.push(...this.generateAllBindings(tail, variableTypes, entityRegistry, extended, evaluationContext, predicateEntries));
     }
     return bindings;
+  }
+
+  // Candidate ticks for a [when: ?t] variable — the union of assertion ticks
+  // from every predicate whose tick variable is this one, with the sibling args
+  // resolved against the current partial binding.
+  tickCandidates(variable, predicateEntries, startingBinding, evaluationContext) {
+    if (!predicateEntries || !evaluationContext) return [];
+    const seen  = new Set();
+    const ticks = [];
+    for (const { predicate } of predicateEntries) {
+      if (predicate.tickVar?.name !== variable.name) continue;
+      for (const t of predicate.assertionTicks(startingBinding, evaluationContext)) {
+        if (!seen.has(t)) { seen.add(t); ticks.push(t); }
+      }
+    }
+    return ticks;
   }
 
   distinctArgValuesForVariable(variable, predicateEntries, startingBinding, evaluationContext) {

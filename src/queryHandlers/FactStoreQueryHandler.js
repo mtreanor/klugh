@@ -43,6 +43,39 @@ export class FactStoreQueryHandler extends QueryHandler {
     return false;
   }
 
+  // Ticks (≤ the evaluation tick) at which the fact was asserted — the
+  // candidate values for enumerating a [when: ?t] tick variable.
+  assertionTicksFor(predicate, binding, evaluationContext) {
+    const factStore    = this.resolveFactStore(evaluationContext);
+    const currentTick  = evaluationContext?.currentTick ?? factStore.currentTick;
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
+    let ticks = factStore.getAssertionTicks(predicate.name, resolvedArgs);
+    if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
+      ticks = ticks.concat(factStore.getAssertionTicks(predicate.name, [resolvedArgs[1], resolvedArgs[0]]));
+    }
+    const seen = new Set();
+    const out  = [];
+    for (const t of ticks) {
+      if (t <= currentTick && !seen.has(t)) { seen.add(t); out.push(t); }
+    }
+    return out;
+  }
+
+  // Was the fact asserted at exactly `tick` (a [when:] point check once its tick
+  // variable is bound)? Only events at or before the evaluation tick are visible.
+  wasAssertedAt(predicate, binding, tick, evaluationContext) {
+    const factStore   = this.resolveFactStore(evaluationContext);
+    const currentTick = evaluationContext?.currentTick ?? factStore.currentTick;
+    if (tick > currentTick) return false;
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
+    const check = (args) => factStore.getRecords(predicate.name, args).some(r => r.wasAssertedAt(tick));
+    if (check(resolvedArgs)) return true;
+    if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
+      return check([resolvedArgs[1], resolvedArgs[0]]);
+    }
+    return false;
+  }
+
   evaluateExplicitNegation(predicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
     const tick         = evaluationContext?.currentTick ?? factStore.currentTick;

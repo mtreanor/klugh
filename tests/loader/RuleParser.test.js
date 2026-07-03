@@ -174,6 +174,18 @@ describe('RuleParser', () => {
       });
     });
 
+    it('parses [when: ?t] as a when (event-enumeration) predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [when: ?T]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'when', name: 'knows', args: ['?SELF', '?Y'], tickVar: '?T',
+      });
+    });
+
     it('parses [tick: N] as an absolute at-tick rule condition', () => {
       const { rules } = parser.parse(`
         rule "R1"

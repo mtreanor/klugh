@@ -1,6 +1,6 @@
 # Tick binding — design proposal
 
-Status: **proposed, not implemented.** This document is the record of a design conversation, not a description of shipped behavior. `docs/query-forms.md` still describes the current `[history]`/`[history: N]`/`[at: N]` forms; this proposal replaces and extends them.
+Status: **implemented.** This document is the record of the design conversation; the shipped behavior is documented in `docs/query-forms.md` and `docs/semantics.md`. It landed as six ordered commits: the `.inner` cycle-detector fix; the rename (`[at:]`→`[tick:]`, `[history: N]`→`[asserted-during: N]`, bare `[history]`→`[ever]`) plus the new relative `[ago: N]`; the state-range `[during: N]`; the event-enumeration `[when: ?t]`; named wildcards (`_name`, with bare `_` made anonymous in aggregates); and aggregate `[when: _t]`. Two decisions differ from the draft below: bare `[history]` was replaced by a dedicated `[ever]` keyword (not retired), and the wildcard breaking change was done in a single pass rather than sequenced.
 
 ---
 
@@ -140,9 +140,9 @@ The one part that does run every tick, every pass, per rule — confirmed uncach
 
 ---
 
-## Open items before implementation
+## Open items before implementation — resolved
 
-- Confirm the `[during:]`/`[asserted-during:]` split covers everything currently served by `[history]` bare (unbounded "ever") — or whether a distinct unbounded form is still needed.
-- Confirm the two-step (additive, then separately-reviewed breaking change) sequencing for wildcard naming, or decide to do both in one pass.
-- Decide whether the `RuleCycleDetector.walkScoped` `.inner` fix ships as part of this work or as its own small independent fix first.
-- `docs/query-forms.md`, `docs/semantics.md`, `AGENTS.md`'s predicate table, and the various demo/stress fixtures using `[history`/`[at:` all need updating once the rename lands — tracked here, not yet started.
+- **Unbounded "ever".** A dedicated `[ever]` keyword was kept rather than folding it into `[asserted-during: big]`. Because unbounded event and state checks coincide (a fact can only have been true if it was at some point asserted), `[ever]` reuses `wasEverTrueAtOrBefore` unchanged and the bare-`[history]` fixtures migrated to it behaviour-preservingly.
+- **Wildcard sequencing.** Done in one pass: `_name` added *and* bare `_` made anonymous in the same change. No klugh data fixture relied on the old type-join; the two klugh tests and the doc examples that did were migrated in the same commit. The sibling reception project's `engagement-mode-rules` still relies on the old join and must migrate to a named wildcard when it re-vendors klugh.
+- **`.inner` cycle fix.** Shipped first, as its own independent commit, ahead of the tick-binding predicates that all wrap via `.inner`.
+- **Docs & fixtures.** `docs/query-forms.md`, `docs/semantics.md`, `docs/sensors.md`, `AGENTS.md`'s predicate table, and every demo/stress/landing-page fixture were migrated alongside the code.

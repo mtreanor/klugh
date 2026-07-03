@@ -162,6 +162,18 @@ describe('RuleParser', () => {
       });
     });
 
+    it('parses [during: N] as a during (state-range) predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?SELF, ?Y) [during: 5]
+          => test(?SELF, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'during', name: 'knows', args: ['?SELF', '?Y'], window: 5,
+      });
+    });
+
     it('parses [tick: N] as an absolute at-tick rule condition', () => {
       const { rules } = parser.parse(`
         rule "R1"

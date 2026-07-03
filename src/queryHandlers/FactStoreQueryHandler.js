@@ -32,6 +32,17 @@ export class FactStoreQueryHandler extends QueryHandler {
     return false;
   }
 
+  evaluateDuring(predicate, binding, window, currentTick, evaluationContext) {
+    const factStore    = this.resolveFactStore(evaluationContext);
+    const resolvedArgs = predicate.args.map(arg => toFactArg(binding.resolve(arg)));
+    const check = (args) => factStore.wasActiveInWindow(predicate.name, args, window, currentTick);
+    if (check(resolvedArgs)) return true;
+    if (this.schema?.isSymmetric(predicate.name) && resolvedArgs.length === 2) {
+      return check([resolvedArgs[1], resolvedArgs[0]]);
+    }
+    return false;
+  }
+
   evaluateExplicitNegation(predicate, binding, evaluationContext) {
     const factStore    = this.resolveFactStore(evaluationContext);
     const tick         = evaluationContext?.currentTick ?? factStore.currentTick;

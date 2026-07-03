@@ -167,6 +167,21 @@ export class FactStore {
     );
   }
 
+  // State-range check: was the fact active (true) at any tick within
+  // [currentTick - window, currentTick]. Reconstructs activity from the event
+  // log — the fact overlaps the window if it was already active at the window's
+  // start, or an assertion event lands inside it. Unlike wasEverTrueInWindow,
+  // which needs an assertion *event* in the window, a fact asserted before the
+  // window and never retracted still satisfies this: it was continuously true.
+  wasActiveInWindow(name, args, window, currentTick) {
+    const since = currentTick - window;
+    return this.recordsForName(name).some(r => {
+      if (!this.factMatches(r.fact, name, args)) return false;
+      if (r.isActiveAt(since)) return true;
+      return r.events.some(e => e.type === 'asserted' && e.tick >= since && e.tick <= currentTick);
+    });
+  }
+
   // All ticks at which the fact was asserted across its full event log.
   getAssertionTicks(name, args) {
     return this.recordsForName(name)

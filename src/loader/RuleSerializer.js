@@ -69,6 +69,9 @@ export class RuleSerializer {
       const base = pred.tier ? `${pred.name}.${pred.tier}` : pred.name;
       return `${base}(${this.serializeArgs(pred.args)}) ${modifier}`;
     }
+    if (pred.type === 'during') {
+      return `${pred.name}(${this.serializeArgs(pred.args)}) [during: ${pred.window}]`;
+    }
     if (pred.type === 'temporal-chain') {
       return pred.steps.map((step, i) => {
         const call = `${step.name}(${this.serializeArgs(step.args)})`;

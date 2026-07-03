@@ -64,6 +64,20 @@ Unlike the event checks above, these are **state** checks: they report whether t
 
 ---
 
+## State over a window
+
+`[during: N]` is the range form of the state check: true if the fact was true at *any* point in the last N ticks, no matter when it was asserted.
+
+```klugh
+rule "recently-together friends still get the benefit of the doubt"
+  friends(?X, ?Y) [during: 5]
+  => goodwill(?X, ?Y) += 1
+```
+
+This is the one form that separates cleanly from `[asserted-during: N]`. A fact asserted once, long before the window, and never retracted is *continuously true* through the window — so `[during: N]` holds, but `[asserted-during: N]` does not (no assertion event lands inside the window). Reach for `[during]` when you mean "was it true at some point recently", and `[asserted-during]` when you mean "did it (re-)happen recently".
+
+---
+
 ## Numeric tier
 
 `predicate.tier(args)` is true when the predicate's current value falls within the named tier's range. Tiers are declared in the schema.

@@ -192,6 +192,11 @@ This is true if a positive assertion was ever recorded at or before t, regardles
 **Windowed history** `p(ā) [asserted-during: N]`:
 > satisfied iff ∃ event (asserted, t') in rec(p, σ(ā), +) with t − N ≤ t' ≤ t
 
+**Windowed state** `p(ā) [during: N]` — a *state*-range check, not an event check:
+> satisfied iff `p(ā)` was active at some tick t' with t − N ≤ t' ≤ t
+
+Activity is reconstructed from the event log (an assert opens an interval; the next retract closes it; a still-open interval extends to t). Unlike `[asserted-during: N]`, a fact asserted before the window and never retracted satisfies this — it was continuously true across the window even though no assertion event falls inside it.
+
 **Temporal chain** `p₁(ā₁) then p₂(ā₂)`:
 > satisfied iff ∃ t₁ < t₂ ≤ t such that (asserted, t₁) ∈ rec(p₁, σ(ā₁), +) and (asserted, t₂) ∈ rec(p₂, σ(ā₂), +)
 

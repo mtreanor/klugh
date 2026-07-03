@@ -255,6 +255,14 @@ describe('Stress scenario', () => {
       assert.equal(q(engine, 'betrayed(oren, silas) [asserted-during: 25]'), 0); // -30
     });
 
+    it('checks state over a window with [during], independent of assertion recency', () => {
+      const { engine } = buildWorld();
+      // knows(oren, silas) was asserted at -31 and never retracted: continuously
+      // true through the window, but with no assertion *event* inside it.
+      assert.equal(q(engine, 'knows(oren, silas) [during: 3]'), 1);          // state: still true
+      assert.equal(q(engine, 'knows(oren, silas) [asserted-during: 3]'), 0); // event: nothing asserted since -3
+    });
+
     it('checks numeric tiers historically', () => {
       const { engine } = buildWorld();
       assert.equal(q(engine, 'trust.devoted(yara, mara)'), 0);            // now 58

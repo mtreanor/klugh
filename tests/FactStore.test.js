@@ -275,6 +275,40 @@ describe('FactStore — _getCanonicalRecord', () => {
   // Guards the denormalization invariant: the name index (recordsForName) must
   // always mirror the canonical record set exposed by factHistory. If a future
   // write path adds or removes a record without updating the index, these fail.
+  describe('wasActiveInWindow ([during: N] state-range)', () => {
+    it('is true when a still-open interval covers the window', () => {
+      const store = new FactStore();
+      store.assertAt(new Fact('friends', 'x', 'y'), 2); // asserted@2, never retracted
+      assert.equal(store.wasActiveInWindow('friends', ['x', 'y'], 5, 30), true); // window [25,30]
+    });
+
+    it('distinguishes a continuously-true fact from a recent assertion event', () => {
+      const store = new FactStore();
+      store.assertAt(new Fact('friends', 'x', 'y'), 2); // asserted long before the window
+      // [during: 5] sees the state (still true); [asserted-during: 5] sees no event in the window.
+      assert.equal(store.wasActiveInWindow('friends', ['x', 'y'], 5, 30), true);
+      assert.equal(store.wasEverTrueInWindow('friends', ['x', 'y'], 5, 30), false);
+    });
+
+    it('is true when an interval that later flipped off still overlaps the window', () => {
+      const store = new FactStore();
+      store.assertAt(new Fact('friends', 'x', 'y'), 2, 15); // active [2,15)
+      assert.equal(store.wasActiveInWindow('friends', ['x', 'y'], 35, 30), true); // window [-5,30]
+    });
+
+    it('is false when the fact was inactive across the whole window', () => {
+      const store = new FactStore();
+      store.assertAt(new Fact('friends', 'x', 'y'), 2, 3); // active only [2,3)
+      assert.equal(store.wasActiveInWindow('friends', ['x', 'y'], 5, 30), false); // window [25,30]
+    });
+
+    it('is true when the fact becomes active inside the window', () => {
+      const store = new FactStore();
+      store.assertAt(new Fact('friends', 'x', 'y'), 28); // asserted inside [25,30]
+      assert.equal(store.wasActiveInWindow('friends', ['x', 'y'], 5, 30), true);
+    });
+  });
+
   describe('name index consistency', () => {
     // Drives the store through every kind of record-creating mutation, then
     // checks the index against factHistory (the source of truth).

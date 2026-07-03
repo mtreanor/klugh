@@ -592,6 +592,20 @@ describe('RuleParser', () => {
       assert.deepEqual(agg.predicates[2].args, ['?SELF', null]); // bare _ stays anonymous
     });
 
+    it('parses [when: _t] inside an aggregate as a when atom with a wildcard tick var', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          count|knows(?SELF, ?OTHER) [when: _t]| > 3
+          => close(?SELF) += 1.0
+      `);
+
+      const agg = rules[0].predicates[0];
+      assert.equal(agg.type, 'aggregate');
+      assert.deepEqual(agg.predicates[0], {
+        type: 'when', name: 'knows', args: ['?SELF', '?OTHER'], tickVar: { wildcard: 't' },
+      });
+    });
+
     it('parses a conjunction inside bare |...| the same as count|...|', () => {
       const { rules } = parser.parse(`
         rule "R1"

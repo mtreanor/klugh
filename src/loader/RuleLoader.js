@@ -261,7 +261,9 @@ export class RuleLoader {
     for (const pred of rewrittenPredicates) {
       const effective  = unwrapPrivate(pred);
       const schemaType = this.predicateSchema.getDefinition(effective.name)?.type;
-      if (schemaType === 'numeric' || schemaType === 'sensor-numeric') {
+      // A [when: _t] atom counts assertion events; it is always a filter, never
+      // the aggregated numeric value, even when its predicate is numeric.
+      if ((schemaType === 'numeric' || schemaType === 'sensor-numeric') && effective.type !== 'when') {
         if (valuePred !== null) {
           throw new Error(`Aggregate conjunction has more than one numeric predicate: "${valuePred.name}" and "${effective.name}"`);
         }
@@ -333,7 +335,21 @@ export class RuleLoader {
         return arg;
       });
 
-      return { ...pred, args: rewrittenArgs };
+      let result = { ...pred, args: rewrittenArgs };
+
+      // A [when: _t] atom's tick variable is a tick-kind counting variable:
+      // enumerated from the fact's assertion events, not the entity registry.
+      if (pred.tickVar && typeof pred.tickVar === 'object' && 'wildcard' in pred.tickVar) {
+        const wname = pred.tickVar.wildcard;
+        if (!nameToVar.has(wname)) {
+          nameToVar.set(wname, freshVar('tick'));
+        } else if (countingVarTypes.get(nameToVar.get(wname).name) !== 'tick') {
+          throw new Error(`Wildcard _${wname} is used both as a tick variable ([when: _${wname}]) and an entity position`);
+        }
+        result = { ...result, tickVar: `?${nameToVar.get(wname).name}` };
+      }
+
+      return result;
     };
 
     const rewrittenPredicates = predicates.map(rewriteOne);

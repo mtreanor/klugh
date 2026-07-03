@@ -366,6 +366,23 @@ describe('RuleLoader', () => {
         ])), /single entity type/);
       });
 
+      it('makes a [when: _t] tick variable a tick-kind counting variable', () => {
+        const result = wcLoader.load({
+          rules: [{
+            name: 'R1',
+            predicates: [{ type: 'aggregate', fn: 'count', operator: '>', rhs: { kind: 'literal', value: 3 },
+              predicates: [{ type: 'when', name: 'knows', args: ['?SELF', '?OTHER'], tickVar: { wildcard: 't' } }],
+            }],
+            effects: [{ type: 'adjust-numeric', name: 'friendship', args: ['?SELF', '?SELF'], delta: 1.0 }],
+          }],
+        });
+        const agg = result.rules[0].predicateEntries[0].predicate;
+        assert.equal(agg.countingVars.length, 1);
+        assert.equal(agg.countingVarTypes.get(agg.countingVars[0].name), 'tick');
+        assert.equal(agg.tickVars.length, 1);
+        assert.equal(agg.entityCountingVars.length, 0);
+      });
+
       it('rejects a named wildcard outside an aggregate', () => {
         assert.throws(() => wcLoader.load({
           rules: [{

@@ -760,6 +760,17 @@ export class DSLParser {
       // lookup for a fact that's never actually asserted.
       result = { type: this.resolveType(name), name, args };
     }
+    // Optional [when: _t] — event enumeration inside the aggregate. The tick
+    // counting variable is a named wildcard (it joins/counts like the other
+    // aggregate positions), so it takes a NAMED_WILDCARD, not a `?var`.
+    if (this.check('LBRACKET')) {
+      this.advance();
+      this.expect('IDENT', 'when');
+      this.expect('COLON');
+      const tickVar = { wildcard: this.expect('NAMED_WILDCARD').value };
+      this.expect('RBRACKET');
+      result = { type: 'when', name: result.name, args: result.args, tickVar };
+    }
     return owner ? { type: 'private', ...owner, predicate: result } : result;
   }
 

@@ -91,7 +91,7 @@ rule "two friendships that began on the same tick"
 
 The tick variable is enumerated from the fact's own assertion history, so the fact's other arguments must be bound first — the engine handles that ordering automatically. Once `?t` is bound (by the first `[when:]` above, reused on the second as a same-tick check, or filtered with `?t = N`), the predicate becomes a point check: was the fact asserted at that exact tick?
 
-Enumerating discrete events — rather than every tick the fact was true — is what lets you count how many times a relationship flipped on, which a monotone counter or a plain `[ever]` check cannot distinguish from "true once, for a long time". Counting `[when:]` events *inside* an aggregate (`count|… [when: _t]|`) additionally needs named wildcards — see the aggregate reference.
+Enumerating discrete events — rather than every tick the fact was true — is what lets you count how many times a relationship flipped on, which a monotone counter or a plain `[ever]` check cannot distinguish from "true once, for a long time". To *count* those events, use `[when: _t]` inside an aggregate — see [Aggregate](#aggregate) below.
 
 ---
 
@@ -208,6 +208,16 @@ avg|warmth(_a, carol) ^ trust.high(_a, carol)|  // average warmth among high-tru
 ```
 
 **Wildcard identity** — identity is name-based, as everywhere else in the language. A bare `_` is anonymous: it gets a fresh enumeration variable each time and never joins with another `_`. A named wildcard `_name` shares one enumeration variable across all its occurrences, so `warmth(_a, carol) ^ knows(_a, carol)` iterates one agent at a time through *both* predicates (joining on `_a`), whereas `warmth(_, carol) ^ knows(_, carol)` would range over the two positions independently. Occurrences of one named wildcard must agree on entity type (validated at load); different names never join.
+
+**Counting events with `[when: _t]`** — a `[when:]` modifier inside an aggregate binds a *tick-kind* counting variable (a named wildcard), enumerated from the fact's assertion events rather than the entity registry. `count|…|` over it counts how many times the fact was asserted:
+
+```klugh
+rule "an on-and-off friendship never earns full trust"
+  count|friendsWith(?SELF, ?OTHER) [when: _t]| > 3
+  => trust(?SELF, ?OTHER) -= 10
+```
+
+`_t` ranges over every tick `friendsWith(?SELF, ?OTHER)` was asserted, so the count is the number of times the relationship flipped on — something a monotone counter or an `[ever]`/`[during]` check cannot recover. The fact's other arguments are resolved first, exactly as in the standalone `[when: ?t]` form.
 
 **Aggregate as value expression** — an aggregate can appear on either side of any comparison, or on both sides. The result is the raw computed value (avg/sum/max/min), compared to a literal, a numeric predicate, or another aggregate.
 

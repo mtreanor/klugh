@@ -1,5 +1,6 @@
 import { Predicate } from '../Predicate.js';
 import { LogicalVariable } from '../LogicalVariable.js';
+import { WhenPredicate } from './WhenPredicate.js';
 import { toFactArg } from '../entityValue.js';
 
 // Computes an aggregate function (count, avg, sum, max, min) over enumerated
@@ -26,9 +27,48 @@ export class AggregatePredicate extends Predicate {
     this.filterPredicates = filterPredicates; // Predicate[]
     this.valuePred        = valuePred;         // { name, args: (string|LogicalVariable)[] } | null (count)
     this.countingVars     = countingVars;      // LogicalVariable[]
-    this.countingVarTypes = countingVarTypes;  // Map<varName, entityType>
+    this.countingVarTypes = countingVarTypes;  // Map<varName, entityType | 'tick'>
     this.operator         = operator;          // '>' | '>=' | '<' | '<=' | '=' | '!='
     this.rhs              = rhs;               // value expression or null (inner aggregate only)
+
+    // Tick-kind counting variables ([when: _t]) enumerate from a filter's
+    // assertion events, not the entity registry, and depend on that filter's
+    // other args being bound first — so they are enumerated inside the entity
+    // cartesian, drawing candidates from the owning WhenPredicate.
+    this.tickVars           = countingVars.filter(v => countingVarTypes.get(v.name) === 'tick');
+    this.entityCountingVars = countingVars.filter(v => countingVarTypes.get(v.name) !== 'tick');
+    this.tickSource         = new Map(); // tick var name -> WhenPredicate
+    for (const p of filterPredicates) {
+      if (p instanceof WhenPredicate && p.tickVar instanceof LogicalVariable) {
+        this.tickSource.set(p.tickVar.name, p);
+      }
+    }
+  }
+
+  // Yields one fully-extended binding per combination of counting variables:
+  // the entity-kind vars via a cartesian over the registry (as before), and,
+  // nested inside each, the tick-kind vars enumerated from their WhenPredicate's
+  // assertion events (which need the entity vars already bound). With no tick
+  // vars this reduces to the original entity cartesian.
+  *enumerateCombinations(binding, evaluationContext) {
+    const registry    = evaluationContext.entityRegistry;
+    const entityLists = this.entityCountingVars.map(v =>
+      registry?.get(this.countingVarTypes.get(v.name) ?? 'agent') ?? []
+    );
+    for (const combination of cartesian(entityLists)) {
+      let base = binding;
+      this.entityCountingVars.forEach((v, i) => { base = base.extend(v, combination[i]); });
+
+      const tickLists = this.tickVars.map(v => {
+        const source = this.tickSource.get(v.name);
+        return source ? source.assertionTicks(base, evaluationContext) : [];
+      });
+      for (const ticks of cartesian(tickLists)) {
+        let extended = base;
+        this.tickVars.forEach((v, i) => { extended = extended.extend(v, ticks[i]); });
+        yield extended;
+      }
+    }
   }
 
   evaluate(binding, evaluationContext) {
@@ -42,20 +82,9 @@ export class AggregatePredicate extends Predicate {
   // Returns the raw aggregate value without performing the comparison. Used when
   // this predicate is itself the RHS of another aggregate.
   computeValue(binding, evaluationContext) {
-    const entityRegistry = evaluationContext.entityRegistry;
-    const entityLists    = this.countingVars.map(v => {
-      const type = this.countingVarTypes.get(v.name) ?? 'agent';
-      return entityRegistry.get(type) ?? [];
-    });
-
     let matchCount = 0;
     const values = [];
-    for (const combination of cartesian(entityLists)) {
-      let extendedBinding = binding;
-      for (let i = 0; i < this.countingVars.length; i++) {
-        extendedBinding = extendedBinding.extend(this.countingVars[i], combination[i]);
-      }
-
+    for (const extendedBinding of this.enumerateCombinations(binding, evaluationContext)) {
       let passes = true;
       for (const pred of this.filterPredicates) {
         if (!pred.evaluate(extendedBinding, evaluationContext)) { passes = false; break; }

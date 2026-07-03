@@ -11,6 +11,7 @@ import { Fact } from '../../src/Fact.js';
 import { LogicalVariable } from '../../src/LogicalVariable.js';
 import { FactPredicate } from '../../src/predicates/FactPredicate.js';
 import { AggregatePredicate } from '../../src/predicates/AggregatePredicate.js';
+import { WhenPredicate } from '../../src/predicates/WhenPredicate.js';
 
 const alice = { name: 'alice' };
 const bob   = { name: 'bob' };
@@ -456,6 +457,54 @@ describe('AggregatePredicate', () => {
         const binding = new Binding().extend(SELF, alice);
         assert.ok(pred.evaluate(binding, ctx));
       });
+    });
+  });
+
+  describe('count with [when: _t] (tick-kind counting variable)', () => {
+    const SELF  = new LogicalVariable('SELF');
+    const OTHER = new LogicalVariable('OTHER');
+    const tVar  = new LogicalVariable('__agg_0__');
+
+    function tickCtx(now, seed) {
+      const factStore = new FactStore();
+      seed(factStore);
+      const qh = new QueryHandlers();
+      qh.register('factStore', new FactStoreQueryHandler(factStore));
+      return new EvaluationContext(qh, {
+        entityRegistry: new Map([['agent', agents]]),
+        predicateSchema: schema,
+        tickTracker: { currentTick: now },
+      });
+    }
+
+    // count|knows(?SELF, ?OTHER) [when: _t]| op threshold — counts assertion events.
+    function makeCount(operator, threshold) {
+      const when = new WhenPredicate('knows', [SELF, OTHER], tVar);
+      return new AggregatePredicate(
+        'count', [when], null, [tVar], new Map([['__agg_0__', 'tick']]), operator,
+        { kind: 'literal', value: threshold },
+      );
+    }
+
+    it('counts assertion events, not ticks of continuous truth', () => {
+      const ctx = tickCtx(20, (s) => {
+        // knows(alice,bob): on@1, off@3, on@5, off@8, on@11 → 3 assertion events
+        s.currentTick = 1;  s.assert(new Fact('knows', 'alice', 'bob'));
+        s.currentTick = 3;  s.retract(new Fact('knows', 'alice', 'bob'));
+        s.currentTick = 5;  s.assert(new Fact('knows', 'alice', 'bob'));
+        s.currentTick = 8;  s.retract(new Fact('knows', 'alice', 'bob'));
+        s.currentTick = 11; s.assert(new Fact('knows', 'alice', 'bob'));
+      });
+      const binding = new Binding().extend(SELF, 'alice').extend(OTHER, 'bob');
+      assert.equal(makeCount('=', 3).evaluate(binding, ctx), true);  // three on-events
+      assert.equal(makeCount('>', 3).evaluate(binding, ctx), false);
+      assert.equal(makeCount('>', 2).evaluate(binding, ctx), true);
+    });
+
+    it('counts zero when the fact was never asserted', () => {
+      const ctx = tickCtx(20, () => {});
+      const binding = new Binding().extend(SELF, 'alice').extend(OTHER, 'bob');
+      assert.equal(makeCount('=', 0).evaluate(binding, ctx), true);
     });
   });
 });

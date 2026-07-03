@@ -271,6 +271,13 @@ describe('Stress scenario', () => {
       assert.equal(q(engine, 'knows(mara, wren) [when: ?t]'), 0);
     });
 
+    it('counts assertion events inside an aggregate with [when: _t]', () => {
+      const { engine } = buildWorld();
+      // knows(oren, silas) has exactly one seeded assertion event.
+      assert.equal(q(engine, 'count|knows(oren, silas) [when: _t]| >= 1'), 1);
+      assert.equal(q(engine, 'count|knows(oren, silas) [when: _t]| > 1'), 0);
+    });
+
     it('checks numeric tiers historically', () => {
       const { engine } = buildWorld();
       assert.equal(q(engine, 'trust.devoted(yara, mara)'), 0);            // now 58

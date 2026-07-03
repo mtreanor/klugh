@@ -196,15 +196,10 @@ function rewrap(predicate, description, inner, tick = null) {
 // an aggregate's conjunction can hold several) and, for value-aggregating
 // functions (avg/sum/max/min), the numeric value that combination contributed.
 function collectAggregateRecords(predicate, binding, ctx) {
-  const registry = ctx.entityRegistry;
-  const lists = predicate.countingVars.map(v =>
-    registry?.get(predicate.countingVarTypes.get(v.name) ?? 'agent') ?? []
-  );
   const records = [];
-  for (const combination of cartesian(lists)) {
-    let extended = binding;
-    predicate.countingVars.forEach((v, i) => { extended = extended.extend(v, combination[i]); });
-
+  // Reuse the predicate's own combination enumeration so tick-kind counting
+  // variables ([when: _t]) are walked the same way here as in computeValue.
+  for (const extended of predicate.enumerateCombinations(binding, ctx)) {
     let passes = true;
     for (const filter of predicate.filterPredicates) {
       if (!filter.evaluate(extended, ctx)) { passes = false; break; }
@@ -225,14 +220,6 @@ function collectChainRecords(predicate, binding, ctx) {
   return predicate.steps
     .map(step => lookupRecord(ctx, step.name, resolveArgs(step.args, binding), false))
     .filter(Boolean);
-}
-
-function* cartesian(lists) {
-  if (lists.length === 0) { yield []; return; }
-  const [head, ...tail] = lists;
-  for (const item of head) {
-    for (const rest of cartesian(tail)) yield [item, ...rest];
-  }
 }
 
 function lookupRecord(ctx, name, args, negated) {

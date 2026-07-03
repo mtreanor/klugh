@@ -208,7 +208,7 @@ utility
 
 ### Predicate aggregate
 
-`fn|numericPred(args) ^ filter(args)|`. Enumerates entities matching the arguments, collects a numeric predicate value for each, and reduces with the given function. Returns 0 when no entities match. `_` is a wildcard — all `_` of the same entity type share one counting variable.
+`fn|numericPred(args) ^ filter(args)|`. Enumerates entities matching the arguments, collects a numeric predicate value for each, and reduces with the given function. Returns 0 when no entities match. A bare `_` is an anonymous wildcard (a fresh enumeration variable that never joins); a named wildcard `_name` shares one variable across its occurrences, so `_name` positions join (see [query forms](query-forms#aggregate)).
 
 ```klugh
 utility
@@ -219,7 +219,7 @@ Score = average warmth that any agent feels toward `?SELF`.
 
 ```klugh
 utility
-  avg|warmth(_, ?SELF) ^ knows(_, ?SELF)|
+  avg|warmth(_a, ?SELF) ^ knows(_a, ?SELF)|
 ```
 
 Filtered: only agents who know `?SELF` contribute to the average.

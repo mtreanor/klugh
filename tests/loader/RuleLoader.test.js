@@ -323,6 +323,60 @@ describe('RuleLoader', () => {
       assert.equal(predicate.getVariables()[0].name, 'SELF');
     });
 
+    describe('aggregate wildcard identity', () => {
+      const wcLoader = new RuleLoader(new PredicateSchema({
+        predicates: {
+          knows:      { type: 'boolean', args: ['agent', 'agent'] },
+          trusts:     { type: 'boolean', args: ['agent', 'agent'] },
+          inGroup:    { type: 'boolean', args: ['agent', 'group'] },
+          friendship: { type: 'numeric', args: ['agent', 'agent'], minValue: 0, maxValue: 10, default: 0 },
+        },
+      }));
+
+      const countRule = (predicates) => ({
+        rules: [{
+          name: 'R1',
+          predicates: [{ type: 'aggregate', fn: 'count', predicates, operator: '>', rhs: { kind: 'literal', value: 0 } }],
+          effects: [{ type: 'adjust-numeric', name: 'friendship', args: ['?SELF', '?SELF'], delta: 1.0 }],
+        }],
+      });
+
+      const countingVarsOf = (result) => result.rules[0].predicateEntries[0].predicate.countingVars;
+
+      it('gives each anonymous _ its own fresh counting variable (no join)', () => {
+        const result = wcLoader.load(countRule([
+          { type: 'fact', name: 'knows',  args: ['?SELF', null] },
+          { type: 'fact', name: 'trusts', args: ['?SELF', null] },
+        ]));
+        assert.equal(countingVarsOf(result).length, 2); // independent — "knows someone and trusts someone"
+      });
+
+      it('shares one counting variable across occurrences of a named wildcard', () => {
+        const result = wcLoader.load(countRule([
+          { type: 'fact', name: 'knows',  args: ['?SELF', { wildcard: 'a' }] },
+          { type: 'fact', name: 'trusts', args: ['?SELF', { wildcard: 'a' }] },
+        ]));
+        assert.equal(countingVarsOf(result).length, 1); // joined — "knows and trusts the same person"
+      });
+
+      it('rejects a named wildcard used at two different entity types', () => {
+        assert.throws(() => wcLoader.load(countRule([
+          { type: 'fact', name: 'knows',   args: ['?SELF', { wildcard: 'a' }] }, // agent slot
+          { type: 'fact', name: 'inGroup', args: ['?SELF', { wildcard: 'a' }] }, // group slot
+        ])), /single entity type/);
+      });
+
+      it('rejects a named wildcard outside an aggregate', () => {
+        assert.throws(() => wcLoader.load({
+          rules: [{
+            name: 'R1',
+            predicates: [{ type: 'fact', name: 'knows', args: ['?SELF', { wildcard: 'a' }] }],
+            effects: [{ type: 'adjust-numeric', name: 'friendship', args: ['?SELF', '?SELF'], delta: 1.0 }],
+          }],
+        }), /only valid inside an aggregate/);
+      });
+    });
+
     it('skips validation when no schema is provided', () => {
       const unvalidated = new RuleLoader();
       assert.doesNotThrow(() => unvalidated.load({
@@ -426,7 +480,7 @@ describe('RuleLoader', () => {
   // resolveType); (2) rewriteAggregateArgs didn't know about the {type:
   // 'private', predicate} wrapper, so a private-owned predicate's wildcard
   // never got rewritten to a shared counting variable. Both needed fixing
-  // together for count|?SELF.pred(_) ^ derivedPred(?SELF, _)| to work at all.
+  // together for count|?SELF.pred(_a) ^ derivedPred(?SELF, _a)| to work at all.
   describe('aggregate conjunctions with derived and private predicates', () => {
     function buildEngine() {
       const engine = new Engine({
@@ -477,12 +531,12 @@ describe('RuleLoader', () => {
       const engine = buildEngine();
       engine.loadRules(`
         rule "at least two"
-          count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| >= 2
+          count|?SELF.embarrassedThemselves(_a) ^ sameGroup(?SELF, _a)| >= 2
           => leaveFlag(?SELF)
       `, 'r-two');
       engine.loadRules(`
         rule "at least three"
-          count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| >= 3
+          count|?SELF.embarrassedThemselves(_a) ^ sameGroup(?SELF, _a)| >= 3
           => leaveFlag(?SELF)
       `, 'r-three');
 

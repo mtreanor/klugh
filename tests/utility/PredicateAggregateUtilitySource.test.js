@@ -202,7 +202,7 @@ describe('PredicateAggregateUtilitySource — parser + loader integration', () =
       action "know warmth"
         roles: ?SELF: agent
         utility
-          avg|warmth(_, ?SELF) ^ knows(_, ?SELF)|
+          avg|warmth(_a, ?SELF) ^ knows(_a, ?SELF)|
         effects
           knows(?SELF, ?SELF)
     `);

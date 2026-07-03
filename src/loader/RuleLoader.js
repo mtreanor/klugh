@@ -281,16 +281,26 @@ export class RuleLoader {
     return { filterPredicates, valuePred, countingVars, countingVarTypes };
   }
 
-  // Rewrites `_` wildcards in an aggregate conjunction to counting variables.
-  // One variable is created per unique entity type, shared across all predicates,
-  // so `_` positions of the same entity type are implicitly joined — including
-  // between a private-owned predicate and a world/derived one, e.g.
-  // count|?SELF.embarrassedThemselves(_) ^ sameGroup(?SELF, _)| joins on the
-  // same candidate agent in both conjuncts even though they're owned differently.
+  // Rewrites the wildcards in an aggregate conjunction to counting variables.
+  // Identity is name-based, matching the rest of the language: an anonymous `_`
+  // gets a fresh counting variable each time (it never joins), while a named
+  // wildcard `_n` shares one counting variable across all its occurrences — so
+  // `_n` positions join, and are validated to agree on entity type. This lets
+  // count|?SELF.embarrassedThemselves(_a) ^ sameGroup(?SELF, _a)| join on the
+  // same candidate agent in both conjuncts, while count|knows(?SELF, _) ^
+  // trusts(?SELF, _)| counts "knows someone and trusts someone" independently.
   rewriteAggregateArgs(predicates) {
-    const typeToVar      = new Map();
+    const nameToVar        = new Map();  // named-wildcard name -> LogicalVariable
     const countingVarTypes = new Map();
+    const countingVars     = [];         // in creation order
     let varIdx = 0;
+
+    const freshVar = (entityType) => {
+      const v = new LogicalVariable(`__agg_${varIdx++}__`);
+      countingVarTypes.set(v.name, entityType);
+      countingVars.push(v);
+      return v;
+    };
 
     const rewriteOne = (pred) => {
       if (pred.type === 'private') {
@@ -302,21 +312,32 @@ export class RuleLoader {
         : [];
 
       const rewrittenArgs = (pred.args ?? []).map((arg, i) => {
-        if (arg !== null) return arg;
         const entityType = argTypes[i] ?? 'agent';
-        if (!typeToVar.has(entityType)) {
-          const varName = `__agg_${varIdx++}__`;
-          typeToVar.set(entityType, new LogicalVariable(varName));
-          countingVarTypes.set(varName, entityType);
+        if (arg === null) {
+          // Anonymous wildcard: a fresh counting variable, never joined.
+          return `?${freshVar(entityType).name}`;
         }
-        return `?${typeToVar.get(entityType).name}`;
+        if (arg && typeof arg === 'object' && 'wildcard' in arg) {
+          // Named wildcard: shared by name; occurrences join.
+          const wname = arg.wildcard;
+          if (!nameToVar.has(wname)) {
+            nameToVar.set(wname, freshVar(entityType));
+          } else {
+            const existing = countingVarTypes.get(nameToVar.get(wname).name);
+            if (existing !== entityType) {
+              throw new Error(`Named wildcard _${wname} is used at both '${existing}' and '${entityType}' positions — a named wildcard must have a single entity type`);
+            }
+          }
+          return `?${nameToVar.get(wname).name}`;
+        }
+        return arg;
       });
 
       return { ...pred, args: rewrittenArgs };
     };
 
     const rewrittenPredicates = predicates.map(rewriteOne);
-    return { rewrittenPredicates, countingVars: [...typeToVar.values()], countingVarTypes };
+    return { rewrittenPredicates, countingVars, countingVarTypes };
   }
 
   buildAggregateRhs(rhs) {

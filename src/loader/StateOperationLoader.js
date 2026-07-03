@@ -86,6 +86,9 @@ export class StateOperationLoader {
   resolveArgs(args) {
     return args.map(arg => {
       if (arg === null) return null;
+      if (arg && typeof arg === 'object' && 'wildcard' in arg) {
+        throw new Error(`Named wildcard _${arg.wildcard} is only valid inside an aggregate conjunction`);
+      }
       if (typeof arg === 'string' && arg.startsWith('?')) return new LogicalVariable(arg.slice(1));
       return arg;
     });

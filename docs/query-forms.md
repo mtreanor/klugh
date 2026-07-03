@@ -173,12 +173,12 @@ rule "isolated when SELF knows fewer than two agents"
   |knows(?SELF, _)| < 2
   => cautious(?SELF, ?Y) += 1.0
 
-rule "close when SELF both knows and trusts someone"
-  count|knows(?SELF, _) ^ trusts(?SELF, _)| >= 1
+rule "close when SELF both knows and trusts the same person"
+  count|knows(?SELF, _p) ^ trusts(?SELF, _p)| >= 1
   => close(?SELF) += 1.0
 ```
 
-The type of each `_` position is inferred from the predicate schema, so non-agent entities (knowledge domains, items, etc.) are enumerated correctly.
+The type of each `_` position is inferred from the predicate schema, so non-agent entities (knowledge domains, items, etc.) are enumerated correctly. Note the named wildcard `_p`: it makes the two positions join on the *same* person. A bare `count|knows(?SELF, _) ^ trusts(?SELF, _)|` would instead count "knows someone and trusts someone" independently — see [wildcard identity](#aggregate) below.
 
 ---
 
@@ -188,7 +188,7 @@ The type of each `_` position is inferred from the predicate schema, so non-agen
 
 ```klugh
 rule "well-regarded when the average warmth among coworkers is high"
-  avg|warmth(_, ?SELF) ^ coworker(_, ?SELF)| > 60
+  avg|warmth(_a, ?SELF) ^ coworker(_a, ?SELF)| > 60
   => wellRegarded(?SELF) += 1.0
 
 rule "someone is admired when their warmth exceeds average"
@@ -203,11 +203,11 @@ rule "carol is admired more than bob overall"
 **Group filtering** — add boolean predicates to the conjunction inside the pipes with `^`. Boolean predicates (including tier checks) act as filters; the one numeric predicate provides the values.
 
 ```klugh
-avg|warmth(_, carol) ^ knows(_, carol)|  // average warmth among agents who know carol
-avg|warmth(_, carol) ^ trust.high(_, carol)|  // average warmth among high-trust agents
+avg|warmth(_a, carol) ^ knows(_a, carol)|  // average warmth among agents who know carol
+avg|warmth(_a, carol) ^ trust.high(_a, carol)|  // average warmth among high-trust agents
 ```
 
-**Wildcard sharing** — all `_` positions of the same entity type across the conjunction map to a single enumeration variable, so `warmth(_, carol) ^ knows(_, carol)` iterates one agent at a time through both predicates. `_` positions of different entity types each get their own variable.
+**Wildcard identity** — identity is name-based, as everywhere else in the language. A bare `_` is anonymous: it gets a fresh enumeration variable each time and never joins with another `_`. A named wildcard `_name` shares one enumeration variable across all its occurrences, so `warmth(_a, carol) ^ knows(_a, carol)` iterates one agent at a time through *both* predicates (joining on `_a`), whereas `warmth(_, carol) ^ knows(_, carol)` would range over the two positions independently. Occurrences of one named wildcard must agree on entity type (validated at load); different names never join.
 
 **Aggregate as value expression** — an aggregate can appear on either side of any comparison, or on both sides. The result is the raw computed value (avg/sum/max/min), compared to a literal, a numeric predicate, or another aggregate.
 

@@ -100,6 +100,7 @@ export class RuleSerializer {
 
   serializeArg(arg) {
     if (arg === null) return '_';
+    if (arg && typeof arg === 'object' && 'wildcard' in arg) return `_${arg.wildcard}`;
     return String(arg);
   }
 

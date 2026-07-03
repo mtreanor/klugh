@@ -19,7 +19,12 @@ export class Lexer {
 
       if (ch === '"')                              { tokens.push(this.readString());   continue; }
       if (ch === '?')                              { tokens.push(this.readVariable()); continue; }
-      if (ch === '_' && !this.isIdentChar(next))   { tokens.push(this.tok('WILDCARD', '_')); this.pos++; continue; }
+      if (ch === '_') {
+        // `_` alone is the anonymous wildcard; `_name` is a named wildcard whose
+        // occurrences join within an aggregate conjunction.
+        if (/[a-zA-Z0-9_]/.test(next)) { tokens.push(this.readNamedWildcard()); continue; }
+        tokens.push(this.tok('WILDCARD', '_')); this.pos++; continue;
+      }
 
       if (ch === '=' && next === '>')              { tokens.push(this.tok('FAT_ARROW', '=>')); this.pos += 2; continue; }
       if (ch === '=' && next === '=')              { tokens.push(this.tok('EQ',        '=')); this.pos += 2; continue; }
@@ -91,6 +96,16 @@ export class Lexer {
       name += this.source[this.pos++];
     }
     return { type: 'VARIABLE', value: name, line };
+  }
+
+  readNamedWildcard() {
+    const line = this.line;
+    this.pos++; // skip _
+    let name = '';
+    while (this.pos < this.source.length && /[a-zA-Z0-9_]/.test(this.source[this.pos])) {
+      name += this.source[this.pos++];
+    }
+    return { type: 'NAMED_WILDCARD', value: name, line };
   }
 
   readNumber() {
@@ -679,6 +694,7 @@ export class DSLParser {
   parseArg() {
     if (this.check('VARIABLE')) return '?' + this.advance().value;
     if (this.check('WILDCARD')) { this.advance(); return null; }
+    if (this.check('NAMED_WILDCARD')) return { wildcard: this.advance().value };
     if (this.check('STRING'))   return this.advance().value;
     if (this.check('NUMBER'))   return this.advance().value;
     if (this.check('IDENT'))    return this.advance().value;

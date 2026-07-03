@@ -578,6 +578,20 @@ describe('RuleParser', () => {
       assert.equal(rules[0].predicates[0].rhs.value, 1);
     });
 
+    it('parses a named wildcard _name as a wildcard marker distinct from _', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          count|knows(?SELF, _a) ^ trusts(?SELF, _a) ^ feuding(?SELF, _)| >= 1
+          => close(?SELF) += 1.0
+      `);
+
+      const agg = rules[0].predicates[0];
+      assert.equal(agg.type, 'aggregate');
+      assert.deepEqual(agg.predicates[0].args, ['?SELF', { wildcard: 'a' }]);
+      assert.deepEqual(agg.predicates[1].args, ['?SELF', { wildcard: 'a' }]);
+      assert.deepEqual(agg.predicates[2].args, ['?SELF', null]); // bare _ stays anonymous
+    });
+
     it('parses a conjunction inside bare |...| the same as count|...|', () => {
       const { rules } = parser.parse(`
         rule "R1"

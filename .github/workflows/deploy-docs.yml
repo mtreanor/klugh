@@ -3,6 +3,11 @@ name: Deploy docs
 on:
   push:
     branches: [main]
+    paths:
+      - 'docs/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
 permissions:
@@ -10,9 +15,12 @@ permissions:
   pages: write
   id-token: write
 
+# Rapid pushes to main supersede each other on the Pages backend; cancelling the
+# older in-progress run (rather than letting it fail) avoids spurious "Deployment
+# failed, try again later" failures and their emails. Only the latest matters.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:

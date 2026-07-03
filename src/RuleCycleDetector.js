@@ -16,6 +16,11 @@ function* walkScoped(predicate, scope) {
   const innerScope = ('owner' in predicate && predicate.innerPredicate) ? 'private' : scope;
   if (predicate.predicate)      yield* walkScoped(predicate.predicate, scope);
   if (predicate.innerPredicate) yield* walkScoped(predicate.innerPredicate, innerScope);
+  // AtTickPredicate (and future tick-binding wrappers) store their wrapped
+  // predicate as `.inner`, evaluated at a shifted tick but the same store, so
+  // it descends under the current scope. Without this, a rule condition like
+  // `pred(?x) [at: -25]` is invisible to cycle detection.
+  if (predicate.inner)          yield* walkScoped(predicate.inner, scope);
 }
 
 function lhsBooleanNames(rule) {

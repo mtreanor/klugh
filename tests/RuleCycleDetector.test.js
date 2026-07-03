@@ -5,6 +5,7 @@ import { Rule } from '../src/Rule.js';
 import { FactPredicate } from '../src/predicates/FactPredicate.js';
 import { NegationPredicate } from '../src/predicates/NegationPredicate.js';
 import { PrivatePredicate } from '../src/predicates/PrivatePredicate.js';
+import { AtTickPredicate } from '../src/predicates/AtTickPredicate.js';
 import { StateOperation } from '../src/stateOperations/StateOperation.js';
 import { LogicalVariable } from '../src/LogicalVariable.js';
 
@@ -159,6 +160,17 @@ describe('RuleCycleDetector', () => {
     const r1 = new Rule('R1', [{ predicate: privatePremise('p'), importance: 1.0 }], [privateEffect('p')]);
     const cycle = detector.detect([r1]);
     assert.ok(cycle !== null, 'expected a private self-cycle to be detected');
+    assert.ok(cycle.includes('R1'));
+  });
+
+  it('detects a self-cycle hidden inside an [at:] tick wrapper', () => {
+    // R1 reads `p [at: -5]` and asserts `p`. AtTickPredicate shifts the tick
+    // but reads the same fact in the same store, so name-based cycle detection
+    // must still descend into its wrapped `.inner` predicate and catch the loop.
+    const wrapped = new AtTickPredicate(new FactPredicate('p', X, Y), -5);
+    const r1 = new Rule('R1', [{ predicate: wrapped, importance: 1.0 }], [booleanEffect('p')]);
+    const cycle = detector.detect([r1]);
+    assert.ok(cycle !== null, 'expected a cycle hidden by the tick wrapper to be detected');
     assert.ok(cycle.includes('R1'));
   });
 

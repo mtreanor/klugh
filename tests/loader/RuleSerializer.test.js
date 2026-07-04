@@ -187,6 +187,19 @@ describe('RuleSerializer', () => {
       assert.ok(dsl.includes('knows(?SELF, ?Y) [when: ?T]'));
     });
 
+    it('serializes a closure predicate as [degrees: N] [dist: ?d]', () => {
+      const withDist = serializer.serialize({
+        rules: [rule('R1', [{ type: 'closure', name: 'knows', args: ['?X', '?Y'], degrees: 3, dist: '?d' }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+      assert.ok(withDist.includes('knows(?X, ?Y) [degrees: 3] [dist: ?d]'));
+
+      const noDist = serializer.serialize({
+        rules: [rule('R1', [{ type: 'closure', name: 'knows', args: ['?X', '?Y'], degrees: 2, dist: null }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+      assert.ok(noDist.includes('knows(?X, ?Y) [degrees: 2]'));
+      assert.ok(!noDist.includes('[dist:'));
+    });
+
     it('serializes a two-step temporal chain with then', () => {
       const dsl = serializer.serialize({
         rules: [rule('R1', [{

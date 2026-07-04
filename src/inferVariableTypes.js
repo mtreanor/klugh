@@ -30,6 +30,22 @@ function scanPredicateForTypes(pred, schema, types) {
     scanPredicateForTypes(pred.inner, schema, types);
     return;
   }
+  // ClosurePredicate ([degrees: N]) — the target (args[1]) enumerates from the
+  // reachable set, and the distance ([dist: ?d]) binds alongside it. Whichever
+  // is the free driver is 'closure-target'; a target-driven distance is
+  // 'closure-bound' (bound during the target's enumeration, not on its own).
+  if (typeof pred.degrees === 'number') {
+    const to = pred.args?.[1];
+    if (to instanceof LogicalVariable) {
+      types.set(to.name, 'closure-target');
+      if (pred.distVar) types.set(pred.distVar.name, 'closure-bound');
+    } else if (pred.distVar) {
+      types.set(pred.distVar.name, 'closure-target');
+    }
+    // from (args[0]) and context (args[2+]) take their ordinary schema types.
+    assignTypesFromArgs(pred.name, pred.args, schema, types);
+    return;
+  }
   // NegationPredicate has no .name — variables must already be bound by positive predicates
   if (!pred.name) return;
   assignTypesFromArgs(pred.name, pred.args, schema, types);

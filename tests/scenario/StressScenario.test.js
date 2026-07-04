@@ -278,6 +278,16 @@ describe('Stress scenario', () => {
       assert.equal(q(engine, 'count|knows(oren, silas) [when: _t]| > 1'), 0);
     });
 
+    it('reaches transitively with [degrees: N]', () => {
+      const { engine } = buildWorld();
+      const direct = q(engine, 'knows(oren, ?y)');
+      assert.ok(direct > 0);
+      assert.equal(q(engine, 'knows(oren, ?y) [degrees: 1]'), direct);   // one hop = direct neighbours
+      assert.ok(q(engine, 'knows(oren, ?y) [degrees: 3]') >= direct);    // reach ⊇ direct neighbours
+      // Same reachable set, counted inside an aggregate.
+      assert.equal(q(engine, 'count|knows(oren, _) [degrees: 3]| >= 1'), 1);
+    });
+
     it('checks numeric tiers historically', () => {
       const { engine } = buildWorld();
       assert.equal(q(engine, 'trust.devoted(yara, mara)'), 0);            // now 58

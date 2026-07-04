@@ -312,6 +312,8 @@ export class DSLParser {
     let agoOffset = null;
     let duringWindow = null;
     let whenVar = null;
+    let degrees = null;
+    let distVar = null;
 
     // Each modifier is its own bracket; brackets stack in any order, no commas.
     while (this.check('LBRACKET')) {
@@ -345,10 +347,22 @@ export class DSLParser {
         // Relative-tick state check: was this true N ticks before now.
         this.expect('COLON');
         agoOffset = this.expect('NUMBER').value;
+      } else if (key === 'degrees') {
+        // Bounded transitive closure: reachable within N hops of this relation.
+        this.expect('COLON');
+        degrees = this.expect('NUMBER').value;
+      } else if (key === 'dist') {
+        // Binds the shortest hop-count; only meaningful alongside [degrees: N].
+        this.expect('COLON');
+        distVar = '?' + this.expect('VARIABLE').value;
       } else {
         throw new Error(`Unknown modifier '${key}' at line ${keyTok.line}`);
       }
       this.expect('RBRACKET');
+    }
+
+    if (distVar !== null && degrees === null) {
+      throw new Error(`[dist: ${distVar}] requires a [degrees: N] closure on the same predicate`);
     }
 
     let finalPred = pred.type === 'private' ? pred.predicate : pred;
@@ -363,6 +377,9 @@ export class DSLParser {
     } else if (whenVar !== null) {
       const inner = finalPred;
       finalPred = { type: 'when', name: inner.name, args: inner.args, tickVar: whenVar };
+    } else if (degrees !== null) {
+      const inner = finalPred;
+      finalPred = { type: 'closure', name: inner.name, args: inner.args, degrees, dist: distVar };
     } else if (atTick !== null) {
       finalPred = { type: 'at-tick', predicate: finalPred, tick: atTick };
     } else if (agoOffset !== null) {
@@ -760,16 +777,28 @@ export class DSLParser {
       // lookup for a fact that's never actually asserted.
       result = { type: this.resolveType(name), name, args };
     }
-    // Optional [when: _t] — event enumeration inside the aggregate. The tick
-    // counting variable is a named wildcard (it joins/counts like the other
-    // aggregate positions), so it takes a NAMED_WILDCARD, not a `?var`.
-    if (this.check('LBRACKET')) {
+    // Optional modifiers inside an aggregate: [when: _t] event enumeration, or
+    // [degrees: N] bounded closure (its target `_` counts the reachable set).
+    let tickVar = null, degrees = null;
+    while (this.check('LBRACKET')) {
       this.advance();
-      this.expect('IDENT', 'when');
+      const key = this.expect('IDENT').value;
       this.expect('COLON');
-      const tickVar = { wildcard: this.expect('NAMED_WILDCARD').value };
+      if (key === 'when') {
+        tickVar = { wildcard: this.expect('NAMED_WILDCARD').value };
+      } else if (key === 'degrees') {
+        degrees = this.expect('NUMBER').value;
+      } else if (key === 'dist') {
+        throw new Error(`[dist:] is not supported inside an aggregate yet — bind distance in a standalone closure`);
+      } else {
+        throw new Error(`Modifier '${key}' is not valid inside an aggregate`);
+      }
       this.expect('RBRACKET');
+    }
+    if (tickVar) {
       result = { type: 'when', name: result.name, args: result.args, tickVar };
+    } else if (degrees !== null) {
+      result = { type: 'closure', name: result.name, args: result.args, degrees, dist: null };
     }
     return owner ? { type: 'private', ...owner, predicate: result } : result;
   }

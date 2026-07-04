@@ -489,6 +489,38 @@ describe('RuleLoader', () => {
     });
   });
 
+  describe('closure cycle detection', () => {
+    const cycLoader = new RuleLoader(new PredicateSchema({
+      predicates: {
+        friend:  { type: 'boolean', args: ['agent', 'agent'] },
+        flagged: { type: 'boolean', args: ['agent', 'agent'] },
+      },
+    }));
+
+    it('detects a rule that closes over a relation it also asserts', () => {
+      // Reading friend transitively and asserting friend can keep growing the
+      // relation — the closure must be visible to the cycle detector via its
+      // edge-relation name.
+      assert.throws(() => cycLoader.load({
+        rules: [{
+          name: 'grow',
+          predicates: [{ type: 'closure', name: 'friend', args: ['?X', '?Y'], degrees: 2, dist: null }],
+          effects: [{ type: 'assert', name: 'friend', args: ['?X', '?Y'] }],
+        }],
+      }), /Cyclic rule dependency/);
+    });
+
+    it('does not flag a closure over an unrelated relation', () => {
+      assert.doesNotThrow(() => cycLoader.load({
+        rules: [{
+          name: 'ok',
+          predicates: [{ type: 'closure', name: 'friend', args: ['?X', '?Y'], degrees: 2, dist: null }],
+          effects: [{ type: 'assert', name: 'flagged', args: ['?X', '?Y'] }],
+        }],
+      }));
+    });
+  });
+
   describe('unsafe negation warnings', () => {
     function captureWarnings(fn) {
       const warnings = [];

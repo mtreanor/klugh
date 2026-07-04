@@ -12,6 +12,7 @@ import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js'
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
 import { DuringPredicate } from '../predicates/DuringPredicate.js';
 import { WhenPredicate } from '../predicates/WhenPredicate.js';
+import { ClosurePredicate } from '../predicates/ClosurePredicate.js';
 import { PrivatePredicate } from '../predicates/PrivatePredicate.js';
 import { AtTickPredicate } from '../predicates/AtTickPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
@@ -147,6 +148,14 @@ function justify(predicate, binding, ctx) {
     return mk('historical', { record: lookupRecord(ctx, predicate.name, args, false), tick: binding.resolve(predicate.tickVar) });
   }
 
+  // pred(?X, ?Y) [degrees: N] — the target was reached from ?X over the edge
+  // relation. Record the edge facts on the shortest path to ?Y as the support,
+  // tagged with the hop-count.
+  if (predicate instanceof ClosurePredicate) {
+    const records = closurePathRecords(predicate, binding, ctx);
+    return mk('closure', { records, value: records.length });
+  }
+
   // ?owner.pred — justify the inner predicate against the owner's private store.
   if (predicate instanceof PrivatePredicate) {
     const ownerName = predicate.resolveOwnerName(binding);
@@ -220,6 +229,20 @@ function collectChainRecords(predicate, binding, ctx) {
   return predicate.steps
     .map(step => lookupRecord(ctx, step.name, resolveArgs(step.args, binding), false))
     .filter(Boolean);
+}
+
+// The stored edge records along the shortest path a closure took to reach its
+// target. Derived/sensor edges have no stored record and contribute nothing.
+function closurePathRecords(predicate, binding, ctx) {
+  const path = predicate.shortestPath(binding, ctx);
+  if (!path) return [];
+  const context = resolveArgs(predicate.args.slice(2), binding);
+  const records = [];
+  for (let i = 0; i + 1 < path.length; i++) {
+    const rec = lookupRecord(ctx, predicate.name, [toFactArg(path[i]), toFactArg(path[i + 1]), ...context], false);
+    if (rec) records.push(rec);
+  }
+  return records;
 }
 
 function lookupRecord(ctx, name, args, negated) {

@@ -95,6 +95,42 @@ Enumerating discrete events — rather than every tick the fact was true — is 
 
 ---
 
+## Bounded reach
+
+`pred(?X, ?Y) [degrees: N]` binds `?Y` to every node reachable from `?X` by 1–N hops of `pred` — its **bounded transitive closure**. The predicate you write *is* the relation whose edges are walked; `[degrees: 1]` is just the relation itself.
+
+```klugh
+rule "you can be introduced to friends of friends"
+  knows(?SELF, ?OTHER) [degrees: 2]
+  => couldBeIntroduced(?SELF, ?OTHER)
+```
+
+`?OTHER` binds to each node within 2 hops of `?SELF` (friends, and friends-of-friends), one firing per node; the origin is excluded and each node counts once. A node that isn't reachable within N hops simply doesn't bind — there is no unbounded form (klugh forbids recursion; the bound is what keeps evaluation terminating, and in a social graph "within N degrees" is usually the quantity you actually mean).
+
+**Distance.** A stacked `[dist: ?d]` bracket binds the shortest hop-count:
+
+```klugh
+knows(?SELF, ?OTHER) [degrees: 6] [dist: ?d]
+```
+
+**Context.** The endpoints are the first two arguments; any further arguments are fixed context carried through every hop, so `trades(?X, ?Y, wine) [degrees: 3]` chains buyer→seller through wine trades only.
+
+**The edge relation** can be any binary predicate — a stored fact, a `define`d derived relation (gate edges with `define stronglyTrusts(?a,?b) :- trusts(?a,?b) > 50`, then `stronglyTrusts(?X,?Y) [degrees: 3]`), or a sensor. Closing over a derived edge re-derives it per hop, so it costs more than walking stored facts.
+
+**Counting reach.** Inside an aggregate the target counts the reachable set:
+
+```klugh
+rule "socially central agents grow confident"
+  count|knows(?SELF, _) [degrees: 3]| >= 5
+  => confident(?SELF) += 2
+```
+
+This is degree vs. reach: `count|knows(?SELF, _)|` counts *direct* ties; `count|knows(?SELF, _) [degrees: 3]|` counts the whole bloc reachable within 3 hops.
+
+What it can't express, by design: anything *unbounded* — connected components ("are these two in the same faction at all"), cycles in a relation ("is there a debt cycle"), or distances beyond the cap.
+
+---
+
 ## Numeric tier
 
 `predicate.tier(args)` is true when the predicate's current value falls within the named tier's range. Tiers are declared in the schema.

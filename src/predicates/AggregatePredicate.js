@@ -35,12 +35,23 @@ export class AggregatePredicate extends Predicate {
     // assertion events, not the entity registry, and depend on that filter's
     // other args being bound first — so they are enumerated inside the entity
     // cartesian, drawing candidates from the owning WhenPredicate.
+    // Closure-kind counting variables ([degrees: N]) enumerate from a bounded
+    // reachability walk, like tick vars enumerate from assertion events — both
+    // depend on the owning predicate's other args (the root) being bound first.
     this.tickVars           = countingVars.filter(v => countingVarTypes.get(v.name) === 'tick');
-    this.entityCountingVars = countingVars.filter(v => countingVarTypes.get(v.name) !== 'tick');
-    this.tickSource         = new Map(); // tick var name -> WhenPredicate
+    this.closureVars        = countingVars.filter(v => countingVarTypes.get(v.name) === 'closure');
+    this.entityCountingVars = countingVars.filter(v => {
+      const t = countingVarTypes.get(v.name);
+      return t !== 'tick' && t !== 'closure';
+    });
+    this.tickSource    = new Map(); // tick var name -> WhenPredicate
+    this.closureSource = new Map(); // closure target name -> ClosurePredicate
     for (const p of filterPredicates) {
       if (p instanceof WhenPredicate && p.tickVar instanceof LogicalVariable) {
         this.tickSource.set(p.tickVar.name, p);
+      }
+      if (typeof p.degrees === 'number' && p.toArg instanceof LogicalVariable) {
+        this.closureSource.set(p.toArg.name, p);
       }
     }
   }
@@ -59,13 +70,19 @@ export class AggregatePredicate extends Predicate {
       let base = binding;
       this.entityCountingVars.forEach((v, i) => { base = base.extend(v, combination[i]); });
 
-      const tickLists = this.tickVars.map(v => {
-        const source = this.tickSource.get(v.name);
-        return source ? source.assertionTicks(base, evaluationContext) : [];
+      // Dependent counting variables — tick (assertion events) and closure
+      // (reachable nodes) — enumerated inside each entity combination, since
+      // their candidates need the entity/root vars already bound.
+      const depVars  = [...this.tickVars, ...this.closureVars];
+      const depLists = depVars.map(v => {
+        const tickSrc = this.tickSource.get(v.name);
+        if (tickSrc) return tickSrc.assertionTicks(base, evaluationContext);
+        const closureSrc = this.closureSource.get(v.name);
+        return closureSrc ? closureSrc.reachableNodes(base, evaluationContext) : [];
       });
-      for (const ticks of cartesian(tickLists)) {
+      for (const values of cartesian(depLists)) {
         let extended = base;
-        this.tickVars.forEach((v, i) => { extended = extended.extend(v, ticks[i]); });
+        depVars.forEach((v, i) => { extended = extended.extend(v, values[i]); });
         yield extended;
       }
     }

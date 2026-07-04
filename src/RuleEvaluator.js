@@ -28,17 +28,23 @@ export class RuleEvaluator {
     const variableTypes      = this.inferVariableTypes(rule, schema);
     let   variablesToEnumerate = variables.filter(v => !startingBinding.isBound(v));
 
-    // Tick variables ([when: ?t]) are dependent: their candidate ticks come from
-    // getAssertionTicks(name, resolvedArgs), so the predicate's other args must be
-    // enumerated first. Tick variables are always enumeration sinks (nothing
-    // depends on them), so a stable partition that moves them to the end is a
-    // valid topological order — no full sort is needed. Gated on their presence
-    // so rules without a tick variable take the original path unchanged.
-    const hasTickVar = variablesToEnumerate.some(v => variableTypes.get(v.name) === 'tick');
-    if (hasTickVar) {
+    // Dependent variables draw candidates from a computation over already-bound
+    // siblings, so they must be enumerated after those siblings: tick variables
+    // ([when: ?t]) from a fact's assertion events, and closure targets
+    // ([degrees: N]) from a bounded reachability walk. A stable partition moving
+    // them to the end is a valid order (they appear left-to-right in dependency
+    // order); closure-bound distances bind during their target's enumeration and
+    // are never enumerated on their own, so they drop out entirely. Gated on
+    // presence so ordinary rules take the original path unchanged.
+    variablesToEnumerate = variablesToEnumerate.filter(v => variableTypes.get(v.name) !== 'closure-bound');
+    const isDependent = v => {
+      const t = variableTypes.get(v.name);
+      return t === 'tick' || t === 'closure-target';
+    };
+    if (variablesToEnumerate.some(isDependent)) {
       variablesToEnumerate = [
-        ...variablesToEnumerate.filter(v => variableTypes.get(v.name) !== 'tick'),
-        ...variablesToEnumerate.filter(v => variableTypes.get(v.name) === 'tick'),
+        ...variablesToEnumerate.filter(v => !isDependent(v)),
+        ...variablesToEnumerate.filter(v => isDependent(v)),
       ];
     }
 
@@ -98,6 +104,21 @@ export class RuleEvaluator {
       return bindings;
     }
 
+    // Closure targets ([degrees: N]) draw candidates from a bounded reachability
+    // walk; enumerate() returns the free-output assignments (target, and distance
+    // when present) for each reachable node consistent with the current binding.
+    if (type === 'closure-target') {
+      const closure = this.closureFor(head, predicateEntries);
+      if (!closure) return [];
+      const bindings = [];
+      for (const assignments of closure.enumerate(startingBinding, evaluationContext)) {
+        let extended = startingBinding;
+        for (const [variable, value] of assignments) extended = extended.extend(variable, value);
+        bindings.push(...this.generateAllBindings(tail, variableTypes, entityRegistry, extended, evaluationContext, predicateEntries));
+      }
+      return bindings;
+    }
+
     let   entities = entityRegistry.get(type) ?? [];
 
     if (entities.length === 0 && evaluationContext && predicateEntries) {
@@ -112,6 +133,19 @@ export class RuleEvaluator {
       bindings.push(...this.generateAllBindings(tail, variableTypes, entityRegistry, extended, evaluationContext, predicateEntries));
     }
     return bindings;
+  }
+
+  // The closure predicate whose free driver variable (its target, or its
+  // distance when the target is ground) is this variable.
+  closureFor(variable, predicateEntries) {
+    if (!predicateEntries) return null;
+    for (const { predicate } of predicateEntries) {
+      if (typeof predicate.degrees !== 'number') continue;
+      const to     = predicate.toArg;
+      const driver = to instanceof LogicalVariable ? to : predicate.distVar;
+      if (driver && driver.name === variable.name) return predicate;
+    }
+    return null;
   }
 
   // Candidate ticks for a [when: ?t] variable — the union of assertion ticks

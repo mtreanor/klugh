@@ -129,6 +129,9 @@ function nodeFromJustification(j, ctx, visited) {
     }
 
     case 'temporal':
+    case 'closure':
+      // temporal: the ordered chain that satisfied `then`.
+      // closure: the edge facts on the shortest path that reached the target.
       return new ProofNode({
         statement: j.description, via: j.kind,
         support: (j.records ?? []).map(r =>

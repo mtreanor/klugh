@@ -186,6 +186,38 @@ describe('RuleParser', () => {
       });
     });
 
+    it('parses [degrees: N] [dist: ?d] as a closure predicate', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?X, ?Y) [degrees: 3] [dist: ?d]
+          => reachable(?X, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'closure', name: 'knows', args: ['?X', '?Y'], degrees: 3, dist: '?d',
+      });
+    });
+
+    it('rejects [dist: ?d] without [degrees: N]', () => {
+      assert.throws(() => parser.parse(`
+        rule "R1"
+          knows(?X, ?Y) [dist: ?d]
+          => reachable(?X, ?Y) += 1.0
+      `), /requires a \[degrees/);
+    });
+
+    it('parses closure context args after the two endpoints', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          trades(?X, ?Y, wine) [degrees: 2]
+          => reachable(?X, ?Y) += 1.0
+      `);
+
+      assert.deepEqual(rules[0].predicates[0], {
+        type: 'closure', name: 'trades', args: ['?X', '?Y', 'wine'], degrees: 2, dist: null,
+      });
+    });
+
     it('parses [tick: N] as an absolute at-tick rule condition', () => {
       const { rules } = parser.parse(`
         rule "R1"

@@ -12,6 +12,7 @@ import { NumericTierPredicate } from '../predicates/NumericTierPredicate.js';
 import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredicate.js';
 import { DuringPredicate } from '../predicates/DuringPredicate.js';
 import { WhenPredicate } from '../predicates/WhenPredicate.js';
+import { ClosurePredicate } from '../predicates/ClosurePredicate.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
 import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
@@ -139,6 +140,18 @@ export class RuleLoader {
         return new DuringPredicate(data.name, this.resolveArgs(data.args), data.window);
       case 'when':
         return new WhenPredicate(data.name, this.resolveArgs(data.args), this.resolveArgs([data.tickVar])[0]);
+      case 'closure': {
+        const args    = this.resolveArgs(data.args);
+        const distVar = data.dist ? this.resolveArgs([data.dist])[0] : null;
+        // The edge relation is evaluated per candidate target during the walk;
+        // build it as its real kind (stored/derived/sensor) over internal
+        // from/to variables, with the context args (positions 2+) carried through.
+        const edgeType    = this.edgePredicateType(data.name);
+        const edgePredicate = this.buildPredicate({ type: edgeType, name: data.name, args: ['?__cfrom', '?__cto', ...data.args.slice(2)] });
+        const edgeVars    = { from: new LogicalVariable('__cfrom'), to: new LogicalVariable('__cto') };
+        const toType      = this.predicateSchema?.getDefinition(data.name)?.args?.[1] ?? 'agent';
+        return new ClosurePredicate(data.name, args, data.degrees, distVar, edgePredicate, edgeVars, toType);
+      }
       case 'derived':
         return new DerivedFactPredicate(data.name, ...this.resolveArgs(data.args));
       case 'negation':
@@ -377,6 +390,14 @@ export class RuleLoader {
         result = { ...result, tickVar: `?${nameToVar.get(wname).name}` };
       }
 
+      // A [degrees: N] atom's target (args[1]) is a closure-kind counting
+      // variable: enumerated from the reachable set, not the entity registry.
+      if (pred.type === 'closure') {
+        const target = pred.args?.[1];
+        const wasWildcard = target === null || (target && typeof target === 'object' && 'wildcard' in target);
+        if (wasWildcard) countingVarTypes.set(result.args[1].slice(1), 'closure');
+      }
+
       return result;
     };
 
@@ -403,6 +424,14 @@ export class RuleLoader {
 
   resolveArgs(args) {
     return this.stateOperationLoader.resolveArgs(args);
+  }
+
+  // AST predicate type for a closure's edge relation, from its schema kind.
+  edgePredicateType(name) {
+    const t = this.predicateSchema?.getDefinition(name)?.type;
+    if (t === 'derived') return 'derived';
+    if (t === 'sensor')  return 'sensor';
+    return 'fact';
   }
 }
 

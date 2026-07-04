@@ -75,6 +75,10 @@ export class RuleSerializer {
     if (pred.type === 'when') {
       return `${pred.name}(${this.serializeArgs(pred.args)}) [when: ${pred.tickVar}]`;
     }
+    if (pred.type === 'closure') {
+      const dist = pred.dist ? ` [dist: ${pred.dist}]` : '';
+      return `${pred.name}(${this.serializeArgs(pred.args)}) [degrees: ${pred.degrees}]${dist}`;
+    }
     if (pred.type === 'temporal-chain') {
       return pred.steps.map((step, i) => {
         const call = `${step.name}(${this.serializeArgs(step.args)})`;

@@ -7,13 +7,16 @@
     { "include": "#comment" },
     { "include": "#block-keyword" },
     { "include": "#section-keyword" },
+    { "include": "#entity-keyword" },
     { "include": "#aggregator" },
+    { "include": "#numeric-function" },
     { "include": "#modifier-keyword" },
     { "include": "#operator" },
     { "include": "#pipe-delimiter" },
     { "include": "#annotation" },
     { "include": "#string" },
     { "include": "#variable" },
+    { "include": "#named-wildcard" },
     { "include": "#wildcard" },
     { "include": "#number" },
     { "include": "#predicate" }
@@ -31,9 +34,17 @@
       "name": "storage.type.klugh",
       "match": "\\b(preconditions|effects|utility|roles|content|info|text)\\b"
     },
+    "entity-keyword": {
+      "name": "keyword.control.klugh",
+      "match": "\\b(new|remove)\\s+entity\\b|\\brecord\\b(?=\\s*\\()"
+    },
     "aggregator": {
       "name": "support.function.klugh",
-      "match": "\\b(sum|avg|min|max|random)\\b"
+      "match": "\\b(sum|avg|min|max|count|random)\\b"
+    },
+    "numeric-function": {
+      "name": "support.function.klugh",
+      "match": "\\b(abs|clamp|pow)\\b(?=\\s*\\()"
     },
     "modifier-keyword": {
       "name": "keyword.operator.word.klugh",
@@ -45,9 +56,11 @@
         { "name": "keyword.operator.assignment.klugh", "match": "[+\\-]=" },
         { "name": "keyword.operator.comparison.klugh", "match": "!=|==|>=|<=" },
         { "name": "keyword.operator.comparison.klugh", "match": "[><]" },
+        { "name": "keyword.operator.arithmetic.klugh", "match": "[+*/]" },
         { "name": "keyword.operator.logical.klugh",    "match": "\\^" },
         { "name": "keyword.operator.klugh",            "match": "~" },
-        { "name": "keyword.operator.klugh",            "match": "-(?=[a-z?])" },
+        { "name": "keyword.operator.klugh",            "match": "-(?=[a-zA-Z?])" },
+        { "name": "keyword.operator.arithmetic.klugh", "match": "-" },
         { "name": "keyword.operator.assignment.klugh", "match": "=" }
       ]
     },
@@ -62,10 +75,16 @@
       "beginCaptures": { "0": { "name": "punctuation.section.annotation.begin.klugh" } },
       "endCaptures":   { "0": { "name": "punctuation.section.annotation.end.klugh" } },
       "patterns": [
-        { "name": "keyword.other.klugh",         "match": "\\b(history|at|strength|importance)\\b" },
+        {
+          "name": "keyword.other.klugh",
+          "match": "\\b(ever|asserted-during|during|when|tick|ago|degrees|dist|importance|strength|name)\\b"
+        },
         { "name": "punctuation.separator.klugh", "match": ":" },
+        { "include": "#string" },
         { "include": "#number" },
-        { "include": "#variable" }
+        { "include": "#variable" },
+        { "include": "#named-wildcard" },
+        { "include": "#wildcard" }
       ]
     },
     "string": {
@@ -75,12 +94,16 @@
       "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.klugh" } },
       "endCaptures":   { "0": { "name": "punctuation.definition.string.end.klugh" } },
       "patterns": [
-        { "name": "variable.other.klugh", "match": "\\?[A-Z][A-Z0-9_]*" }
+        { "name": "variable.other.klugh", "match": "\\?[A-Za-z][A-Za-z0-9_]*" }
       ]
     },
     "variable": {
       "name": "variable.other.klugh",
-      "match": "\\?[A-Z][A-Z0-9_]*"
+      "match": "\\?[A-Za-z][A-Za-z0-9_]*"
+    },
+    "named-wildcard": {
+      "name": "variable.language.klugh",
+      "match": "(?<![a-zA-Z0-9])_[a-zA-Z0-9_]+"
     },
     "wildcard": {
       "name": "variable.language.klugh",
@@ -88,7 +111,7 @@
     },
     "number": {
       "name": "constant.numeric.klugh",
-      "match": "\\b\\d+(\\.\\d+)?\\b"
+      "match": "(?<![a-zA-Z0-9.])-?\\d+(\\.\\d+)?\\b"
     },
     "predicate": {
       "name": "entity.name.function.klugh",

@@ -27,6 +27,33 @@ function* walkPredicates(predicate) {
   if (predicate.innerPredicate) yield* walkPredicates(predicate.innerPredicate);
 }
 
+// A `not`/`~` premise only *filters* already-bound variables — it can never
+// generate candidates for them (the standard safety / range-restriction
+// condition that Datalog and ASP enforce at compile time). A variable that
+// appears only inside a negation, with no positive premise to bind it, makes
+// the rule silently yield nothing at evaluation time. Mirror RuleEvaluator's
+// binding check here so the author gets a heads-up at load rather than a rule
+// that quietly never fires.
+function warnUnsafeNegations(rule) {
+  const bindable = new Set();
+  for (const { predicate } of rule.predicateEntries) {
+    for (const v of predicate.getBindingVariables()) bindable.add(v.name);
+  }
+  const reported = new Set();
+  for (const { predicate } of rule.predicateEntries) {
+    for (const v of predicate.getRequiredBoundVariables()) {
+      if (bindable.has(v.name) || reported.has(v.name)) continue;
+      reported.add(v.name);
+      console.warn(
+        `Rule "${rule.name}": variable ?${v.name} appears only inside a negation, ` +
+        `with no positive premise to bind it. The rule will never fire unless ?${v.name} ` +
+        `is supplied via a starting binding. Bind ?${v.name} with a positive predicate ` +
+        `earlier in the conjunction.`
+      );
+    }
+  }
+}
+
 function warnUnboundOwners(rule) {
   const boundVars = new Set(rule.collectVariables().map(v => v.name));
   for (const { predicate } of rule.predicateEntries) {
@@ -66,6 +93,7 @@ export class RuleLoader {
     const effects = data.effects.map(e => this.buildStateOperation(e));
     const rule = new Rule(data.name, predicateEntries, effects);
     warnUnboundOwners(rule);
+    warnUnsafeNegations(rule);
     return rule;
   }
 

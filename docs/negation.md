@@ -100,3 +100,5 @@ rule "incorrect — ?Z would never be bound"
   not hostile(?SELF, ?Z)    // ?Z is unbound — always evaluates false
   => ...
 ```
+
+This is the standard *safety* (range-restriction) condition that Datalog and ASP enforce. klugh flags it at **load time**: a rule with a variable that appears only inside a negation, with no positive premise to bind it, emits a warning naming the variable (it will never fire unless that variable is supplied via a starting binding). The runtime — the rule yielding no applications — is the secondary safety net, mirroring how cycle detection warns at load and falls back to a runtime guard.

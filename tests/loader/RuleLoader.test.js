@@ -489,6 +489,46 @@ describe('RuleLoader', () => {
     });
   });
 
+  describe('unsafe negation warnings', () => {
+    function captureWarnings(fn) {
+      const warnings = [];
+      const orig = console.warn;
+      console.warn = (...args) => warnings.push(args.join(' '));
+      try { fn(); } finally { console.warn = orig; }
+      return warnings;
+    }
+
+    it('warns when a variable appears only inside a negation', () => {
+      // ?SELF and ?OTHER are constrained only by `not feuding(...)` — no positive
+      // premise binds them, so the rule can never fire on its own.
+      const warnings = captureWarnings(() => loader.load({
+        rules: [{
+          name: 'guard',
+          predicates: [
+            { type: 'negation', predicate: { type: 'fact', name: 'feuding', args: ['?SELF', '?OTHER'] } },
+          ],
+          effects: [{ type: 'adjust-numeric', name: 'tension', args: ['?SELF', '?OTHER'], delta: 1.0 }],
+        }],
+      }));
+      assert.ok(warnings.some(w => w.includes('?SELF') && w.includes('negation')));
+      assert.ok(warnings.some(w => w.includes('?OTHER')));
+    });
+
+    it('does not warn when the negated variable is bound by a positive premise', () => {
+      const warnings = captureWarnings(() => loader.load({
+        rules: [{
+          name: 'ok',
+          predicates: [
+            { type: 'fact', name: 'knows', args: ['?SELF', '?OTHER'] },
+            { type: 'negation', predicate: { type: 'fact', name: 'feuding', args: ['?SELF', '?OTHER'] } },
+          ],
+          effects: [{ type: 'adjust-numeric', name: 'tension', args: ['?SELF', '?OTHER'], delta: 1.0 }],
+        }],
+      }));
+      assert.strictEqual(warnings.length, 0);
+    });
+  });
+
   // Regression coverage for two real bugs found together: (1) a predicate
   // inside a count/aggregate conjunction was always tagged 'fact' regardless
   // of its actual schema type, so a *derived* predicate used inside |...|

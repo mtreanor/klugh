@@ -186,6 +186,24 @@ describe('RuleParser', () => {
       });
     });
 
+    it('parses a bare variable-to-variable comparison', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          knows(?X, ?Y) ^ ?X != ?Y
+          => close(?X, ?Y) += 1.0
+      `);
+      assert.deepEqual(rules[0].predicates[1], { type: 'var-comparison', left: '?X', operator: '!=', right: '?Y' });
+    });
+
+    it('parses a bare variable-to-literal comparison', () => {
+      const { rules } = parser.parse(`
+        rule "R1"
+          score(?X) > 0 ^ ?X != carol
+          => flag(?X) += 1.0
+      `);
+      assert.deepEqual(rules[0].predicates[1], { type: 'var-comparison', left: '?X', operator: '!=', right: 'carol' });
+    });
+
     it('parses [degrees: N] [dist: ?d] as a closure predicate', () => {
       const { rules } = parser.parse(`
         rule "R1"

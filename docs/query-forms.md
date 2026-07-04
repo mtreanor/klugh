@@ -107,10 +107,10 @@ rule "you can be introduced to friends of friends"
 
 `?OTHER` binds to each node within 2 hops of `?SELF` (friends, and friends-of-friends), one firing per node; the origin is excluded and each node counts once. A node that isn't reachable within N hops simply doesn't bind — there is no unbounded form (klugh forbids recursion; the bound is what keeps evaluation terminating, and in a social graph "within N degrees" is usually the quantity you actually mean).
 
-**Distance.** A stacked `[dist: ?d]` bracket binds the shortest hop-count:
+**Distance.** A stacked `[dist: ?d]` bracket binds the shortest hop-count, which you can then filter with a variable comparison (see [Variable comparison](#variable-comparison)):
 
 ```klugh
-knows(?SELF, ?OTHER) [degrees: 6] [dist: ?d]
+knows(?SELF, ?OTHER) [degrees: 6] [dist: ?d] ^ ?d <= 2    # friends-of-friends, no further
 ```
 
 **Context.** The endpoints are the first two arguments; any further arguments are fixed context carried through every hop, so `trades(?X, ?Y, wine) [degrees: 3]` chains buyer→seller through wine trades only.
@@ -193,6 +193,22 @@ A `derived` operand runs a full backward-chaining proof every time the compariso
 :::
 
 Operands must be the same kind: numeric (`numeric`, `sensor-numeric`) or boolean (`boolean`, `derived`, `sensor`). Mixing kinds is rejected at load, as are ordering operators (`>`, `>=`, `<`, `<=`) on boolean operands.
+
+---
+
+## Variable comparison
+
+A bound variable can be compared directly against a literal or another bound variable: `?v op rhs`. This is the form that filters variables bound *by enumeration* — a closure's distance (`[dist: ?d]`), a tick (`[when: ?t]`), or two entity variables you want to keep distinct.
+
+```klugh
+rule "close, but not already direct friends"
+  knows(?SELF, ?OTHER) [degrees: 4] [dist: ?d]
+  ^ ?d >= 2                    # skip direct friends
+  ^ ?SELF != ?OTHER            # (redundant here, but this is how you force distinctness)
+  => couldBeIntroduced(?SELF, ?OTHER) += 1
+```
+
+It's a pure **filter**: both operands must already be bound by some other (positive) premise — a variable that appears *only* in a comparison is flagged at load, like an unbound negation. `=` / `!=` compare by value or identity and work on any type (so `?SELF != ?ENEMY` excludes the same entity); the ordering operators (`>`, `>=`, `<`, `<=`) require both sides to be numbers.
 
 ---
 

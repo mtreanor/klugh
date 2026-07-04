@@ -1,4 +1,5 @@
 const AGGREGATE_FNS = new Set(['avg', 'sum', 'max', 'min', 'count']);
+const COMPARISON_OP_TYPES = new Set(['GT', 'GTE', 'LT', 'LTE', 'EQ', 'NEQ']);
 
 export class Lexer {
   constructor(source) {
@@ -435,6 +436,16 @@ export class DSLParser {
     if (this.check('MINUS') && (nextType === 'IDENT' || nextType === 'VARIABLE')) {
       this.advance();
       return { type: 'explicit-negation', predicate: this.parsePredicate() };
+    }
+
+    // Bare variable comparison: `?v op rhs` — e.g. `?d <= 2`, `?t = 5`,
+    // `?SELF != ?ENEMY`. A variable followed by a comparison operator, distinct
+    // from a private owner prefix (`?VAR.pred`), which is followed by a dot.
+    if (this.check('VARIABLE') && COMPARISON_OP_TYPES.has(this.tokens[this.pos + 1]?.type)) {
+      const left     = '?' + this.advance().value;
+      const operator = this.parseComparisonOperator('variable comparison');
+      const right    = this.parseArg();
+      return { type: 'var-comparison', left, operator, right };
     }
 
     const owner = this.parseOwnerPrefix();

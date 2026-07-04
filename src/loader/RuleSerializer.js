@@ -47,6 +47,9 @@ export class RuleSerializer {
     if (pred.type === 'numeric-value') {
       return `${pred.name}(${this.serializeArgs(pred.args)}) ${pred.operator} ${pred.threshold}`;
     }
+    if (pred.type === 'var-comparison') {
+      return `${this.serializeArg(pred.left)} ${pred.operator} ${this.serializeArg(pred.right)}`;
+    }
     if (pred.type === 'comparison') {
       const left  = `${pred.left.name}(${this.serializeArgs(pred.left.args)})`;
       const right = `${pred.right.name}(${this.serializeArgs(pred.right.args)})`;

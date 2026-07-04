@@ -13,6 +13,7 @@ import { HistoricalWindowPredicate } from '../predicates/HistoricalWindowPredica
 import { DuringPredicate } from '../predicates/DuringPredicate.js';
 import { WhenPredicate } from '../predicates/WhenPredicate.js';
 import { ClosurePredicate } from '../predicates/ClosurePredicate.js';
+import { VariableComparisonPredicate } from '../predicates/VariableComparisonPredicate.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
 import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
@@ -124,7 +125,7 @@ export class RuleLoader {
       return new PrivatePredicate(owner, inner, { isVariable: !!data.ownerVar });
     }
 
-    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison', 'aggregate', 'pred-aggregate-comparison'].includes(data.type);
+    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison', 'var-comparison', 'aggregate', 'pred-aggregate-comparison'].includes(data.type);
     if (this.predicateSchema && needsNameLookup) {
       if (!this.predicateSchema.hasDefinition(data.name)) {
         throw new Error(`Unknown predicate: "${data.name}" is not defined in the predicate schema`);
@@ -140,6 +141,12 @@ export class RuleLoader {
         return new DuringPredicate(data.name, this.resolveArgs(data.args), data.window);
       case 'when':
         return new WhenPredicate(data.name, this.resolveArgs(data.args), this.resolveArgs([data.tickVar])[0]);
+      case 'var-comparison':
+        return new VariableComparisonPredicate(
+          this.resolveArgs([data.left])[0],
+          data.operator,
+          this.resolveArgs([data.right])[0],
+        );
       case 'closure': {
         const args    = this.resolveArgs(data.args);
         const distVar = data.dist ? this.resolveArgs([data.dist])[0] : null;

@@ -187,6 +187,18 @@ describe('RuleSerializer', () => {
       assert.ok(dsl.includes('knows(?SELF, ?Y) [when: ?T]'));
     });
 
+    it('serializes a bare variable comparison', () => {
+      const withVar = serializer.serialize({
+        rules: [rule('R1', [{ type: 'var-comparison', left: '?X', operator: '!=', right: '?Y' }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+      assert.ok(withVar.includes('?X != ?Y'));
+
+      const withLiteral = serializer.serialize({
+        rules: [rule('R1', [{ type: 'var-comparison', left: '?D', operator: '<=', right: 2 }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],
+      });
+      assert.ok(withLiteral.includes('?D <= 2'));
+    });
+
     it('serializes a closure predicate as [degrees: N] [dist: ?d]', () => {
       const withDist = serializer.serialize({
         rules: [rule('R1', [{ type: 'closure', name: 'knows', args: ['?X', '?Y'], degrees: 3, dist: '?d' }], [{ type: 'adjust-numeric', name: 'test', args: [], delta: 1.0 }])],

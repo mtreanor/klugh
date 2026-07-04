@@ -202,6 +202,10 @@ Activity is reconstructed from the event log (an assert opens an interval; the n
 
 The tick variable is a *dependent* enumeration source — its candidates come from the fact's assertion events, so σ(ā) must be resolved first (the engine enumerates tick variables after the variables they depend on; tick variables are always sinks, so this ordering always exists). Once ?t' is bound (by this predicate, by reuse across two `[when:]` predicates, or by a filter such as `?t' = N`), the predicate reduces to a point check: was `p(ā)` asserted at exactly that tick.
 
+Inside an aggregate, `count|p(ā) [when: _t]|` treats `_t` as a *tick-kind* counting variable: candidates are the assertion events of `p(ā)` rather than entities from the registry, so the count is the number of assertion events.
+
+**Point-in-time state** `p(ā) [tick: T]` evaluates `p(ā)` as of absolute tick T (active per the last assert/retract at or before T). The relative form `p(ā) [ago: N]` evaluates at `t − N`. See [§17](#17-tick-model).
+
 **Temporal chain** `p₁(ā₁) then p₂(ā₂)`:
 > satisfied iff ∃ t₁ < t₂ ≤ t such that (asserted, t₁) ∈ rec(p₁, σ(ā₁), +) and (asserted, t₂) ∈ rec(p₂, σ(ā₂), +)
 
@@ -223,26 +227,48 @@ Let val(S, t, n, ā) ∈ [minValue_n, maxValue_n] be the current value of numeri
 
 If the value falls within no declared tier (a gap in the tier specification), it is assigned to the nearest tier by distance to interval endpoints.
 
-**Comparison** `n(ā) ⊕ k` where ⊕ ∈ {>, ≥, <, ≤, =}:
+**Comparison** `n(ā) ⊕ k` where ⊕ ∈ {>, ≥, <, ≤, =, ≠}:
 > satisfied iff val(S, t, n, σ(ā)) ⊕ k
+
+**Predicate-to-predicate comparison** `n₁(ā₁) ⊕ n₂(ā₂)` (numeric) or `p₁(ā₁) ⊕ p₂(ā₂)` (boolean, ⊕ ∈ {=, ≠} over three-valued state — true / false / unknown).
+
+**Variable comparison** `?v ⊕ rhs` where rhs is a literal or another bound variable. A pure filter: both operands must already be bound by a positive premise (or starting binding). `=` / `≠` compare by value or identity (any type); ordering operators require numbers.
+
+**Numeric expressions.** Either operand of a numeric comparison may be an expression e built from literals, bound variables, numeric predicates, and aggregates, with infix `+ − × ÷` (standard precedence, parentheses) and functions `min`, `max`, `abs`, `clamp`, `pow`. Evaluation yields a number or `null` (unbound operand or division by zero); a `null` operand makes the comparison unsatisfied. Bare forms (`n(ā) ⊕ k`, `n₁ ⊕ n₂`, `?v ⊕ rhs`) are unchanged when no arithmetic or function is present.
 
 ---
 
-## 9. Count predicate forms
+## 9. Bounded transitive closure
+
+`p(x, y, č) [degrees: N]` is the **bounded transitive closure** of relation p over its first two arguments, with any further arguments č held as fixed context across every hop.
+
+Let reach(x, N) be the set of distinct nodes reachable from x by a chain of 1..N ground edges of p (with context č), excluding x itself. Evaluation is a frontier BFS that terminates by the bound. Symmetric schema relations yield undirected reachability. The edge relation may be stored, derived, or sensor — neighbours are found by evaluating p per candidate target.
+
+> for each y ∈ reach(σ(x), N), produces a binding with y bound
+
+Optional `[dist: ?d]` binds the shortest hop-count (BFS layer) for each reached node. Inside an aggregate, `count|p(x, _) [degrees: N]|` treats the target as a *closure-kind* counting variable: candidates are the reachable set, so the count is |reach(σ(x), N)|.
+
+There is no unbounded form. Unreachable nodes simply do not bind.
+
+---
+
+## 10. Count predicate forms
 
 `|p₁(...) ^ ... ^ p_ℓ(...)| ⊕ k` counts how many entity combinations satisfy *every* predicate in the conjunction, then compares against a threshold. A single predicate (ℓ = 1) is the common case; `|p(...)| ⊕ k` and `count|p(...)| ⊕ k` are the same form (bare `|...|` is sugar for `count|...|`).
 
-Counting positions are the argument positions holding a wildcard `_`, across *all* of p₁,...,p_ℓ. Wildcards are shared by declared type, not by textual position: let τ₁,...,τₘ be the distinct types among all wildcard positions, and introduce one fresh counting variable c_j per distinct type τⱼ. Every `_` position whose declared type is τⱼ is bound to the same c_j — so a type appearing as a wildcard in two different pᵢ's forces those two positions to the same entity, not independent ones.
+Counting positions are argument positions holding a wildcard. A bare `_` is **anonymous**: each occurrence gets a fresh counting variable and never joins with another `_`. A **named wildcard** `_name` shares one counting variable across all its occurrences (occurrences of one name must agree on entity type). Tick-kind (`[when: _t]`) and closure-kind (`[degrees: N]` target) counting variables take their candidates from assertion events or the reachable set rather than the entity registry.
 
-> count(σ) = |\{ (e₁,...,eₘ) ∈ E_\{τ₁\} × ... × E_\{τₘ\} | p₁ ∧ ... ∧ p_ℓ are all satisfied under σ ∪ \{c₁↦e₁,...,cₘ↦eₘ\} \}|
+> count(σ) = |\{ (e₁,...,eₘ) ∈ C₁ × ... × Cₘ | p₁ ∧ ... ∧ p_ℓ are all satisfied under σ ∪ \{c₁↦e₁,...,cₘ↦eₘ\} \}|
+
+where Cⱼ is the candidate set for counting variable cⱼ (E_τ for ordinary entity variables; assertion ticks or reachable nodes for tick-/closure-kind).
 
 > satisfied iff count(σ) ⊕ k
 
-Each pᵢ is evaluated by Layer 1. The count itself is two-valued (a natural number); the conjunction inside the pipes has no truth-degree of its own; a combination either satisfies every pᵢ and is counted, or it doesn't and isn't.
+Each pᵢ is evaluated by Layer 1. The count itself is two-valued (a natural number); the conjunction inside the pipes has no truth-degree of its own; a combination either satisfies every pᵢ and is counted, or it doesn't and isn't. Aggregates `avg`/`sum`/`max`/`min` reduce a numeric value predicate over the same combination space; an empty match set yields `null` (comparison unsatisfied).
 
 ---
 
-## 10. Private store routing
+## 11. Private store routing
 
 A predicate form with owner prefix routes evaluation to the named entity's private store rather than the world store.
 
@@ -256,7 +282,7 @@ All predicate forms — including all negation operators, numeric tiers, and com
 
 ---
 
-## 11. Variable binding constraints
+## 12. Variable binding constraints
 
 During evaluation, free variables in a predicate form are enumerated over the entity set for their declared type. Two constraints restrict the candidate bindings:
 
@@ -270,7 +296,7 @@ These constraints are part of the binding procedure, not the Belnap valuation.
 
 ---
 
-## 12. Conjunction and satisfaction score
+## 13. Conjunction and satisfaction score
 
 The LHS of a rule or query is a conjunction C₁ ∧ ... ∧ Cₙ. Each conjunct Cᵢ carries an **importance weight** wᵢ ≥ 0, defaulting to 1.0.
 
@@ -288,7 +314,7 @@ Under the two-layer architecture, satisfactionScore determines how much of a rul
 
 ---
 
-## 13. Derived predicates (backward chaining)
+## 14. Derived predicates (backward chaining)
 
 A **definition** D = (body, head) consists of a conjunctive body C₁ ∧ ... ∧ Cₘ and a conclusion predicate call d(ā) where d has schema kind `derived`.
 
@@ -314,7 +340,7 @@ Results are memoized per (predicate name, ground arguments, store scope, tick). 
 
 ---
 
-## 14. Forward chaining and fixpoint
+## 15. Forward chaining and fixpoint
 
 A **rule** R = (name, LHS, effects) fires for a binding σ under world W at tick t when the LHS conjunction is satisfied under σ (strictly, or above an application-defined satisfactionScore threshold).
 
@@ -330,6 +356,8 @@ Effects are Layer 2 operations applied to the appropriate store:
 | `not -p(ā)` | Retract the active disbelief fact, if present |
 | `n(ā) += δ` | Adjust numeric value by δ, clamped to [minValue, maxValue] |
 | `n(ā) = k` | Set numeric value to k, clamped to [minValue, maxValue] |
+
+In **rule** effects, δ and k may be numeric expressions (same grammar as comparison operands: infix arithmetic, `min`/`max`/`abs`/`clamp`/`pow`, operands = literals / bound variables / numeric predicates). The expression is evaluated per firing; `+=`/`-=` deltas are then scaled by satisfactionScore and clamped. A `null` result (unbound operand, division by zero) skips the effect. Bare literals remain plain numbers. Expressions are not yet supported in action effects or for actuator predicates.
 
 Each effect is applied to the store indicated by any owner prefix, or the world store by default.
 
@@ -361,7 +389,7 @@ The typical usage pattern — boolean LHS, numeric-only RHS — is unaffected: n
 
 ---
 
-## 15. Forward and backward chaining interaction
+## 16. Forward and backward chaining interaction
 
 ### Backward chaining during a forward-chaining pass
 
@@ -383,7 +411,7 @@ Derived predicates cannot appear as effects on the RHS of rules — they are nev
 
 ---
 
-## 16. Tick model
+## 17. Tick model
 
 ### What a tick is
 

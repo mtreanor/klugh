@@ -113,6 +113,7 @@ Sensors are stateless and ephemeral — they have no persistent record in any fa
 | Binding generation (unbound variables) | ✓ | Variables are enumerated by the rule evaluator; the sensor is called per candidate |
 | As premise in `define` | ✓ | Sensor predicates are valid premises in `define` blocks |
 | `[ever]` / `[asserted-during: N]` / `[during: N]` / `[when: ?t]` | ✗ | Requires a stored fact record |
+| `[degrees: N]` (as edge relation) | ✓ | Closure evaluates the sensor per candidate neighbour each hop |
 | `then` (temporal chain) | ✗ | Requires historical assertion timestamps |
 | Explicit negation (`-pred`) | ✗ | Explicit disbelief is a stored fact; sensors have no storage |
 | Negation as failure (`not pred`) | ✗ | Absence-from-store is undefined for sensors |

@@ -212,6 +212,32 @@ It's a pure **filter**: both operands must already be bound by some other (posit
 
 ---
 
+## Numeric expressions
+
+Either side of a numeric comparison can be a full expression — infix `+`, `-`, `*`, `/` with standard precedence and parentheses, and the functions `min`, `max`, `abs`, `clamp`, `pow`. Operands are literals, bound variables, numeric predicates, or aggregates:
+
+```klugh
+rule "the healthier party intimidates the weaker"
+  knows(?X, ?Y)
+  ^ health(?X) - health(?Y) > 10
+  => intimidates(?X, ?Y) += 1.0
+
+rule "half the distance still within trust"
+  knows(?SELF, ?OTHER) [degrees: 4] [dist: ?d]
+  ^ ?d / 2 <= trust(?SELF, ?OTHER)
+  => couldRelyOn(?SELF, ?OTHER)
+
+rule "above the local average"
+  warmth(?X, ?Y) >= avg|warmth(_, ?Y)| * 0.8
+  => wellLiked(?X, ?Y)
+```
+
+Exponentiation is `pow(base, exp)` — `^` is already the conjunction operator. Missing or unbound operands and division by zero propagate as `null`, so the comparison is false.
+
+The simple forms above (`pred op N`, `pred op pred`, `?v op rhs`) are unchanged: the expression path only applies when real arithmetic or a function is present. The same expression grammar appears in [rule effect values](state.md#computed-numeric-effects) and [action utility sources](actions.md#arithmetic-and-functions), with context-specific null handling (comparisons and effects skip on `null`; utility treats a missing operand as 0).
+
+---
+
 ## Count
 
 `|conjunction| > N` counts how many entity combinations satisfy every predicate in the conjunction, then compares the count to a threshold. Supports `< N`, `= N`, `>= N`, `<= N`, `!= N` as well. Use `_` for the positions being counted over. Bare `|...|` is sugar for `count|...|` — see [Aggregate](#aggregate) below, whose conjunction/filtering/wildcard-sharing rules apply identically. `count` has no numeric value predicate; every predicate in the conjunction is a filter.

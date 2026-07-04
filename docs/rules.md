@@ -24,7 +24,7 @@ rule "friendship creates a bond"
   => bondMembers(?b, ?X, ?Y)
 ```
 
-The LHS uses the forms documented in [Query forms](query-forms.md) and [Negation](negation.md). The RHS uses the state operations documented in [State files](state.md#state-operations), including [`new entity()`](actions.md#new-entity) and [`remove entity()`](actions.md#remove-entity) for entity lifecycle. Private-store prefixes work on both sides — see [Private stores](private-stores.md).
+The LHS uses the forms documented in [Query forms](query-forms.md) and [Negation](negation.md). The RHS uses the state operations documented in [State files](state.md#state-operations), including [computed numeric expressions](state.md#computed-numeric-effects) (`trust(?X, ?Y) += (respect(?X, ?Y) + goodwill(?X, ?Y)) / 2`), [`new entity()`](actions.md#new-entity), and [`remove entity()`](actions.md#remove-entity) for entity lifecycle. Private-store prefixes work on both sides — see [Private stores](private-stores.md).
 
 ---
 
@@ -58,7 +58,7 @@ Both constraints follow from argument types in the schema (`agent`, `knowledge`,
 
 ## Wildcards
 
-`_` (underscore) is an anonymous variable — it matches any entity but is not bound and cannot be referenced elsewhere in the rule.
+`_` (underscore) is an anonymous variable — it matches any entity but is not bound and cannot be referenced elsewhere in the rule. Each bare `_` is independent: two `_` positions never join.
 
 ```klugh
 rule "cautious when self has any unmet need"
@@ -66,6 +66,8 @@ rule "cautious when self has any unmet need"
   ^ hasNeed(?SELF, _)
   => cautious(?SELF, ?Y) += 1.0
 ```
+
+A **named wildcard** `_name` (e.g. `_p`, `_t`) is still unbound to the surrounding rule, but occurrences of the same name join within an aggregate conjunction — `count|knows(?SELF, _p) ^ trusts(?SELF, _p)|` counts people SELF both knows and trusts. Named wildcards are also how aggregates bind tick-kind variables (`count|friendsWith(?X, ?Y) [when: _t]|`) and how closure targets are counted (`count|knows(?SELF, _) [degrees: 3]|`). See [Query forms → Aggregate](query-forms.md#aggregate).
 
 ---
 

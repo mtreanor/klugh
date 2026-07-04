@@ -22,7 +22,13 @@ The closest label is **Datalog with extensions** — a conjunctive, function-fre
 - Private stores model agent-relative belief states, which is territory usually covered by modal epistemic logic (the *K* operator — "agent A believes P")
 
 **From temporal Datalog / event calculus:**
-- `[ever]`, `[asserted-during: N]`, backdating with `[tick: N]`, and temporal chains (`pred1 then pred2`) are the main distinguishing feature compared to standard Datalog. Event calculus does similar things more formally (it has *Happens*, *Initiates*, *Terminates* axioms), but klugh is more application-layer and less axiom-heavy.
+- Event checks (`[ever]`, `[asserted-during: N]`), state checks (`[tick: N]`, `[ago: N]`, `[during: N]`), event enumeration (`[when: ?t]`), backdating, and temporal chains (`pred1 then pred2`) are the main distinguishing feature compared to standard Datalog. Event calculus does similar things more formally (it has *Happens*, *Initiates*, *Terminates* axioms), but klugh is more application-layer and less axiom-heavy.
+
+**Bounded reach without recursion:**
+- Datalog's transitive closure is inherently recursive; klugh forbids recursion (cycle detection rejects self-dependent rules and definitions). `pred(?X, ?Y) [degrees: N]` supplies the one form that fits: reachability within a fixed hop bound, evaluated by a terminating BFS. Optional `[dist: ?d]` binds shortest-path distance. Unbounded closure (components, cycles, true distance) stays out by design.
+
+**Numeric expressions:**
+- Comparison operands, rule effect values, and action utility sources share an infix arithmetic grammar (`+ - * /`, `min`/`max`/`abs`/`clamp`/`pow`) over literals, bound variables, numeric predicates, and (in comparisons) aggregates. This is ordinary term-level arithmetic, not a separate constraint language.
 
 **From fuzzy / weighted logic:**
 - Importance weighting and satisfaction-score scoring don't appear in any of the above. A rule that is 50% satisfied producing a 50%-weighted effect is closer to fuzzy logic or utility scoring than to classical deduction.
@@ -43,7 +49,7 @@ The closest label is **Datalog with extensions** — a conjunctive, function-fre
 
 **vs. FOL:** Much more restricted (no quantifiers, no function symbols, closed world), but adds things FOL doesn't have — temporal queries, graded truth, mutable state.
 
-**vs. Datalog:** The main extensions are mutability, explicit negation (classical alongside NAF), temporal history, numeric aggregates, and graded truth. Datalog is the closest theoretical ancestor.
+**vs. Datalog:** The main extensions are mutability, explicit negation (classical alongside NAF), temporal history, bounded transitive closure, numeric aggregates and expressions, and graded truth. Datalog is the closest theoretical ancestor.
 
 **vs. ASP:** ASP handles complex negation and non-monotonic reasoning through *stable model semantics* — it computes a set of models rather than evaluating against a single store. klugh is simpler: one world, one store, evaluated procedurally. ASP is better for constraint satisfaction and combinatorial problems; klugh is better for tracking evolving state over time.
 

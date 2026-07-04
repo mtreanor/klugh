@@ -48,11 +48,19 @@ These predicate forms are valid in rule LHS conjunctions, queries, `define` defi
 | Explicit negation | `-trusts(?SELF, ?Y)` |
 | Negation as failure | `not hostile(?SELF, ?Y)` |
 | Weak negation | `~perceivedThreat(?SELF, ?Y)` |
-| Historical | `exploited(?SELF, ?Y) [ever]` |
-| Historical window | `exploited(?SELF, ?Y) [asserted-during: 3]` |
+| Historical event | `exploited(?SELF, ?Y) [ever]` |
+| Historical event window | `exploited(?SELF, ?Y) [asserted-during: 3]` |
+| Point-in-time state | `friends(?X, ?Y) [tick: -5]` / `[ago: 5]` |
+| State-range | `friends(?X, ?Y) [during: 5]` |
+| Event enumeration | `friendsWith(?X, ?Y) [when: ?t]` |
+| Bounded reach | `knows(?SELF, ?OTHER) [degrees: 3] [dist: ?d]` |
 | Numeric tier | `friendship.strong(?SELF, ?Y)` |
 | Numeric comparison | `bond(?SELF, ?Y) >= 40` |
+| Predicate comparison | `health(?X) > health(?Y)` |
+| Variable comparison | `?d <= 2` / `?SELF != ?ENEMY` |
+| Numeric expression | `health(?X) - health(?Y) > 10` |
 | Count | `\|knows(?SELF, _)\| >= 3` |
+| Aggregate | `avg\|warmth(_, ?SELF)\| > 60` |
 | Temporal chain | `knows(?SELF, ?Y) then exploited(?SELF, ?Y)` |
 | Importance weight | `knows(?SELF, ?Y) [importance: 2.0]` |
 | Private store | `?SELF.perceivedThreat(?Y, ?SELF)` |
@@ -101,9 +109,13 @@ rule "guilt lingers after exploitation"
   ^ exploited(?SELF, ?Y) [ever]
   ^ friendship.strong(?SELF, ?Y) [importance: 0.5]
   => respectful(?SELF, ?Y) += 4.0
+
+rule "trust grows with mutual regard"
+  knows(?X, ?Y)
+  => trust(?X, ?Y) += (respect(?X, ?Y) + goodwill(?X, ?Y)) / 2
 ```
 
-When conditions are partially satisfied, `satisfactionScore` scales the effect — useful for content selection and soft thresholds. Importance weights control the contribution of each predicate to the score.
+When conditions are partially satisfied, `satisfactionScore` scales the effect — useful for content selection and soft thresholds. Importance weights control the contribution of each predicate to the score. Rule effects can use full numeric expressions (`+ - * /`, `min`/`max`/`abs`/`clamp`/`pow`) for computed deltas; see [State files → Computed numeric effects](state.md#computed-numeric-effects).
 
 Named rulesets are declared in `project.config.json` and run by name:
 
@@ -154,7 +166,7 @@ action "offer help"
     toward(?SELF, ?Y) += 5
 ```
 
-Utility sources (constants, numeric predicates, rule-counting, aggregates) are summed to produce a score. The highest-scoring eligible action wins.
+Utility sources (constants, numeric predicates, rule-counting, aggregates) are summed to produce a score. Each source can itself be a numeric expression — `warmth(?SELF, ?Y) + trust(?SELF, ?Y) / 2`. The highest-scoring eligible action wins.
 
 An optional `info:` block describes the action itself — `tag(?this_action, social)`, where `?this_action` is the action — registering it as an `action` entity so the catalog is queryable with ordinary queries (`engine.query('tag(?a, social)')`). See [Actions](actions.md#info).
 

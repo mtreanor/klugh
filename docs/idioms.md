@@ -60,3 +60,58 @@ define "least admiring agent"
   warmth(?X, ?Y) = min|warmth(_, ?Y)|
   => leastAdmires(?X, ?Y)
 ```
+
+---
+
+## Bounded reach as a named relation
+
+Wrap `[degrees: N]` in a `define` so the reachable set has a name for provenance and reuse:
+
+```klugh
+define "extended circle"
+  knows(?SELF, ?OTHER) [degrees: 3]
+  => inMyCircle(?SELF, ?OTHER)
+```
+
+Filter by distance with a bare variable comparison:
+
+```klugh
+knows(?SELF, ?OTHER) [degrees: 6] [dist: ?d]
+^ ?d >= 2
+^ ?d <= 3
+=> couldBeIntroduced(?SELF, ?OTHER)
+```
+
+Count the bloc with an aggregate: `count|knows(?SELF, _) [degrees: 3]|` is reach; bare `count|knows(?SELF, _)|` is degree.
+
+---
+
+## Count assertion events, not duration
+
+`[when: _t]` inside `count|…|` counts how many times a fact was asserted — not how long it stayed true:
+
+```klugh
+rule "an on-and-off friendship never earns full trust"
+  count|friendsWith(?SELF, ?OTHER) [when: _t]| > 3
+  => trust(?SELF, ?OTHER) -= 10
+```
+
+Same-tick co-occurrence uses the standalone form: bind `?t` once and reuse it on a second `[when: ?t]`.
+
+---
+
+## Computed deltas from other numerics
+
+Rule effects can read other numeric predicates and combine them:
+
+```klugh
+rule "trust grows with mutual regard"
+  knows(?X, ?Y)
+  => trust(?X, ?Y) += (respect(?X, ?Y) + goodwill(?X, ?Y)) / 2
+
+rule "shock, but stay in range"
+  suffered(?X)
+  => morale(?X) = clamp(morale(?X) - 20, 0, 100)
+```
+
+Expressions are rule-effect only (not action effects or state files). The same grammar works in comparisons (`health(?X) - health(?Y) > 10`) and action utility sources.

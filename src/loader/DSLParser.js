@@ -12,6 +12,15 @@ function hasArithmetic(node) {
   return false;
 }
 
+// A bare literal expression collapses to a plain number, so an effect like
+// `+= 5` keeps its number and only compound values (`+= (a + b) / 2`) carry an
+// expression AST — existing effects/state stay byte-for-byte unchanged.
+function simplifyNumericExpr(node) {
+  if (node.xkind === 'num') return node.value;
+  if (node.xkind === 'neg' && node.operand.xkind === 'num') return -node.operand.value;
+  return node;
+}
+
 export class Lexer {
   constructor(source) {
     this.source = source;
@@ -571,11 +580,25 @@ export class DSLParser {
   }
 
   parseStateOperation() {
-    const op = this.parseStateOperationCore();
+    // Rule effects allow numeric expressions on the RHS (`+= (a + b) / 2`); they
+    // are `=>`-delimited so a greedy parse can't cross into the next effect.
+    const op = this.parseStateOperationCore(true);
     return this.applyStateModifiers(op, { allowTick: false });
   }
 
-  parseStateOperationCore() {
+  // Effect RHS value: a bare number (default) or, when `allowExpr`, a numeric
+  // expression simplified back to a plain number when it's just a literal.
+  parseEffectValue(allowExpr, negate) {
+    if (!allowExpr) {
+      const n = this.expect('NUMBER').value;
+      return negate ? -n : n;
+    }
+    let ast = this.parseExpression();
+    if (negate) ast = { xkind: 'neg', operand: ast };
+    return simplifyNumericExpr(ast);
+  }
+
+  parseStateOperationCore(allowExpr = false) {
     // 'new entity(type)' or 'new entity(type, nameOrVar)'
     if (this.check('IDENT', 'new')) {
       this.advance();
@@ -634,17 +657,17 @@ export class DSLParser {
 
     if (this.check('PLUS_EQ')) {
       this.advance();
-      const delta = this.expect('NUMBER').value;
+      const delta = this.parseEffectValue(allowExpr, false);
       return { type: 'adjust-numeric', name, args, delta, ...this.ownerFields(owner), strength: 1.0 };
     }
     if (this.check('MINUS_EQ')) {
       this.advance();
-      const delta = this.expect('NUMBER').value;
-      return { type: 'adjust-numeric', name, args, delta: -delta, ...this.ownerFields(owner), strength: 1.0 };
+      const delta = this.parseEffectValue(allowExpr, true);
+      return { type: 'adjust-numeric', name, args, delta, ...this.ownerFields(owner), strength: 1.0 };
     }
     if (this.check('EQ')) {
       this.advance();
-      const value = this.expect('NUMBER').value;
+      const value = this.parseEffectValue(allowExpr, false);
       return { type: 'set-numeric', name, args, value, ...this.ownerFields(owner), strength: 1.0 };
     }
 

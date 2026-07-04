@@ -1,5 +1,6 @@
 import { LogicalVariable } from '../LogicalVariable.js';
 import { StateOperation } from '../stateOperations/StateOperation.js';
+import { NumLiteral, VarRef, PredRef, FnCall, BinOp, Neg } from '../NumericExpression.js';
 
 export class StateOperationLoader {
   constructor(predicateSchema = null) {
@@ -46,6 +47,9 @@ export class StateOperationLoader {
       return new StateOperation('actuate', data.name, args, { negated });
     }
     if (schemaType === 'actuator-numeric') {
+      if (typeof data.delta === 'object' || typeof data.value === 'object') {
+        throw new Error(`Numeric expressions are not supported for actuator predicates yet ("${data.name}")`);
+      }
       if (data.type === 'adjust-numeric') {
         const op = data.delta >= 0 ? '+=' : '-=';
         return new StateOperation('actuate-numeric', data.name, args, {
@@ -72,11 +76,11 @@ export class StateOperationLoader {
         });
       case 'adjust-numeric':
         return new StateOperation('adjust-numeric', data.name, args, {
-          delta: data.delta, owner, ownerIsVariable: !!data.ownerVar,
+          delta: this.resolveEffectValue(data.delta), owner, ownerIsVariable: !!data.ownerVar,
         });
       case 'set-numeric':
         return new StateOperation('set-numeric', data.name, args, {
-          value: data.value, owner, ownerIsVariable: !!data.ownerVar, strength: data.strength ?? 1.0,
+          value: this.resolveEffectValue(data.value), owner, ownerIsVariable: !!data.ownerVar, strength: data.strength ?? 1.0,
         });
       default:
         throw new Error(`Unknown state operation type: "${data.type}"`);
@@ -92,5 +96,31 @@ export class StateOperationLoader {
       if (typeof arg === 'string' && arg.startsWith('?')) return new LogicalVariable(arg.slice(1));
       return arg;
     });
+  }
+
+  // A literal effect value stays a plain number; a compound value is an
+  // { xkind } AST node, built here into an evaluable NumericExpression.
+  resolveEffectValue(x) {
+    if (x && typeof x === 'object' && 'xkind' in x) return this.buildExpression(x);
+    return x;
+  }
+
+  buildExpression(node) {
+    switch (node.xkind) {
+      case 'num': return new NumLiteral(node.value);
+      case 'var': return new VarRef(this.resolveArgs([node.name])[0]);
+      case 'pred': {
+        const def = this.predicateSchema?.getDefinition(node.name);
+        if (this.predicateSchema && (!def || (def.type !== 'numeric' && def.type !== 'sensor-numeric'))) {
+          throw new Error(`"${node.name}" is not a numeric predicate and cannot appear in an effect expression`);
+        }
+        return new PredRef(node.name, this.resolveArgs(node.args));
+      }
+      case 'fn':  return new FnCall(node.name, node.args.map(a => this.buildExpression(a)));
+      case 'bin': return new BinOp(node.op, this.buildExpression(node.left), this.buildExpression(node.right));
+      case 'neg': return new Neg(this.buildExpression(node.operand));
+      case 'agg': throw new Error('Aggregates are not supported in effect expressions yet');
+      default:    throw new Error(`Unknown expression node: ${node.xkind}`);
+    }
   }
 }

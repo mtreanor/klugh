@@ -31,11 +31,14 @@ export class StateOperation {
       case 'retract':
         return `-${this.name}(${argsStr})`;
       case 'adjust-numeric': {
+        if (this.delta && typeof this.delta === 'object') {
+          return `${this.name}(${argsStr}) += ${this.delta.toString()}`;
+        }
         const op = this.delta >= 0 ? '+=' : '-=';
         return `${this.name}(${argsStr}) ${op} ${Math.abs(this.delta)}`;
       }
       case 'set-numeric':
-        return `${this.name}(${argsStr}) = ${this.value}`;
+        return `${this.name}(${argsStr}) = ${typeof this.value === 'object' ? this.value.toString() : this.value}`;
       case 'actuate':
         return this.negated ? `!${this.name}(${argsStr})` : `actuate:${this.name}(${argsStr})`;
       case 'actuate-numeric':

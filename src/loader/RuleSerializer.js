@@ -108,6 +108,12 @@ export class RuleSerializer {
     return `${rhs.fn}|${inner}|`;
   }
 
+  // An effect delta/value is a bare number, or a compound expression AST node.
+  serializeEffectValue(x) {
+    if (x && typeof x === 'object' && 'xkind' in x) return this.serializeExpr(x);
+    return String(x);
+  }
+
   serializeExpr(node) {
     switch (node.xkind) {
       case 'num':  return String(node.value);
@@ -160,10 +166,10 @@ export class RuleSerializer {
       return `not ${neg}${owner}${call}`;
     }
     if (effect.type === 'adjust-numeric') {
-      return `${owner}${call} += ${effect.delta}` + this.strengthSuffix(effect);
+      return `${owner}${call} += ${this.serializeEffectValue(effect.delta)}` + this.strengthSuffix(effect);
     }
     if (effect.type === 'set-numeric') {
-      return `${owner}${call} = ${effect.value}` + this.strengthSuffix(effect);
+      return `${owner}${call} = ${this.serializeEffectValue(effect.value)}` + this.strengthSuffix(effect);
     }
     throw new Error(`Cannot serialize rule effect type: "${effect.type}"`);
   }

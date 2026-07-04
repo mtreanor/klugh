@@ -127,6 +127,7 @@ export class World {
         provenance,
         world: this,
         satisfactionScore: app.satisfactionScore,
+        evaluationContext,
       });
       if (changed) fired.push(app);
       return changed;
@@ -160,6 +161,7 @@ export class World {
         world: this,
         satisfactionScore: app.satisfactionScore,
         scaleDelta,
+        evaluationContext,
       });
       if (changed) fired.push(app);
       return changed;

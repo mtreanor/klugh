@@ -49,8 +49,18 @@ function getTargetStores(operation, binding, queryHandlers, privateStores, targe
   };
 }
 
+// A numeric effect value is either a plain number or a NumericExpression node;
+// resolve it against the binding + context (null propagates).
+function resolveEffectNumber(x, binding, evaluationContext) {
+  if (x && typeof x === 'object' && typeof x.evaluate === 'function') {
+    return x.evaluate(binding, evaluationContext);
+  }
+  return x;
+}
+
 export function applyStateChange(operation, binding, queryHandlers, {
   deltaOverride   = null,
+  valueOverride   = null,
   privateStores   = null,
   targetFactStore = null,
   provenance      = null,
@@ -110,11 +120,19 @@ export function applyStateChange(operation, binding, queryHandlers, {
     }
     case 'adjust-numeric': {
       const numeric = queryHandlers.getHandler('numeric');
-      return numeric.adjustValue(operation.name, resolvedArgs, deltaOverride ?? operation.delta, evaluationContext, provenance);
+      const delta = deltaOverride ?? operation.delta;
+      if (delta && typeof delta === 'object') {
+        throw new Error(`Numeric expression effect on "${operation.name}" could not be evaluated here — expression effects are supported in rule effects, not action/queued effects`);
+      }
+      return numeric.adjustValue(operation.name, resolvedArgs, delta, evaluationContext, provenance);
     }
     case 'set-numeric': {
       const numeric = queryHandlers.getHandler('numeric');
-      const changed = numeric.setValue(operation.name, resolvedArgs, operation.value, evaluationContext, provenance);
+      const setTo = valueOverride ?? operation.value;
+      if (setTo && typeof setTo === 'object') {
+        throw new Error(`Numeric expression effect on "${operation.name}" could not be evaluated here — expression effects are supported in rule effects, not action/queued effects`);
+      }
+      const changed = numeric.setValue(operation.name, resolvedArgs, setTo, evaluationContext, provenance);
       if (strength !== 1.0) {
         const record = factStore.factHistory.findLast(r =>
           r.isCurrentlyActive() &&
@@ -218,18 +236,29 @@ export function applyEffects(effects, binding, queryHandlers, {
   action              = null,
   satisfactionScore   = 1.0,
   scaleDelta          = null,
+  evaluationContext   = null,
 } = {}) {
   let currentBinding = binding;
   let changed = false;
 
   for (const effect of effects) {
     let deltaOverride = null;
-    if (scaleDelta && effect.type === 'adjust-numeric') {
-      deltaOverride = scaleDelta(effect.delta, satisfactionScore);
+    let valueOverride = null;
+    // Numeric effect values may be expressions (e.g. `+= (a + b) / 2`); resolve
+    // to a number against the binding + context. A null result (an unbound
+    // operand or a division by zero) skips the effect. A literal is unchanged.
+    if (effect.type === 'adjust-numeric') {
+      const raw = resolveEffectNumber(effect.delta, currentBinding, evaluationContext);
+      if (raw === null) continue;
+      deltaOverride = scaleDelta ? scaleDelta(raw, satisfactionScore) : raw;
+    } else if (effect.type === 'set-numeric') {
+      const raw = resolveEffectNumber(effect.value, currentBinding, evaluationContext);
+      if (raw === null) continue;
+      valueOverride = raw;
     }
 
     const result = applyStateChange(effect, currentBinding, queryHandlers, {
-      privateStores, provenance, world, action, deltaOverride,
+      privateStores, provenance, world, action, deltaOverride, valueOverride,
     });
 
     if (effect.type === 'new-entity' && result && typeof result === 'object' && 'name' in result) {

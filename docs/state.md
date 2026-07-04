@@ -36,14 +36,30 @@ These operations appear in state files and on the RHS of rules.
 | `-pred(args)` | Assert explicit disbelief |
 | `not pred(args)` | Retract positive belief |
 | `not -pred(args)` | Retract explicit disbelief |
-| `pred(args) = N` | Set a numeric value |
-| `pred(args) += N` | Adjust a numeric value by +N |
-| `pred(args) -= N` | Adjust a numeric value by −N |
+| `pred(args) = expr` | Set a numeric value |
+| `pred(args) += expr` | Adjust a numeric value by +expr |
+| `pred(args) -= expr` | Adjust a numeric value by −expr |
 | `new entity(type[, name\|?var])` | Create an entity at runtime (see [Actions → new entity](actions.md#new-entity)) |
 | `remove entity(type, name\|?var)` | Remove an entity from the registry (see [Actions → remove entity](actions.md#remove-entity)) |
 | `record(?var)` | Mint an action occurrence (action effects only; see [Actions → Occurrences](actions.md#occurrences)) |
 
 `not` on the RHS means "make absent" — the same meaning it carries on the LHS. Each LHS check has a mirrored RHS effect with identical syntax.
+
+### Computed numeric effects
+
+In **rule** effects (not state files), the value of a numeric `=`/`+=`/`-=` can be a full numeric expression — infix `+ - * /` with precedence and parens, the functions `min`/`max`/`abs`/`clamp`/`pow`, and operands that are literals, bound variables, or numeric predicates:
+
+```klugh
+rule "trust grows with mutual regard"
+  knows(?X, ?Y)
+  => trust(?X, ?Y) += (respect(?X, ?Y) + goodwill(?X, ?Y)) / 2
+
+rule "clamp morale into range after a shock"
+  suffered(?X)
+  => morale(?X) = clamp(morale(?X) - 20, 0, 100)
+```
+
+The expression is evaluated per firing against the binding, then (for `+=`/`-=`) scaled by the rule's satisfaction score like a literal delta, and the result is clamped to the predicate's range. If any operand is unbound or a division is by zero the expression is `null` and the effect is skipped. A bare literal (`+= 5`) is just a number, unchanged. (Numeric expressions are not yet supported in *action* effects or for actuator predicates.)
 
 ### Single-valued assertions
 

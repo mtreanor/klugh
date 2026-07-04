@@ -1,3 +1,5 @@
+import { applyArithmetic } from '../numericOps.js';
+
 // Infix arithmetic over utility sources: `+`, `-`, `/`. (`*` stays its own
 // ProductUtilitySource.) Operands are ordinary utility sources, which already
 // return 0 for a missing value, so a missing term contributes 0 to the score
@@ -10,12 +12,7 @@ export class ArithmeticUtilitySource {
   }
 
   _combine(l, r) {
-    switch (this.op) {
-      case '+': return l + r;
-      case '-': return l - r;
-      case '/': return r === 0 ? 0 : l / r;
-    }
-    return 0;
+    return applyArithmetic(this.op, l, r, 0);
   }
 
   evaluate(binding, entityRegistry, evaluationContext) {

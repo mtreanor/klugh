@@ -1,7 +1,7 @@
+import { NUMERIC_FUNCTIONS } from '../numericOps.js';
+
 const AGGREGATE_FNS = new Set(['avg', 'sum', 'max', 'min', 'count']);
 const COMPARISON_OP_TYPES = new Set(['GT', 'GTE', 'LT', 'LTE', 'EQ', 'NEQ']);
-const ARITH_OP_TYPES = new Set(['PLUS', 'MINUS', 'STAR', 'SLASH']);
-const EXPR_FUNCTIONS = new Set(['min', 'max', 'abs', 'clamp', 'pow']);
 
 // True if a parsed expression node actually contains arithmetic or a function —
 // used to decide whether a comparison is a numeric expression comparison rather
@@ -784,35 +784,48 @@ export class DSLParser {
   }
 
   // ── Numeric expressions ─────────────────────────────────────────────────────
-  // Precedence-climbing parse: additive < multiplicative < unary < atom. Emits
-  // { xkind } AST nodes the loader turns into evaluable NumericExpression nodes.
+  // One precedence-climbing parser (additive < multiplicative < unary < atom),
+  // parameterised by how atoms are parsed and how nodes are built, so rule
+  // expressions and action-utility expressions share the same grammar.
 
-  parseExpression() { return this.parseAdditive(); }
+  parsePrecedenceExpression(config) {
+    return this._parseExprAdditive(config);
+  }
 
-  parseAdditive() {
-    let left = this.parseMultiplicative();
+  _parseExprAdditive(config) {
+    let left = this._parseExprMultiplicative(config);
     while (this.check('PLUS') || this.check('MINUS')) {
       const op = this.advance().value;
-      left = { xkind: 'bin', op, left, right: this.parseMultiplicative() };
+      left = config.makeBinary(op, left, this._parseExprMultiplicative(config));
     }
     return left;
   }
 
-  parseMultiplicative() {
-    let left = this.parseExprUnary();
+  _parseExprMultiplicative(config) {
+    let left = this._parseExprUnary(config);
     while (this.check('STAR') || this.check('SLASH')) {
       const op = this.advance().value;
-      left = { xkind: 'bin', op, left, right: this.parseExprUnary() };
+      left = config.makeBinary(op, left, this._parseExprUnary(config));
     }
     return left;
   }
 
-  parseExprUnary() {
+  _parseExprUnary(config) {
     if (this.check('MINUS')) {
       this.advance();
-      return { xkind: 'neg', operand: this.parseExprUnary() };
+      return config.makeUnary(this._parseExprUnary(config));
     }
-    return this.parseExprAtom();
+    return config.parseAtom();
+  }
+
+  // Rule/comparison/effect expressions emit { xkind } AST nodes the loader turns
+  // into evaluable NumericExpression nodes.
+  parseExpression() {
+    return this.parsePrecedenceExpression({
+      parseAtom:  () => this.parseExprAtom(),
+      makeBinary: (op, left, right) => ({ xkind: 'bin', op, left, right }),
+      makeUnary:  (operand) => ({ xkind: 'neg', operand }),
+    });
   }
 
   parseExprAtom() {
@@ -833,7 +846,7 @@ export class DSLParser {
       }
       this.advance(); // consume the name
       // Named function: min/max/abs/clamp/pow(args…).
-      if (EXPR_FUNCTIONS.has(name) && this.check('LPAREN')) {
+      if (NUMERIC_FUNCTIONS.has(name) && this.check('LPAREN')) {
         this.advance();
         const args = [this.parseExpression()];
         while (this.check('COMMA')) { this.advance(); args.push(this.parseExpression()); }

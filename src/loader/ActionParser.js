@@ -1,8 +1,8 @@
 import { Lexer, DSLParser } from './DSLParser.js';
+import { NUMERIC_FUNCTIONS } from '../numericOps.js';
 
 const AGGREGATORS = new Set(['sum', 'avg', 'min', 'max', 'count']);
 const RESERVED_SOURCES = new Set(['random']);
-const UTILITY_FUNCTIONS = new Set(['min', 'max', 'abs', 'clamp', 'pow']);
 
 class ActionDSLParser extends DSLParser {
   parse() {
@@ -198,57 +198,33 @@ class ActionDSLParser extends DSLParser {
   // A utility source is a full numeric expression: infix + - * / with
   // precedence and parens, min/max/abs/clamp/pow functions, over the utility
   // atoms (predicate, aggregate, rule, random, constant, private-store
-  // predicate). `*` keeps its own `product` node; `/` and `+`/`-` are
-  // `arithmetic`. The top-level block still sums these.
+  // predicate). Reuses the shared precedence parser (DSLParser); `*` keeps its
+  // own `product` node, `/` and `+`/`-` are `arithmetic`. The block still sums
+  // these.
   parseScaledUtilitySource() {
-    return this.parseUtilityAdditive();
-  }
-
-  parseUtilityAdditive() {
-    let left = this.parseUtilityMultiplicative();
-    while (this.check('PLUS') || this.check('MINUS')) {
-      const op = this.advance().value;
-      left = { type: 'arithmetic', op, left, right: this.parseUtilityMultiplicative() };
-    }
-    return left;
-  }
-
-  parseUtilityMultiplicative() {
-    let left = this.parseUtilityUnary();
-    while (this.check('STAR') || this.check('SLASH')) {
-      if (this.check('STAR')) {
-        this.advance();
-        left = { type: 'product', left, right: this.parseUtilityUnary() };
-      } else {
-        this.advance();
-        left = { type: 'arithmetic', op: '/', left, right: this.parseUtilityUnary() };
-      }
-    }
-    return left;
-  }
-
-  parseUtilityUnary() {
-    if (this.check('MINUS')) {
-      this.advance();
-      return { type: 'negate', operand: this.parseUtilityUnary() };
-    }
-    return this.parseUtilityFactor();
+    return this.parsePrecedenceExpression({
+      parseAtom:  () => this.parseUtilityFactor(),
+      makeBinary: (op, left, right) => op === '*'
+        ? { type: 'product', left, right }
+        : { type: 'arithmetic', op, left, right },
+      makeUnary:  (operand) => ({ type: 'negate', operand }),
+    });
   }
 
   parseUtilityFactor() {
     if (this.check('LPAREN')) {
       this.advance();
-      const e = this.parseUtilityAdditive();
+      const e = this.parseScaledUtilitySource();
       this.expect('RPAREN');
       return e;
     }
     // Named function: min/max/abs/clamp/pow(args). The `(` distinguishes the
     // two-argument function `min(a, b)` from the `min a b` aggregator.
-    if (this.check('IDENT') && UTILITY_FUNCTIONS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'LPAREN') {
+    if (this.check('IDENT') && NUMERIC_FUNCTIONS.has(this.peek().value) && this.tokens[this.pos + 1]?.type === 'LPAREN') {
       const name = this.advance().value;
       this.advance(); // consume (
-      const args = [this.parseUtilityAdditive()];
-      while (this.check('COMMA')) { this.advance(); args.push(this.parseUtilityAdditive()); }
+      const args = [this.parseScaledUtilitySource()];
+      while (this.check('COMMA')) { this.advance(); args.push(this.parseScaledUtilitySource()); }
       this.expect('RPAREN');
       return { type: 'function', name, args };
     }

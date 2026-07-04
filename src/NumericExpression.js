@@ -1,5 +1,6 @@
 import { LogicalVariable } from './LogicalVariable.js';
 import { toFactArg } from './entityValue.js';
+import { applyArithmetic, applyFunction } from './numericOps.js';
 
 // Numeric expression nodes: literals, bound variables, numeric predicate
 // references, aggregates, named functions, and infix arithmetic. Each evaluates
@@ -62,7 +63,7 @@ export class FnCall extends Expr {
   evaluate(binding, ctx) {
     const vs = this.args.map(a => a.evaluate(binding, ctx));
     if (vs.some(v => v === null)) return null;
-    return applyFn(this.name, vs);
+    return applyFunction(this.name, vs);
   }
   getVariables()      { return this.args.flatMap(a => a.getVariables()); }
   requiredVariables() { return this.args.flatMap(a => a.requiredVariables()); }
@@ -75,13 +76,7 @@ export class BinOp extends Expr {
     const l = this.left.evaluate(binding, ctx);
     const r = this.right.evaluate(binding, ctx);
     if (l === null || r === null) return null;
-    switch (this.op) {
-      case '+': return l + r;
-      case '-': return l - r;
-      case '*': return l * r;
-      case '/': return r === 0 ? null : l / r;
-    }
-    return null;
+    return applyArithmetic(this.op, l, r, null);
   }
   getVariables()      { return [...this.left.getVariables(), ...this.right.getVariables()]; }
   requiredVariables() { return [...this.left.requiredVariables(), ...this.right.requiredVariables()]; }
@@ -99,13 +94,3 @@ export class Neg extends Expr {
   toString() { return `-${this.operand.toString()}`; }
 }
 
-function applyFn(name, vs) {
-  switch (name) {
-    case 'min':   return Math.min(...vs);
-    case 'max':   return Math.max(...vs);
-    case 'abs':   return vs.length === 1 ? Math.abs(vs[0]) : null;
-    case 'pow':   return vs.length === 2 ? Math.pow(vs[0], vs[1]) : null;
-    case 'clamp': return vs.length === 3 ? Math.min(Math.max(vs[0], vs[1]), vs[2]) : null;
-  }
-  return null;
-}

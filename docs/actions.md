@@ -108,7 +108,22 @@ The engine does not enforce preconditions automatically. The caller is responsib
 
 ## `utility`
 
-Optional. One or more utility sources listed beneath the `utility` keyword. `action.score(binding, entityRegistry, ctx)` evaluates every source and returns their sum. Five source types are available and can be freely mixed in one action.
+Optional. One or more utility sources listed beneath the `utility` keyword. `action.score(binding, entityRegistry, ctx)` evaluates every source and returns their sum. Several source types are available and can be freely mixed in one action, and each source can be a full numeric expression (see [Arithmetic and functions](#arithmetic-and-functions)).
+
+### Arithmetic and functions
+
+Any utility source can be a numeric expression combining the source types below with infix `+`, `-`, `*`, `/` (standard precedence, parentheses to override) and the functions `min`, `max`, `abs`, `clamp`, `pow`:
+
+```klugh
+utility
+  warmth(?SELF, ?OTHER) + trust(?SELF, ?OTHER) / 2
+  clamp(?SELF.rapport(?OTHER) * 2, 0, 100)
+  -risk(?SELF, ?OTHER)
+```
+
+Operands may be any source — a numeric predicate (its value), a private-store predicate (`?SELF.pred(...)`), a `fn|...|` predicate aggregate, a `rule "..." => w` source, `random(...)`, or a constant. Since a source that has no value already scores **0**, a missing operand contributes 0 (the rest of the score still counts) rather than nulling the term; division by zero is 0. The score **breakdown** records each operator and function with its operands' contributions.
+
+`min(a, b)` (parenthesised, two-or-more args) is the function; `min a b` (a bare aggregator over a source list) and `min|...|` (a predicate aggregate) remain distinct — the `(` / list / `|` disambiguate.
 
 ### Constant
 

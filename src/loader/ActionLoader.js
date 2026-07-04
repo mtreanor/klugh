@@ -7,6 +7,9 @@ import { RuleUtilitySource } from '../utility/RuleUtilitySource.js';
 import { RandomUtilitySource } from '../utility/RandomUtilitySource.js';
 import { PredicateAggregateUtilitySource } from '../utility/PredicateAggregateUtilitySource.js';
 import { ProductUtilitySource } from '../utility/ProductUtilitySource.js';
+import { ArithmeticUtilitySource } from '../utility/ArithmeticUtilitySource.js';
+import { NegateUtilitySource } from '../utility/NegateUtilitySource.js';
+import { FunctionUtilitySource } from '../utility/FunctionUtilitySource.js';
 import { TextContentItem } from '../content/TextContentItem.js';
 import { LogicalVariable } from '../LogicalVariable.js';
 
@@ -104,6 +107,12 @@ export class ActionLoader {
       }
       case 'product':
         return new ProductUtilitySource(this.buildUtilitySource(data.left), this.buildUtilitySource(data.right));
+      case 'arithmetic':
+        return new ArithmeticUtilitySource(data.op, this.buildUtilitySource(data.left), this.buildUtilitySource(data.right));
+      case 'negate':
+        return new NegateUtilitySource(this.buildUtilitySource(data.operand));
+      case 'function':
+        return new FunctionUtilitySource(data.name, data.args.map(a => this.buildUtilitySource(a)));
       case 'aggregate':
         return new AggregateUtilitySource(data.aggregator, data.sources.map(s => this.buildUtilitySource(s)));
       case 'rule': {

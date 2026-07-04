@@ -50,6 +50,9 @@ export class RuleSerializer {
     if (pred.type === 'var-comparison') {
       return `${this.serializeArg(pred.left)} ${pred.operator} ${this.serializeArg(pred.right)}`;
     }
+    if (pred.type === 'expr-comparison') {
+      return `${this.serializeExpr(pred.left)} ${pred.operator} ${this.serializeExpr(pred.right)}`;
+    }
     if (pred.type === 'comparison') {
       const left  = `${pred.left.name}(${this.serializeArgs(pred.left.args)})`;
       const right = `${pred.right.name}(${this.serializeArgs(pred.right.args)})`;
@@ -103,6 +106,19 @@ export class RuleSerializer {
     // kind === 'aggregate'
     const inner = rhs.predicates.map(p => this.serializePredicate(p)).join(' ^ ');
     return `${rhs.fn}|${inner}|`;
+  }
+
+  serializeExpr(node) {
+    switch (node.xkind) {
+      case 'num':  return String(node.value);
+      case 'var':  return node.name;
+      case 'pred': return `${node.name}(${this.serializeArgs(node.args)})`;
+      case 'agg':  return `${node.fn}|${node.predicates.map(p => this.serializePredicate(p)).join(' ^ ')}|`;
+      case 'fn':   return `${node.name}(${node.args.map(a => this.serializeExpr(a)).join(', ')})`;
+      case 'bin':  return `(${this.serializeExpr(node.left)} ${node.op} ${this.serializeExpr(node.right)})`;
+      case 'neg':  return `-${this.serializeExpr(node.operand)}`;
+      default:     return '?';
+    }
   }
 
   serializeArg(arg) {

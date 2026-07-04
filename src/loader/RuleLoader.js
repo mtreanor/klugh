@@ -14,6 +14,8 @@ import { DuringPredicate } from '../predicates/DuringPredicate.js';
 import { WhenPredicate } from '../predicates/WhenPredicate.js';
 import { ClosurePredicate } from '../predicates/ClosurePredicate.js';
 import { VariableComparisonPredicate } from '../predicates/VariableComparisonPredicate.js';
+import { ExpressionComparisonPredicate } from '../predicates/ExpressionComparisonPredicate.js';
+import { NumLiteral, VarRef, PredRef, AggRef, FnCall, BinOp, Neg } from '../NumericExpression.js';
 import { TemporalChainPredicate } from '../predicates/TemporalChainPredicate.js';
 import { NumericComparisonPredicate } from '../predicates/NumericComparisonPredicate.js';
 import { SensorPredicate } from '../predicates/SensorPredicate.js';
@@ -125,7 +127,7 @@ export class RuleLoader {
       return new PrivatePredicate(owner, inner, { isVariable: !!data.ownerVar });
     }
 
-    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison', 'var-comparison', 'aggregate', 'pred-aggregate-comparison'].includes(data.type);
+    const needsNameLookup = !['negation', 'explicit-negation', 'not-negated', 'weak-negation', 'temporal-chain', 'count', 'private', 'at-tick', 'comparison', 'var-comparison', 'expr-comparison', 'aggregate', 'pred-aggregate-comparison'].includes(data.type);
     if (this.predicateSchema && needsNameLookup) {
       if (!this.predicateSchema.hasDefinition(data.name)) {
         throw new Error(`Unknown predicate: "${data.name}" is not defined in the predicate schema`);
@@ -146,6 +148,12 @@ export class RuleLoader {
           this.resolveArgs([data.left])[0],
           data.operator,
           this.resolveArgs([data.right])[0],
+        );
+      case 'expr-comparison':
+        return new ExpressionComparisonPredicate(
+          this.buildExpression(data.left),
+          data.operator,
+          this.buildExpression(data.right),
         );
       case 'closure': {
         const args    = this.resolveArgs(data.args);
@@ -431,6 +439,29 @@ export class RuleLoader {
 
   resolveArgs(args) {
     return this.stateOperationLoader.resolveArgs(args);
+  }
+
+  // Builds an evaluable NumericExpression node from an { xkind } AST node.
+  buildExpression(node) {
+    switch (node.xkind) {
+      case 'num': return new NumLiteral(node.value);
+      case 'var': return new VarRef(this.resolveArgs([node.name])[0]);
+      case 'pred': {
+        const def = this.predicateSchema?.getDefinition(node.name);
+        if (this.predicateSchema && (!def || (def.type !== 'numeric' && def.type !== 'sensor-numeric'))) {
+          throw new Error(`"${node.name}" is not a numeric predicate and cannot appear in a numeric expression`);
+        }
+        return new PredRef(node.name, this.resolveArgs(node.args));
+      }
+      case 'agg': {
+        const { filterPredicates, valuePred, countingVars, countingVarTypes } = this.buildAggregateInner(node.predicates, node.fn);
+        return new AggRef(new AggregatePredicate(node.fn, filterPredicates, valuePred, countingVars, countingVarTypes, null, null));
+      }
+      case 'fn':  return new FnCall(node.name, node.args.map(a => this.buildExpression(a)));
+      case 'bin': return new BinOp(node.op, this.buildExpression(node.left), this.buildExpression(node.right));
+      case 'neg': return new Neg(this.buildExpression(node.operand));
+      default:    throw new Error(`Unknown expression node: ${node.xkind}`);
+    }
   }
 
   // AST predicate type for a closure's edge relation, from its schema kind.

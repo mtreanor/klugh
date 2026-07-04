@@ -1,5 +1,16 @@
 const AGGREGATE_FNS = new Set(['avg', 'sum', 'max', 'min', 'count']);
 const COMPARISON_OP_TYPES = new Set(['GT', 'GTE', 'LT', 'LTE', 'EQ', 'NEQ']);
+const ARITH_OP_TYPES = new Set(['PLUS', 'MINUS', 'STAR', 'SLASH']);
+const EXPR_FUNCTIONS = new Set(['min', 'max', 'abs', 'clamp', 'pow']);
+
+// True if a parsed expression node actually contains arithmetic or a function —
+// used to decide whether a comparison is a numeric expression comparison rather
+// than one of the existing simple forms (pred op N, pred op pred, ?d op N).
+function hasArithmetic(node) {
+  if (!node) return false;
+  if (node.xkind === 'bin' || node.xkind === 'neg' || node.xkind === 'fn') return true;
+  return false;
+}
 
 export class Lexer {
   constructor(source) {
@@ -41,6 +52,7 @@ export class Lexer {
       if (ch === '>') { tokens.push(this.tok('GT',       '>')); this.pos++; continue; }
       if (ch === '<') { tokens.push(this.tok('LT',       '<')); this.pos++; continue; }
       if (ch === '*') { tokens.push(this.tok('STAR',     '*')); this.pos++; continue; }
+      if (ch === '/') { tokens.push(this.tok('SLASH',    '/')); this.pos++; continue; }
       if (ch === '^') { tokens.push(this.tok('CARET',    '^')); this.pos++; continue; }
       if (ch === '~') { tokens.push(this.tok('TILDE',    '~')); this.pos++; continue; }
       if (ch === '=') { tokens.push(this.tok('EQ',       '=')); this.pos++; continue; }
@@ -438,6 +450,24 @@ export class DSLParser {
       return { type: 'explicit-negation', predicate: this.parsePredicate() };
     }
 
+    // Numeric expression comparison: `expr op expr` where arithmetic or a
+    // function is actually involved — e.g. `health(?X) - health(?Y) > 10`,
+    // `?d / 2 <= trust(?X, ?Y)`. Attempted with backtracking so it only wins
+    // when it finds a comparison with real arithmetic; simple forms (a plain
+    // predicate premise, `pred op N`, `?d <= 2`) fall through untouched.
+    const exprStart = this.pos;
+    try {
+      const left = this.parseExpression();
+      if (COMPARISON_OP_TYPES.has(this.peek().type)) {
+        const operator = this.parseComparisonOperator('comparison');
+        const right    = this.parseExpression();
+        if (hasArithmetic(left) || hasArithmetic(right)) {
+          return { type: 'expr-comparison', left, operator, right };
+        }
+      }
+    } catch { /* not an expression comparison */ }
+    this.pos = exprStart;
+
     // Bare variable comparison: `?v op rhs` — e.g. `?d <= 2`, `?t = 5`,
     // `?SELF != ?ENEMY`. A variable followed by a comparison operator, distinct
     // from a private owner prefix (`?VAR.pred`), which is followed by a dot.
@@ -728,6 +758,73 @@ export class DSLParser {
     if (this.check('IDENT'))    return this.advance().value;
     const tok = this.peek();
     throw new Error(`Unexpected token '${tok.value}' in argument list at line ${tok.line}`);
+  }
+
+  // ── Numeric expressions ─────────────────────────────────────────────────────
+  // Precedence-climbing parse: additive < multiplicative < unary < atom. Emits
+  // { xkind } AST nodes the loader turns into evaluable NumericExpression nodes.
+
+  parseExpression() { return this.parseAdditive(); }
+
+  parseAdditive() {
+    let left = this.parseMultiplicative();
+    while (this.check('PLUS') || this.check('MINUS')) {
+      const op = this.advance().value;
+      left = { xkind: 'bin', op, left, right: this.parseMultiplicative() };
+    }
+    return left;
+  }
+
+  parseMultiplicative() {
+    let left = this.parseExprUnary();
+    while (this.check('STAR') || this.check('SLASH')) {
+      const op = this.advance().value;
+      left = { xkind: 'bin', op, left, right: this.parseExprUnary() };
+    }
+    return left;
+  }
+
+  parseExprUnary() {
+    if (this.check('MINUS')) {
+      this.advance();
+      return { xkind: 'neg', operand: this.parseExprUnary() };
+    }
+    return this.parseExprAtom();
+  }
+
+  parseExprAtom() {
+    if (this.check('LPAREN')) {
+      this.advance();
+      const e = this.parseExpression();
+      this.expect('RPAREN');
+      return e;
+    }
+    if (this.check('NUMBER'))   return { xkind: 'num', value: this.advance().value };
+    if (this.check('VARIABLE')) return { xkind: 'var', name: '?' + this.advance().value };
+    if (this.check('IDENT')) {
+      const name = this.peek().value;
+      // Aggregate value: fn|conjunction| (no trailing comparison — it's an operand).
+      if (AGGREGATE_FNS.has(name) && this.tokens[this.pos + 1]?.type === 'PIPE') {
+        const agg = this.parseAggregateExpr();
+        return { xkind: 'agg', fn: agg.fn, predicates: agg.predicates };
+      }
+      this.advance(); // consume the name
+      // Named function: min/max/abs/clamp/pow(args…).
+      if (EXPR_FUNCTIONS.has(name) && this.check('LPAREN')) {
+        this.advance();
+        const args = [this.parseExpression()];
+        while (this.check('COMMA')) { this.advance(); args.push(this.parseExpression()); }
+        this.expect('RPAREN');
+        return { xkind: 'fn', name, args };
+      }
+      // Numeric predicate reference.
+      this.expect('LPAREN');
+      const args = this.parseArgs();
+      this.expect('RPAREN');
+      return { xkind: 'pred', name, args };
+    }
+    const tok = this.peek();
+    throw new Error(`Unexpected token '${tok.value}' in numeric expression at line ${tok.line}`);
   }
 
   // ── Aggregate expressions ────────────────────────────────────────────────────
